@@ -1,2 +1,2 @@
-Start of the Transcendence Projecty
+Start of the Transcendence Project
 
