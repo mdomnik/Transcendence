@@ -12,3 +12,4 @@ build/
 
 # OS
 .DS_Store
+/generated/prisma

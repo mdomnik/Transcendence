@@ -1,0 +1,26 @@
+
+# latest node version
+FROM node:25.2.1-alpine3.23
+
+# main directory for build
+WORKDIR /app
+
+# copying package.json and package-lock.json
+COPY package*.json ./
+# installing all dependencies
+RUN npm install
+
+# copying the rest of the files
+COPY . .
+
+# generating ORM 
+RUN npx prisma generate
+
+# building nodejs instance
+RUN npm run build
+
+# exposing port 3000
+EXPOSE 3000
+
+# Starting the server
+CMD ["node", "dist/src/main.js"]
