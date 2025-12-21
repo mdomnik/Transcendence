@@ -20,6 +20,16 @@ services:
       - transcendenceDatabase
     ports:
       - "3000:3000"
-
+  frontend:
+    build:
+      context: ./frontend
+    container_name: transcendenceFrontend
+    restart: unless-stopped
+    env_file:
+      - frontend/.env
+    depends_on:
+      - backend
+    ports:
+      - "3001:3000"
 volumes:
   transcendenceDatabaseVolume:
