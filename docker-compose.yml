@@ -18,8 +18,6 @@ services:
       context: ./backend
     container_name: transcendenceBackend
     restart: unless-stopped
-    ports:
-      - "3000:3000"
     networks:
       - transcendenceNetwork
     env_file:
