@@ -1,8 +1,12 @@
+networks:
+  transcendenceNetwork:
 services:
   transcendenceDatabase:
     image: postgres:18.1-alpine3.23
     container_name: transcendenceDatabase
     restart: unless-stopped
+    networks:
+      - transcendenceNetwork
     env_file:
       - database/.env
     ports:
@@ -14,8 +18,16 @@ services:
       context: ./backend
     container_name: transcendenceBackend
     restart: unless-stopped
+    ports:
+      - "3000:3000"
+    networks:
+      - transcendenceNetwork
     env_file:
       - backend/.env
+    volumes:
+      - ./backend:/app
+      - /app/node_modules
+    command: npm run start:dev
     depends_on:
       - transcendenceDatabase
   frontend:
@@ -23,6 +35,8 @@ services:
       context: ./frontend
     container_name: transcendenceFrontend
     restart: unless-stopped
+    networks:
+      - transcendenceNetwork
     env_file:
       - frontend/.env
     depends_on:
@@ -31,6 +45,8 @@ services:
     image: nginx:alpine
     container_name: transcendenceNginx
     restart: unless-stopped
+    networks:
+      - transcendenceNetwork
     ports:
       - "8080:80"
     volumes:
