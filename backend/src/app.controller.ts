@@ -15,9 +15,10 @@ export class AppController {
     return this.appService.getTest();
   }
 
-  // @Get('data')
-  // getData(): {
-  //     return this.appService.getData();
-  // }
+  @Get('data')
+  getData(): string {
+    return this.appService.getData();
+  }
+
 
 }
