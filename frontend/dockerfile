@@ -1,5 +1,5 @@
 # Latest NodeJS image
-FROM node:25.2.1-alpine3.23
+FROM node:20-alpine
 
 # root directory
 WORKDIR /app
@@ -19,5 +19,5 @@ RUN npm run build
 
 EXPOSE 3000
 
-CMD ["npm", "start"]
+CMD ["npm", "run", "dev"]
 

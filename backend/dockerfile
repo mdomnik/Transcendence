@@ -1,6 +1,5 @@
-
 # latest node version
-FROM node:25.2.1-alpine3.23
+FROM node:20-alpine
 
 # main directory for build
 WORKDIR /app

@@ -6,5 +6,11 @@ export class AppService {
     return 'Hello World, This is a testa!';
   }
 
-  
+  getTest(): string {
+    return 'testing';
+  }
+
+  // getData(): {
+  //   return 
+  // }
 }
