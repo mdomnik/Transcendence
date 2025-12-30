@@ -1,25 +1,19 @@
-# latest node version
 FROM node:20-alpine
 
-# main directory for build
 WORKDIR /app
 
-# copying package.json and package-lock.json
 COPY package*.json ./
-# installing all dependencies
 RUN npm install
 
-# copying the rest of the files
 COPY . .
 
-# generating ORM 
 RUN npx prisma generate
-
-# building nodejs instance
 RUN npm run build
 
-# exposing port 3000
+COPY tools/entrypoint.sh /entrypoint.sh
+RUN chmod +x /entrypoint.sh
+
 EXPOSE 3000
 
-# Starting the server
+ENTRYPOINT ["/entrypoint.sh"]
 CMD ["npm", "run", "start:dev"]
