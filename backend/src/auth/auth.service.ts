@@ -5,8 +5,16 @@ import { AuthDto } from './dto';
 @Injectable()
 export class AuthService {
     constructor(private prisma: PrismaService) {}
-    signup(dto: AuthDto) {
-        console.log(dto);
+
+    async signup(dto: AuthDto) {
+        const user = await this.prisma.user.create({
+            data: {
+                email: dto.email,
+                password: dto.password
+            }
+        })
+        console.log('user created');
+        return user;
     }
 
     signin() {
