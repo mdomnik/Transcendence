@@ -7,16 +7,20 @@ export class QuestionDto {
     question: string;
 
     @IsString()
-    answer1: string;
+    answer_1: string;
     @IsString()
-    answer2: string;
+    answer_2: string;
     @IsString()
-    answer3: string;
+    answer_3: string;
     @IsString()
-    answer4: string;
+    answer_4: string;
 
     @IsInt()
     @Min(1)
     @Max(4)
-    c_answer: number;
+    answer_c: number;
+
+    @IsString()
+    @MaxLength(12)
+    subject_icon: string;
 }

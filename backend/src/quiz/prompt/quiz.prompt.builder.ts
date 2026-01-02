@@ -40,14 +40,16 @@ ${profile.distractorRules}
 
 Output format:
 Return a JSON array with exactly ${dto.qnum} objects.
+subject_icon is a set of 1-3 emojis best fitting to the topic; the icon should be identical in each question.
 
 Each object MUST contain:
 - question: string
-- answer1: string
-- answer2: string
-- answer3: string
-- answer4: string
-- c_answer: number (1-4)
+- answer_1: string
+- answer_2: string
+- answer_3: string
+- answer_4: string
+- answer_c: number (1-4)
+- subject_icon: string
 
 Hard constraints:
 - Output ONLY the JSON array.
