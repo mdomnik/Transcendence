@@ -1,1 +1,2 @@
-export * from './quiz.dto';
+export * from './question.dto';
+export * from './topic.dto';

@@ -20,24 +20,3 @@ export class QuestionDto {
     @Max(4)
     c_answer: number;
 }
-
-export class TopicDto {
-    @IsString()
-    @IsNotEmpty()
-    @MaxLength(100)
-    topic: string;
-
-    @Type(() => Number)
-    @IsInt()
-    @IsNotEmpty()
-    @Max(10)
-    @Min(1)
-    qnum: number;
-
-    @Type(() => Number)
-    @IsInt()
-    @IsNotEmpty()
-    @Max(3)
-    @Min(1)
-    difficulty: number;
-}
