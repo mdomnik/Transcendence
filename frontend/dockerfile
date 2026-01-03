@@ -1,0 +1,23 @@
+# Latest NodeJS image
+FROM node:25.2.1-alpine3.23
+
+# root directory
+WORKDIR /app
+
+# Copy dependecies
+COPY package*.json ./
+#install all dependencies
+RUN npm install
+
+# Copy the rest
+COPY . .
+
+# run node build
+RUN npm run build
+
+# Expose port 3000
+
+EXPOSE 3000
+
+CMD ["npm", "start"]
+
