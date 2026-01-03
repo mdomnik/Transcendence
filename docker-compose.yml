@@ -4,7 +4,7 @@ networks:
 
 services:
   db_postgresql:
-    image: postgres:16-alpine
+    image: postgres:16
     container_name: transcendenceDatabase
     restart: unless-stopped
     networks:
@@ -48,7 +48,7 @@ services:
     command: npm run dev
 
   server_nginx:
-    image: nginx:alpine
+    image: nginx:stable
     restart: unless-stopped
     networks:
       - transcendenceNetwork
