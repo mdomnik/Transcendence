@@ -59,17 +59,5 @@ services:
     depends_on:
       - frontend_nextjs
       - backend_nestjs
-  
-  llm_ollama:
-    image: ollama/ollama:latest
-    container_name: llm_ollama
-    restart: unless-stopped
-    networks:
-      - transcendenceNetwork
-    volumes:
-      - ollama_data:/root/.ollama
-    ports:
-      - "11434:11434"
 volumes:
     transcendenceDatabaseVolume:
-    ollama_data:
