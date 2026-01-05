@@ -5,6 +5,7 @@ import { QuizPromptBuilder } from './prompt/quiz.prompt.builder';
 import { QuizResponseParser } from './parser/quiz.response.parser';
 import { QuizService } from './quiz.service';
 import { AiService } from './ai/ai.service';
+import { QuizRepository } from './repository/quiz.repository';
 
 @Module({
     imports: [HttpModule],
@@ -12,7 +13,8 @@ import { AiService } from './ai/ai.service';
         QuizService,
         QuizPromptBuilder,
         QuizResponseParser,
-        AiService
+        AiService,
+        QuizRepository
     ],
     controllers: [quizController],
     exports: [QuizService],
