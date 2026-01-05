@@ -8,7 +8,7 @@ import { AiResponseException } from 'src/common/exceptions/ai-response.exception
 
 @Injectable()
 export class QuizResponseParser {
-  async parse(rawContent: string): Promise<QuestionDto[]> {
+  async parse(rawContent: string, difficulty: number): Promise<QuestionDto[]> {
     let parsed: unknown;
 
     try {
@@ -22,6 +22,10 @@ export class QuizResponseParser {
     }
 
     const questions = plainToInstance(QuestionDto, parsed);
+
+    for (const q of questions) {
+      q.difficulty = difficulty;
+    }
 
     await Promise.all(
       questions.map((q) => validateOrReject(q)),
