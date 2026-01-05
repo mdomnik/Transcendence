@@ -4,7 +4,7 @@ import { DIFFICULTY_PROFILES } from '../difficulty/difficulty.config';
 
 @Injectable()
 export class QuizPromptBuilder {
-  buildPayload(dto: TopicDto, model: string) {
+  buildPayload(dto: TopicDto, model: string, excludeQuestions: string) {
     const profile = DIFFICULTY_PROFILES[dto.difficulty];
 
     return {
@@ -12,8 +12,17 @@ export class QuizPromptBuilder {
       messages: [
         {
           role: 'system',
-          content:
-            'You are a quiz generation engine. You ONLY output valid JSON.',
+          content: `
+You are a quiz generation engine.
+You ONLY output valid JSON.
+
+Existing questions (DO NOT repeat or paraphrase these):
+${excludeQuestions}
+
+Hard rule:
+- Do NOT generate questions that are the same as, very similar to,
+  or rewordings of any question listed above.
+          `.trim(),
         },
         {
           role: 'user',
@@ -40,20 +49,25 @@ ${profile.distractorRules}
 
 Output format:
 Return a JSON array with exactly ${dto.qnum} objects.
-subject_icon is a set of 1-3 emojis best fitting to the topic; the icon should be identical in each question.
+subject_icon is a set of 1-3 emojis best fitting the topic.
+The icon MUST be identical in each question.
 
 Each object MUST contain:
 - question: string
-- answer_1: string
-- answer_2: string
-- answer_3: string
-- answer_4: string
-- answer_c: number (1-4)
 - subject_icon: string
+- answers: array of exactly 4 objects
+
+Each answer object MUST contain:
+- text: string
+- isCorrect: boolean (exactly ONE true per question)
+- position: number (1-4, unique)
 
 Hard constraints:
-- Output ONLY the JSON array.
-- No explanations or extra text.
+- answers array length MUST be exactly 4
+- positions MUST be 1, 2, 3, 4
+- Exactly ONE answer must have isCorrect = true
+- Output ONLY the JSON array
+- No explanations or extra text
           `.trim(),
         },
       ],
