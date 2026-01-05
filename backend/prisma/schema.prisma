@@ -107,6 +107,8 @@ model QuizTopic {
   title     String     @unique
   questions Question[]
 
+  requestCount Int @default(0)
+
   createdAt   DateTime     @default(now())
   updatedAt   DateTime     @updatedAt
   gameResults GameResult[]
@@ -125,6 +127,7 @@ model Question {
   createdAt DateTime  @default(now())
   updatedAt DateTime  @updatedAt
 
+  @@unique([topicId, text])
   @@index([topicId])
 }
 
