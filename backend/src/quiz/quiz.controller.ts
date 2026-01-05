@@ -1,9 +1,9 @@
-import { Controller, Get, Post, Query } from '@nestjs/common';
+import { Controller, Get, Post, Query, Req, UseGuards } from '@nestjs/common';
 import { TopicDto } from './dto';
-import { json } from 'stream/consumers';
 import { QuizService } from './quiz.service';
 import { Throttle } from '@nestjs/throttler';
-import { throttle } from 'rxjs';
+import { AuthGuard } from '@nestjs/passport';
+import { User } from 'src/common/decorators/user.decorator';
 
 @Controller('quiz')
 export class quizController {
@@ -11,11 +11,16 @@ export class quizController {
         private readonly quizService: QuizService,
     ) {}
 
-    @Throttle({ ai: { limit: 5, ttl: 60000 }} )
+    @UseGuards(AuthGuard('jwt'))
+    @Throttle({ ai: { limit: 5, ttl: 60000 } })
     @Get('questions')
-    async generateQuestions(
-        @Query() query: TopicDto,
+    async getQuestions(
+      @Query() query: TopicDto,
+      @User('id') userId: string,
     ) {
-        return this.quizService.generateQuestionSet(query);
+      return this.quizService.getQuestionSet(
+        query,
+        userId,
+      );
     }
 }
