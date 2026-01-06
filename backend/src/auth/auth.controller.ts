@@ -19,19 +19,7 @@ export class AuthController {
     signin(@Body() dto: SignInDto) {
         return this.authService.signin(dto);
     }
-    }
-
-    @Post('logout')
-    logout(@Res() res: Response) {
-        res.clearCookie('access_token', {
-            httpOnly: true,
-            sameSite: 'lax',
-            secure: false,
-            path: '/',
-        });
-        return res.status(200).json({ message: 'Logged out successfully' });
-    }
-
+    
     @Post('logout')
     logout(@Res() res: Response) {
         res.clearCookie('access_token', {
