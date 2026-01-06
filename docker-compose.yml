@@ -4,7 +4,7 @@ networks:
 
 services:
   db_postgresql:
-    image: postgres:16
+    image: pgvector/pgvector:pg16
     container_name: transcendenceDatabase
     restart: unless-stopped
     networks:
