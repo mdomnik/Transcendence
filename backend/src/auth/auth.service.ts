@@ -102,23 +102,6 @@ export class AuthService {
         return user;
     }
 
-//     async handleGoogleLogin(input: { email: string; googleId: string }) {
-//     const { email, googleId } = input;
-
-//     // Find by googleId first, then fallback to email
-    
-
-//     // Link existing account to Google if not linked yet
-//     if (!user.googleId) {
-//       user = await this.prisma.user.update({
-//         where: { id: user.id },
-//         data: { googleId },
-//       });
-//     }
-
-//     return user;
-//   }
-
   private async generateUniqueUsername(base: string) {
     let username = base;
     let i = 1;
