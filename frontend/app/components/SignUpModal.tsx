@@ -1,5 +1,7 @@
 "use client";
 
+import { useState } from "react";
+
 interface SignUpModalProps {
 	isOpen: boolean;
 	onClose: () => void;
@@ -10,10 +12,45 @@ const handleGoogleSignup = () => {
   window.location.href = "http://localhost:8080/api/auth/google/login";
 };
 
-
-
 export default function SignUpModal({ isOpen, onClose, onSwitchToLogin } : SignUpModalProps) {
+	const [username, setUsername] = useState("");
+	const [email, setEmail] = useState("");
+	const [password, setPassword] = useState("");
+	const [isLoading, setIsLoading] = useState(false);
+	const [error, setError] = useState("");
+
 	if (!isOpen) return null;
+
+	const handleSubmit = async (e: React.FormEvent) => {
+		e.preventDefault();
+		setError("");
+		setIsLoading(true);
+
+		try {
+			// Send credentials to backend
+			const response = await fetch('http://localhost:8080/api/auth/signup', {
+				method: 'POST',
+				headers: {
+					'Content-Type': 'application/json',
+				},
+				credentials: 'include', // Important: allows cookies
+				body: JSON.stringify({ username, email, password }),
+			});
+
+			if (!response.ok) {
+				const errorData = await response.json();
+				throw new Error(errorData.message || 'Signup failed');
+			}
+
+			// Signup successful - close modal and maybe redirect to login
+			onClose();
+			onSwitchToLogin(); // Switch to login modal
+		} catch (err: any) {
+			setError(err.message || "Signup failed. Please try again.");
+		} finally {
+			setIsLoading(false);
+		}
+	};
 
 	return (
 		<div className="fixed inset-0 z-50 flex items-center justify-center">
@@ -31,30 +68,43 @@ export default function SignUpModal({ isOpen, onClose, onSwitchToLogin } : SignU
 
         <h2 className="text-3xl font-bold text-[#CCD6F6] text-center">Sign Up</h2>
 
-        <form className="space-y-4">
+		{error && (
+          <div className="p-3 rounded-lg bg-red-500/10 border border-red-500/50 text-red-400 text-sm">
+            {error}
+          </div>
+        )}
+
+        <form onSubmit={handleSubmit} className="space-y-4">
 		  <input
-            type="Name"
-            placeholder="Name"
+            type="text"
+            placeholder="Username"
+			value={username}
+			onChange={(e) => setUsername(e.target.value)}
 			required
             className="w-full px-4 py-3 rounded-xl bg-[#0A192F] border border-[#64FFDA]/30 text-[#CCD6F6] placeholder-[#8892B0] focus:outline-none focus:border-[#64FFDA] transition-colors"
           />
           <input
             type="email"
             placeholder="Email"
+			value={email}
+			onChange={(e) => setEmail(e.target.value)}
 			required
             className="w-full px-4 py-3 rounded-xl bg-[#0A192F] border border-[#64FFDA]/30 text-[#CCD6F6] placeholder-[#8892B0] focus:outline-none focus:border-[#64FFDA] transition-colors"
           />
           <input
             type="password"
             placeholder="Password"
+			value={password}
+			onChange={(e) => setPassword(e.target.value)}
 			required
             className="w-full px-4 py-3 rounded-xl bg-[#0A192F] border border-[#64FFDA]/30 text-[#CCD6F6] placeholder-[#8892B0] focus:outline-none focus:border-[#64FFDA] transition-colors"
           />
           <button
             type="submit"
-            className="w-full px-8 py-3 rounded-xl bg-gradient-to-r from-[#64FFDA] to-[#5EEAD4] text-[#0A192F] font-semibold shadow-lg hover:scale-105 hover:shadow-[#64FFDA]/25 transition-all duration-200"
+			disabled={isLoading}
+            className="w-full px-8 py-3 rounded-xl bg-gradient-to-r from-[#64FFDA] to-[#5EEAD4] text-[#0A192F] font-semibold shadow-lg hover:scale-105 hover:shadow-[#64FFDA]/25 transition-all duration-200 disabled:opacity-50 disabled:hover:scale-100"
           >
-            Sign Up
+            {isLoading ? 'Signing up...' : 'Sign Up'}
           </button>
         </form>
         <p className="text-center text-[#8892B0]">

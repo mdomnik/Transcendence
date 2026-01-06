@@ -1,6 +1,6 @@
 import { Body, Controller, Get, Post, Req, Res, UseGuards } from '@nestjs/common';
 import { AuthService } from './auth.service';
-import { AuthDto } from './dto';
+import { AuthDto, SignInDto } from './dto';
 import { GoogleAuthGuard } from './strategy/Guards';
 import type { Request, Response } from 'express';
 import { User } from 'src/common/decorators/user.decorator';
@@ -16,8 +16,31 @@ export class AuthController {
     }
 
     @Post('signin')
-    signin(@Body() dto: AuthDto) {
+    signin(@Body() dto: SignInDto) {
         return this.authService.signin(dto);
+    }
+    }
+
+    @Post('logout')
+    logout(@Res() res: Response) {
+        res.clearCookie('access_token', {
+            httpOnly: true,
+            sameSite: 'lax',
+            secure: false,
+            path: '/',
+        });
+        return res.status(200).json({ message: 'Logged out successfully' });
+    }
+
+    @Post('logout')
+    logout(@Res() res: Response) {
+        res.clearCookie('access_token', {
+            httpOnly: true,
+            sameSite: 'lax',
+            secure: false,
+            path: '/',
+        });
+        return res.status(200).json({ message: 'Logged out successfully' });
     }
 
     @Get('google/login')
@@ -38,9 +61,7 @@ export class AuthController {
           maxAge: 15 * 60 * 1000,
         });
         console.log("access token: ", accessToken)
-        // TO DO 
-        // properly connect with front end
-        //access token has to work
-        return res.redirect('http://localhost:8080/dashboard');
+        // Redirect to homepage - frontend will check auth and redirect to dashboard
+        return res.redirect('http://localhost:8080/');
     }
 }

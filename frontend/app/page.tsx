@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { useRouter } from "next/navigation";
 import LoginModal from "./components/LoginModal";
 import Button from "./components/Button";
@@ -8,15 +8,24 @@ import SignUpModal from "./components/SignUpModal";
 import Dropdown from "./components/DropDown";
 import FloatingShapes from "./components/FloatingShapes";
 import TwoFaAuthentication from "./components/2FaAuthentication";
+import { useAuth } from "./context/AuthContext";
 
 export default function Home() {
   const router = useRouter();
+  const { user, loading } = useAuth();
   const [isLoginOpen, setIsLoginOpen] = useState(false);
   const [isSignUpOpen, setIsSignUpOpen] = useState(false);
   const [is2FAOpen, setIs2FAOpen] = useState(false);
 
+  // Redirect to dashboard if already authenticated
+  useEffect(() => {
+    if (!loading && user) {
+      router.push("/dashboard");
+    }
+  }, [user, loading, router]);
+
   const handleGoogleSignup = () => {
-    window.location.href = "https://localhost:8080/api/auth/google/login";
+    window.location.href = "http://localhost:8080/api/auth/google/login";
   };
 
   const handleLoginSuccess = () => {
@@ -31,6 +40,20 @@ export default function Home() {
     setIs2FAOpen(false);
     router.push("/dashboard");
   };
+
+  // Show loading state while checking auth
+  if (loading) {
+    return (
+      <main className="relative min-h-screen bg-[#0A192F] flex items-center justify-center">
+        <div className="text-[#64FFDA] text-xl">Loading...</div>
+      </main>
+    );
+  }
+
+  // Don't show login page if authenticated (will redirect)
+  if (user) {
+    return null;
+  }
 
 
   return (
