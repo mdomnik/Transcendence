@@ -10,6 +10,7 @@ export class UserController {
         return {
             id: user.id,
             email: user.email,
+            username: user.username,
         }
     }
 }

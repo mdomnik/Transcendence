@@ -29,7 +29,7 @@ export class AuthService {
         } catch (error) {
             if (error instanceof PrismaClientKnownRequestError)
                 if (error.code === 'P2002')
-                    throw new ForbiddenException('Credentials taken');
+                    throw new ForbiddenException('Crednt.. taken');
             throw error;
         }
     }
@@ -47,7 +47,7 @@ export class AuthService {
         //if user doesnt exist throw exception
         if(!user)
             throw new ForbiddenException(
-                'Credentials incorrect',
+                'Crecg incorrect',
         );
         //compare password
         const pwMatches = user.password ? await argon.verify(
@@ -57,7 +57,7 @@ export class AuthService {
         //if password incorrect throw exception
         if(!pwMatches)
             throw new ForbiddenException(
-                'Credentials incorrect',
+                'Credir.. incorrect',
         );
         // send back the user
 

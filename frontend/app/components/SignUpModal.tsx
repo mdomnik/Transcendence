@@ -42,9 +42,9 @@ export default function SignUpModal({ isOpen, onClose, onSwitchToLogin } : SignU
 				throw new Error(errorData.message || 'Signup failed');
 			}
 
-			// Signup successful - close modal and maybe redirect to login
+			// Signup successful - redirect to dashboard
 			onClose();
-			onSwitchToLogin(); // Switch to login modal
+			window.location.href = '/dashboard';
 		} catch (err: any) {
 			setError(err.message || "Signup failed. Please try again.");
 		} finally {

@@ -37,7 +37,7 @@ export default function Dashboard() {
     return null;
   }
 
-  const userName = user.email?.split('@')[0] || "Player";
+  const userName = user.username || user.email?.split('@')[0] || "Player";
 
   return (
     <main className="relative min-h-screen bg-[#0A192F] overflow-hidden">
