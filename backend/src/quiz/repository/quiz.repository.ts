@@ -6,9 +6,9 @@ import { DIFFICULTY_FROM_INT } from '../domain/difficulty';
 @Injectable()
 export class QuizRepository {
     constructor(private readonly prisma: PrismaService) { }
-    
+
     async findUnseenQuestions(
-        topicTitle: string,
+        topicId: string,
         difficulty: number,
         userId: string,
     ) {
@@ -16,7 +16,7 @@ export class QuizRepository {
             where: {
                 difficulty: DIFFICULTY_FROM_INT[difficulty] ?? 'MEDIUM',
                 quizTopic: {
-                    title: topicTitle,
+                    id: topicId,
                 },
                 seenBy: {
                     none: {
@@ -141,7 +141,7 @@ export class QuizRepository {
     }
 
     async getAllQuestionsByTopicAndDifficutly(
-        topicId : string,
+        topicId: string,
         difficulty: number,
     ) {
         return this.prisma.question.findMany({
@@ -158,4 +158,51 @@ export class QuizRepository {
             },
         });
     }
+
+async findClosestTopic(embedding: number[]) {
+  const vectorLiteral = `[${embedding.join(',')}]`;
+
+  const sql = `
+    SELECT
+      id,
+      title,
+      embedding <=> '${vectorLiteral}'::vector AS distance
+    FROM "QuizTopic"
+    WHERE embedding IS NOT NULL
+    ORDER BY embedding <=> '${vectorLiteral}'::vector
+    LIMIT 1
+  `;
+
+  const result = await this.prisma.$queryRawUnsafe<
+    { id: string; title: string; distance: number }[]
+  >(sql);
+
+  return result[0] ?? null;
+}
+
+
+
+
+async createTopic(data: { title: string; embedding: number[] }) {
+  const vectorLiteral = `[${data.embedding.join(',')}]`;
+
+  const sql = `
+    INSERT INTO "QuizTopic" (id, title, embedding, "createdAt", "updatedAt")
+    VALUES (
+      gen_random_uuid(),
+      $1,
+      '${vectorLiteral}'::vector,
+      now(),
+      now()
+    )
+    RETURNING id, title
+  `;
+
+  const result = await this.prisma.$queryRawUnsafe<
+    { id: string; title: string }[]
+  >(sql, data.title);
+
+  return result[0];
+}
+
 }

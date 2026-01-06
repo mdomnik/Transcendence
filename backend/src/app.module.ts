@@ -4,11 +4,11 @@ import { AppController } from './app.controller';
 import { AppService } from './app.service';
 import { PrismaModule } from './prisma/prisma.module';
 import { AuthModule } from './auth/auth.module';
-import { quizModule } from './quiz/quiz.module';
 import { UserController } from './user/user.controller';
 import { ThrottlerGuard, ThrottlerModule } from '@nestjs/throttler';
 import { APP_GUARD } from '@nestjs/core';
 import { AiService } from './quiz/ai/ai.service';
+import { QuizModule } from './quiz/quiz.module';
 
 @Module({
   imports: [
@@ -24,7 +24,7 @@ import { AiService } from './quiz/ai/ai.service';
     }),
     PrismaModule,
     AuthModule,
-    quizModule],
+    QuizModule],
   controllers: [AppController, UserController],
   providers: [
     AppService,

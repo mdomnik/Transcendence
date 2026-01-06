@@ -108,6 +108,8 @@ model QuizTopic {
 
   requestCount Int @default(0)
 
+  embedding Unsupported("vector")?
+
   createdAt   DateTime     @default(now())
   updatedAt   DateTime     @updatedAt
   gameResults GameResult[]

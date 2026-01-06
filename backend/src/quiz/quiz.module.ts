@@ -1,22 +1,22 @@
 import { Module } from '@nestjs/common';
-import { quizController } from './quiz.controller';
 import { HttpModule } from '@nestjs/axios';
 import { QuizPromptBuilder } from './prompt/quiz.prompt.builder';
 import { QuizResponseParser } from './parser/quiz.response.parser';
 import { QuizService } from './quiz.service';
 import { AiService } from './ai/ai.service';
 import { QuizRepository } from './repository/quiz.repository';
+import { EmbeddingModule } from './ai/embedding/embedding.module';
+import { AiModule } from './ai/ai.module';
+import { QuizController } from './quiz.controller';
 
 @Module({
-    imports: [HttpModule],
+    imports: [HttpModule, AiModule, EmbeddingModule],
     providers: [
         QuizService,
         QuizPromptBuilder,
         QuizResponseParser,
-        AiService,
-        QuizRepository
+        QuizRepository,
     ],
-    controllers: [quizController],
-    exports: [QuizService],
+    controllers: [QuizController],
 })
-export class quizModule {}
+export class QuizModule {}

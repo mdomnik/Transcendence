@@ -6,23 +6,26 @@ import { AiService } from './ai/ai.service';
 import { queryObjects } from 'v8';
 import { QuizRepository } from './repository/quiz.repository';
 import { diff } from 'util';
+import { EmbeddingService } from './ai/embedding/embedding.service';
+import { Query } from 'pg';
+
+const TOPIC_SIMILARITY_THRESHOLD = 0.2;
+const MAX_EXCLUSIONS = 1000;
+const MAX_QUESTIONS_PER_DIFFICULTY = 1000;
 
 @Injectable()
 export class QuizService {
   constructor(
     private readonly quizRepository: QuizRepository,
+    private readonly embeddingService: EmbeddingService,
     private readonly aiService: AiService,
   ) {}
 
 async getQuestionSet(dto: TopicDto, userId: string) {
-  const MAX_EXCLUSIONS = 1000;
-  const MAX_QUESTIONS_PER_DIFFICULTY = 1000;
 
   const { topic, qnum, difficulty } = dto;
 
-  // See if topic exists, if doesn't create it; retrieve the Id (Later Add lexing)
-  const quizTopic = await this.quizRepository.findOrCreateTopic(topic);
-  const topicId = quizTopic.id;
+  const topicId = await this.findOrCreateEmbedding(topic);
 
   console.log('user:', userId, 'requesting topic:', dto);
   // Increment how many times users asked for that topic [Analytics]
@@ -41,7 +44,7 @@ async getQuestionSet(dto: TopicDto, userId: string) {
 
   // get the number of questions that user has seen under that topic and difficulty
   const unseenQuestions = await this.quizRepository.findUnseenQuestions(
-      topic,
+      topicId,
       difficulty,
       userId,
     );
@@ -156,4 +159,32 @@ console.log('=== END OF NEW GENERATED QUESTIONS ===');
     .sort(() => Math.random() - 0.5)
     .slice(0, count);
   }
+
+  async findOrCreateEmbedding(topic : string) {
+    
+    const inputEmbedding = await this.embeddingService.embed(topic);
+
+    const match = await this.quizRepository.findClosestTopic(inputEmbedding);
+
+    if (match)
+      console.log(`For topic: ${topic}, closest match: ${match.title}, distance: ${match.distance}`);
+    else
+      console.log('no match');
+
+    if (match && match.distance < TOPIC_SIMILARITY_THRESHOLD) {
+      return match.id;
+    }
+
+    const created = await this.quizRepository.createTopic({
+      title: topic,
+      embedding: inputEmbedding,
+    })
+
+    return created.id;
+  }
+
+async embedQuestions(query: string) {
+  console.log(query);
+  return this.embeddingService.embed(query);
+}
 }

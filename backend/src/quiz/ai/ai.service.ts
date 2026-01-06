@@ -27,7 +27,7 @@ export class AiService {
 
         console.log(`excludeQuestions: ${formattedExclusionQuestions}`);
 
-        const response = await this.send(payload);
+        const response = await this.sendChat(payload);
 
         const generatedArray = await this.parser.parse(
             response.choices[0].message.content,
@@ -37,11 +37,36 @@ export class AiService {
         return generatedArray;
     }
 
-    async send(payload: unknown): Promise<any> {
+    async sendChat(payload: unknown): Promise<any> {
         try {
             return await aiLimiter.schedule(async () => {
                 const response = await this.httpService.axiosRef.post(
-                    this.configService.getOrThrow('AI_API_URL'),
+                    this.configService.getOrThrow('CHAT_AI_API_URL'),
+                    payload,
+                    {
+                        headers: {
+                            Authorization: `Bearer ${this.configService.getOrThrow('AI_API_KEY')}`,
+                            'Content-Type': 'application/json',
+                        },
+                        timeout: 20_000,
+                    },
+                );
+
+                return response.data;
+            });
+        } catch (error) {
+            if (error?.response?.status === 429) {
+                throw new AiResponseException('AI rate limit reached');
+            }
+            throw new AiResponseException('AI provider failed');
+        }
+    }
+
+    async sendEmbed(payload: unknown): Promise<any> {
+        try {
+            return await aiLimiter.schedule(async () => {
+                const response = await this.httpService.axiosRef.post(
+                    this.configService.getOrThrow('EMBED_AI_API_URL'),
                     payload,
                     {
                         headers: {
