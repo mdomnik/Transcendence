@@ -16,8 +16,10 @@ datasource db {
 
 model User {
   id        String   @id @default(uuid())
+  googleId  String?  @unique
+  username  String   @unique
   email     String   @unique
-  password  String
+  password  String?
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 }
