@@ -6,10 +6,32 @@ import { PrismaModule } from './prisma/prisma.module';
 import { AuthModule } from './auth/auth.module';
 import { quizModule } from './quiz/quiz.module';
 import { UserController } from './user/user.controller';
+import { ThrottlerGuard, ThrottlerModule } from '@nestjs/throttler';
+import { APP_GUARD } from '@nestjs/core';
+import { AiService } from './quiz/ai/ai.service';
 
 @Module({
-  imports: [ConfigModule.forRoot({isGlobal: true}), PrismaModule, AuthModule, quizModule],
+  imports: [
+    ConfigModule.forRoot({ isGlobal: true }),
+    ThrottlerModule.forRoot({
+      throttlers: [
+        {
+          name: 'base',
+          ttl: 60000,
+          limit: 10,
+        },
+      ],
+    }),
+    PrismaModule,
+    AuthModule,
+    quizModule],
   controllers: [AppController, UserController],
-  providers: [AppService],
+  providers: [
+    AppService,
+    {
+      provide: APP_GUARD,
+      useClass: ThrottlerGuard
+    },
+  ],
 })
-export class AppModule {}
+export class AppModule { }

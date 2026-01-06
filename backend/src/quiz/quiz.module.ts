@@ -3,8 +3,9 @@ import { quizController } from './quiz.controller';
 import { HttpModule } from '@nestjs/axios';
 import { QuizPromptBuilder } from './prompt/quiz.prompt.builder';
 import { QuizResponseParser } from './parser/quiz.response.parser';
-import { AiClient } from './ai/ai.client';
 import { QuizService } from './quiz.service';
+import { AiService } from './ai/ai.service';
+import { QuizRepository } from './repository/quiz.repository';
 
 @Module({
     imports: [HttpModule],
@@ -12,7 +13,8 @@ import { QuizService } from './quiz.service';
         QuizService,
         QuizPromptBuilder,
         QuizResponseParser,
-        AiClient
+        AiService,
+        QuizRepository
     ],
     controllers: [quizController],
     exports: [QuizService],

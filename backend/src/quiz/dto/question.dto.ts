@@ -1,26 +1,51 @@
-import { Type } from "class-transformer";
-import { IsInt, IsNotEmpty, IsNumber, IsString, Max, MaxLength, Min } from "class-validator";
+import {
+  IsString,
+  IsInt,
+  IsNotEmpty,
+  Min,
+  Max,
+  MaxLength,
+  ValidateNested,
+  ArrayMinSize,
+  ArrayMaxSize,
+  IsBoolean,
+} from 'class-validator';
+import { Type } from 'class-transformer';
 
+
+class AnswerDto {
+  @IsString()
+  @IsNotEmpty()
+  text: string;
+
+  @IsBoolean()
+  isCorrect: boolean;
+
+  @Type(() => Number)
+  @IsInt()
+  @Min(1)
+  @Max(4)
+  position: number;
+}
 
 export class QuestionDto {
-    @IsString()
-    question: string;
+  @IsString()
+  @IsNotEmpty()
+  question: string;
 
-    @IsString()
-    answer_1: string;
-    @IsString()
-    answer_2: string;
-    @IsString()
-    answer_3: string;
-    @IsString()
-    answer_4: string;
+  @Type(() => Number)
+  @IsInt()
+  @Min(1)
+  @Max(3)
+  difficulty: number;
 
-    @IsInt()
-    @Min(1)
-    @Max(4)
-    answer_c: number;
+  @ValidateNested({ each: true })
+  @Type(() => AnswerDto)
+  @ArrayMinSize(4)
+  @ArrayMaxSize(4)
+  answers: AnswerDto[];
 
-    @IsString()
-    @MaxLength(12)
-    subject_icon: string;
+  @IsString()
+  @MaxLength(12)
+  subject_icon: string;
 }
