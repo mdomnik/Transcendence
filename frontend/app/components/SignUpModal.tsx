@@ -7,7 +7,7 @@ interface SignUpModalProps {
 }
 
 const handleGoogleSignup = () => {
-  window.location.href = "https://our-backend.com/auth/google";
+  window.location.href = "http://localhost:8080/api/auth/google/login";
 };
 
 
