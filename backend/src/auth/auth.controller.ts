@@ -30,7 +30,7 @@ export class AuthController {
     @UseGuards(GoogleAuthGuard)
     async handleRedirect(@User() user, @Res() res: Response) {
         // const user = await this.authService.handleGoogleLogin(googleUser);
-        const accessToken = await this.authService.signToken(user.id, user.email);
+        const accessToken = await this.authService.signToken(user.username, user.id, user.email);
         res.cookie('access_token', accessToken, {
           httpOnly: true,
           sameSite: 'lax',

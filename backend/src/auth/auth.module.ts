@@ -8,7 +8,7 @@ import { UserController } from 'src/user/user.controller';
 
 @Module({
   imports: [JwtModule.register({})],
-  controllers: [AuthController, UserController]
   providers: [AuthService, JwtStrategy, GoogleStrategy],
+  controllers: [AuthController, UserController],
 })
 export class AuthModule {}

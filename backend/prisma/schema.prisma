@@ -27,8 +27,8 @@ enum Difficulty {
 }
 
 model User {
-  googleId  String?  @unique
   id        String   @id @default(uuid())
+  googleId  String?  @unique
   username  String   @unique
   email     String   @unique
   password  String?
