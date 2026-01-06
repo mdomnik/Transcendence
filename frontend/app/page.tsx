@@ -16,7 +16,7 @@ export default function Home() {
   const [is2FAOpen, setIs2FAOpen] = useState(false);
 
   const handleGoogleSignup = () => {
-    window.location.href = "https://your-backend.com/auth/google";
+    window.location.href = "https://localhost:8080/api/auth/google/login";
   };
 
   const handleLoginSuccess = () => {

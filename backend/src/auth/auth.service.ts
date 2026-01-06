@@ -16,6 +16,7 @@ export class AuthService {
         try {
             const user = await  this.prisma.user.create({
                 data: {
+                    username: dto.username,
                     email: dto.email,
                     password: hash,
                 },
@@ -46,10 +47,10 @@ export class AuthService {
                 'Credentials incorrect',
         );
         //compare password
-        const pwMatches = await argon.verify(
+        const pwMatches = user.password ? await argon.verify(
             user.password,
             dto.password,
-        );
+        ) : null;
         //if password incorrect throw exception
         if(!pwMatches)
             throw new ForbiddenException(
@@ -81,4 +82,34 @@ export class AuthService {
             access_token: token,
         };
     }
+
+    async validateUser(email: string, googleId: string) {
+        console.log('Google Auth Service');
+        console.log(email, googleId);
+        let user = await this.prisma.user.findFirst({
+          where: { OR: [{ googleId }, { email }] },
+        });
+
+        if (!user) {
+          const baseUsername = email.split('@')[0];
+          const username = await this.generateUniqueUsername(baseUsername);
+      
+        user = await this.prisma.user.create({
+            data: { email, googleId, username },
+        });
+         return user;
+        }
+        return user;
+    }
+
+  private async generateUniqueUsername(base: string) {
+    let username = base;
+    let i = 1;
+
+    while (await this.prisma.user.findUnique({ where: { username } })) {
+      username = `${base}${i++}`;
+    }
+    return username;
+  }
+
 }
