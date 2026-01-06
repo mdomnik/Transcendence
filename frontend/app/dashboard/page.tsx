@@ -1,17 +1,43 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect } from "react";
+import { useRouter } from "next/navigation";
 import Button from "../components/Button";
 import Dropdown from "../components/DropDown";
 import FloatingShapes from "../components/FloatingShapes";
+import { useAuth } from "../context/AuthContext";
+import { logout } from "../lib/auth";
 
 export default function Dashboard() {
-  const [userName] = useState("Player"); // TODO: Get from auth context
+  const router = useRouter();
+  const { user, loading } = useAuth();
 
-  const handleLogout = () => {
-    // TODO: Clear auth tokens
-    window.location.href = "/";
+  // Redirect to login if not authenticated
+  useEffect(() => {
+    if (!loading && !user) {
+      router.push("/");
+    }
+  }, [user, loading, router]);
+
+  const handleLogout = async () => {
+    await logout(); // Now properly clears cookies and calls backend
   };
+
+  // Show loading state while checking auth
+  if (loading) {
+    return (
+      <main className="relative min-h-screen bg-[#0A192F] flex items-center justify-center">
+        <div className="text-[#64FFDA] text-xl">Loading...</div>
+      </main>
+    );
+  }
+
+  // Don't show dashboard if not authenticated (will redirect)
+  if (!user) {
+    return null;
+  }
+
+  const userName = user.email?.split('@')[0] || "Player";
 
   return (
     <main className="relative min-h-screen bg-[#0A192F] overflow-hidden">
@@ -34,7 +60,7 @@ export default function Dashboard() {
               </div>
             }
             userName={userName}
-            userEmail="player@example.com"
+            userEmail={user.email || ""}
             items={[
               { label: "Profile", onClick: () => window.location.href = "/profile" },
               { label: "Settings", onClick: () => window.location.href = "/settings" },

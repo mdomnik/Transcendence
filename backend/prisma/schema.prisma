@@ -5,8 +5,8 @@
 // Try Prisma Accelerate: https://pris.ly/cli/accelerate-init
 
 generator client {
-  provider = "prisma-client"
-  output   = "../generated/prisma"
+  provider     = "prisma-client"
+  output       = "../generated/prisma"
   moduleFormat = "cjs"
 }
 
@@ -14,13 +14,134 @@ datasource db {
   provider = "postgresql"
 }
 
+enum FriendStatus {
+  PENDING
+  ACCEPTED
+  BLOCKED
+}
+
+enum Difficulty {
+  EASY
+  MEDIUM
+  HARD
+}
 
 model User {
   id        String   @id @default(uuid())
-  email     String   @unique
-  firstName String?
-  password  String
+  googleId  String?  @unique
   username  String   @unique
+  email     String   @unique
+  password  String?
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
+
+  // relations
+  seenQuestions UserQuestion[]
+  stats         UserStats?
+  friendships   Friendship[]   @relation("UserFriendships")
+  friendOf      Friendship[]   @relation("FriendOf")
+  games         GameResult[]
+}
+
+model UserQuestion {
+  userId     String
+  questionId String
+
+  user     User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  question Question @relation(fields: [questionId], references: [id], onDelete: Cascade)
+
+  seenAt DateTime @default(now())
+
+  @@id([userId, questionId])
+  @@index([questionId])
+  @@index([userId])
+}
+
+model UserStats {
+  userId String @id
+  user   User   @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  gamesPlayed Int @default(0)
+  gamesWon    Int @default(0)
+  gamesLost   Int @default(0)
+
+  totalQuestions Int @default(0)
+  correctAnswers Int @default(0)
+
+  updatedAt DateTime @updatedAt
+}
+
+model Friendship {
+  id       String       @id @default(uuid())
+  userId   String
+  friendId String
+  status   FriendStatus @default(PENDING)
+
+  user   User @relation("UserFriendships", fields: [userId], references: [id], onDelete: Cascade)
+  friend User @relation("FriendOf", fields: [friendId], references: [id], onDelete: Cascade)
+
+  createdAt DateTime @default(now())
+
+  @@unique([userId, friendId])
+}
+
+model GameResult {
+  id     String @id @default(uuid())
+  userId String
+  user   User   @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  topicId String
+  topic   QuizTopic @relation(fields: [topicId], references: [id])
+
+  score Int
+  won   Boolean
+
+  playedAt DateTime @default(now())
+
+  @@index([userId])
+}
+
+model QuizTopic {
+  id        String     @id @default(uuid())
+  title     String     @unique
+  questions Question[]
+
+  requestCount Int @default(0)
+
+  createdAt   DateTime     @default(now())
+  updatedAt   DateTime     @updatedAt
+  gameResults GameResult[]
+}
+
+model Question {
+  id         String     @id @default(uuid())
+  topicId    String
+  text       String
+  difficulty Difficulty @default(MEDIUM)
+
+  answers Answer[]
+  seenBy  UserQuestion[]
+
+  quizTopic QuizTopic @relation(fields: [topicId], references: [id], onDelete: Cascade)
+  createdAt DateTime  @default(now())
+  updatedAt DateTime  @updatedAt
+
+  @@unique([topicId, text])
+  @@index([topicId])
+}
+
+model Answer {
+  id         String @id @default(uuid())
+  questionId String
+
+  text      String
+  isCorrect Boolean
+  position  Int
+
+  question Question @relation(fields: [questionId], references: [id], onDelete: Cascade)
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@unique([questionId, position])
 }

@@ -13,7 +13,7 @@ const handleGoogleSignup = () => {
 };
 
 export default function LoginModal({ isOpen, onClose, onSwitchToSignUp, onLoginSuccess }: LoginModalProps) {
-  const [email, setEmail] = useState("");
+  const [identifier, setIdentifier] = useState("");
   const [password, setPassword] = useState("");
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState("");
@@ -26,19 +26,29 @@ export default function LoginModal({ isOpen, onClose, onSwitchToSignUp, onLoginS
     setIsLoading(true);
 
     try {
-      // TODO: Replace with actual API call
-      // const response = await fetch('/api/login', {
-      //   method: 'POST',
-      //   body: JSON.stringify({ email, password }),
-      // });
+      // Send credentials to backend
+      const response = await fetch('http://localhost:8080/api/auth/signin', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        credentials: 'include', // Important: allows cookies to be sent/received
+        body: JSON.stringify({ identifier, password }),
+      });
+
+      if (!response.ok) {
+        const errorData = await response.json();
+        throw new Error(errorData.message || 'Login failed');
+      }
+
+      // Backend returns JWT token as httpOnly cookie
+      // No need to manually store it - browser handles it automatically
+      const data = await response.json();
       
-      // Simulate API call
-      await new Promise(resolve => setTimeout(resolve, 1000));
-      
-      // On success, trigger 2FA
+      // On success, trigger 2FA or redirect
       onLoginSuccess();
-    } catch (err) {
-      setError("Invalid email or password");
+    } catch (err: any) {
+      setError(err.message || "Invalid email or password");
     } finally {
       setIsLoading(false);
     }
@@ -72,11 +82,11 @@ export default function LoginModal({ isOpen, onClose, onSwitchToSignUp, onLoginS
 
         <form className="space-y-4" onSubmit={handleSubmit}>
           <input
-            type="email"
-            placeholder="Email"
+            type="text"
+            placeholder="Email or Username"
             required
-            value={email}
-            onChange={(e) => setEmail(e.target.value)}
+            value={identifier}
+            onChange={(e) => setIdentifier(e.target.value)}
             className="w-full px-4 py-3 rounded-xl bg-[#0A192F] border border-[#64FFDA]/30 text-[#CCD6F6] placeholder-[#8892B0] focus:outline-none focus:border-[#64FFDA] transition-colors"
           />
           <input
