@@ -49,6 +49,8 @@ async getQuestionSet(dto: TopicDto, userId: string) {
       userId,
     );
 
+    console.log("unseen question count: ", unseenQuestions.length);
+
   // if user has seen all topics and there is no space for generation, return a set of random questions
   if (unseenQuestions.length < qnum && limitReached)
   {
