@@ -15,9 +15,7 @@ export class QuizRepository {
         return this.prisma.question.findMany({
             where: {
                 difficulty: DIFFICULTY_FROM_INT[difficulty] ?? 'MEDIUM',
-                quizTopic: {
-                    id: topicId,
-                },
+                topicId: topicId,
                 seenBy: {
                     none: {
                         userId,
