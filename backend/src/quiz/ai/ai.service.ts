@@ -25,7 +25,7 @@ export class AiService {
             formattedExclusionQuestions,
         );
 
-        console.log(`excludeQuestions: ${formattedExclusionQuestions}`);
+        // console.log(`excludeQuestions: ${formattedExclusionQuestions}`);
 
         const response = await this.sendChat(payload);
 
