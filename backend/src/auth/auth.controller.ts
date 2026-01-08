@@ -25,8 +25,9 @@ export class AuthController {
         res.clearCookie('access_token', {
             httpOnly: true,
             sameSite: 'lax',
-            secure: false,
+            secure: true,
             path: '/',
+            maxAge: 24 * 60 * 60 * 1000,
         });
         return res.status(200).json({ message: 'Logged out successfully' });
     }
@@ -45,11 +46,11 @@ export class AuthController {
         res.cookie('access_token', accessToken, {
           httpOnly: true,
           sameSite: 'lax',
-          secure: false, // true in production
+          secure: true, // true in production
           maxAge: 15 * 60 * 1000,
         });
         console.log("access token: ", accessToken)
         // Redirect to homepage - frontend will check auth and redirect to dashboard
-        return res.redirect('http://localhost:8080/');
+        return res.redirect('/');
     }
 }
