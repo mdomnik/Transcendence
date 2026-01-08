@@ -1,16 +1,17 @@
 import { HttpModule } from '@nestjs/axios';
 import { Module } from '@nestjs/common';
 import { AiService } from './ai.service';
-import { QuizPromptBuilder } from '../prompt/quiz.prompt.builder';
-import { QuizResponseParser } from '../parser/quiz.response.parser';
+import { PromptService } from '../prompt/prompt.service';
+import { ParserService } from '../parser/parser.service';
 
+// AI module
 @Module({
     imports: [HttpModule],
     providers: [
         AiService,
-        QuizPromptBuilder,
-        QuizResponseParser,
+        PromptService,
+        ParserService,
     ],
     exports: [AiService],
 })
-export class AiModule {}
+export class AiModule { }
