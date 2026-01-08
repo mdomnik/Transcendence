@@ -10,6 +10,7 @@ import { APP_GUARD } from '@nestjs/core';
 import { AiService } from './quiz/ai/ai.service';
 import { QuizModule } from './quiz/quiz.module';
 import { PublicApiModule } from './public-api/public-api.module';
+import { RedisModule } from './cache/redis.module';
 
 @Module({
   imports: [
@@ -26,13 +27,15 @@ import { PublicApiModule } from './public-api/public-api.module';
     PrismaModule,
     AuthModule,
     QuizModule,
-    PublicApiModule],
+    PublicApiModule,
+    RedisModule,
+  ],
   controllers: [AppController, UserController],
   providers: [
     AppService,
     {
       provide: APP_GUARD,
-      useClass: ThrottlerGuard
+      useClass: ThrottlerGuard,
     },
   ],
 })

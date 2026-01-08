@@ -19,6 +19,4 @@ export class AppController {
   getData(): string {
     return this.appService.getData();
   }
-
-
 }
