@@ -9,7 +9,7 @@ import { diff } from 'util';
 import { EmbeddingService } from './ai/embedding/embedding.service';
 import { Query } from 'pg';
 
-const TOPIC_SIMILARITY_THRESHOLD = 0.2;
+const TOPIC_SIMILARITY_THRESHOLD = 0.25;
 const MAX_EXCLUSIONS = 1000;
 const MAX_QUESTIONS_PER_DIFFICULTY = 1000;
 
