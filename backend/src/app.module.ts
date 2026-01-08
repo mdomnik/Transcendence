@@ -9,6 +9,7 @@ import { ThrottlerGuard, ThrottlerModule } from '@nestjs/throttler';
 import { APP_GUARD } from '@nestjs/core';
 import { AiService } from './quiz/ai/ai.service';
 import { QuizModule } from './quiz/quiz.module';
+import { PublicApiModule } from './public-api/public-api.module';
 
 @Module({
   imports: [
@@ -24,7 +25,8 @@ import { QuizModule } from './quiz/quiz.module';
     }),
     PrismaModule,
     AuthModule,
-    QuizModule],
+    QuizModule,
+    PublicApiModule],
   controllers: [AppController, UserController],
   providers: [
     AppService,
