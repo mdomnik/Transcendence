@@ -10,6 +10,7 @@ import { APP_GUARD } from '@nestjs/core';
 import { AiService } from './quiz/ai/ai.service';
 import { QuizModule } from './quiz/quiz.module';
 import { PublicApiModule } from './public-api/public-api.module';
+import { ParserModule } from './parser/parser.module';
 
 @Module({
   imports: [
@@ -26,7 +27,8 @@ import { PublicApiModule } from './public-api/public-api.module';
     PrismaModule,
     AuthModule,
     QuizModule,
-    PublicApiModule],
+    PublicApiModule,
+    ParserModule],
   controllers: [AppController, UserController],
   providers: [
     AppService,
