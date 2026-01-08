@@ -17,6 +17,7 @@ datasource db {
 enum FriendStatus {
   PENDING
   ACCEPTED
+  REJECTED
   BLOCKED
 }
 
@@ -38,8 +39,8 @@ model User {
   // relations
   seenQuestions UserQuestion[]
   stats         UserStats?
-  friendships   Friendship[]   @relation("UserFriendships")
-  friendOf      Friendship[]   @relation("FriendOf")
+  friendshipsSent     Friendship[] @relation("FriendshipsSent")
+  friendshipsReceived Friendship[] @relation("FriendshipsReceived")
   games         GameResult[]
 }
 
@@ -73,16 +74,20 @@ model UserStats {
 
 model Friendship {
   id       String       @id @default(uuid())
-  userId   String
-  friendId String
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
   status   FriendStatus @default(PENDING)
 
-  user   User @relation("UserFriendships", fields: [userId], references: [id], onDelete: Cascade)
-  friend User @relation("FriendOf", fields: [friendId], references: [id], onDelete: Cascade)
+  userId   String
+  friendId String
 
-  createdAt DateTime @default(now())
+  requester User @relation("FriendshipsSent",     fields: [userId],   references: [id])
+  addressee User @relation("FriendshipsReceived", fields: [friendId], references: [id])
 
   @@unique([userId, friendId])
+  
+  @@index([friendId, status])
+  @@index([userId, status])
 }
 
 model GameResult {
