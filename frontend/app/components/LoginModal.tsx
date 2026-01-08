@@ -9,7 +9,7 @@ interface LoginModalProps {
   onLoginSuccess: () => void;
 }
 const handleGoogleSignup = () => {
-  window.location.href = "http://localhost:8080/api/auth/google/login";
+  window.location.href = "/api/auth/google/login";
 };
 
 export default function LoginModal({ isOpen, onClose, onSwitchToSignUp, onLoginSuccess }: LoginModalProps) {
