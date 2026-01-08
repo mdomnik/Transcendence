@@ -1,3 +1,5 @@
+// interface of difficulty definition categories
+
 export interface DifficultyProfile {
   label: string;
   audience: string;
