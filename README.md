@@ -1,5 +1,46 @@
 Start of the Transcendence Project
 
+# Quiz Module / Vector Embedding - Module of Choice
+
+## Overview
+
+This project implements a custom **vector embedding** system that introduces semantic understanding of quiz topics inside the system. Instead of treating user input of topics as a literal string, this module helps us group semantically similar topics to automatically reuse or create database entries, through the use of AI-generated vector embeddings.
+
+This module demonstrates skill of AI integration and database-level vector operations.
+
+### Why this module?
+
+Normally quizzes rely on selecting a topic from a predetermined set of topics, which simplifies question group. However, since in our game anybody can generate quizzes on any topic, this makes a lot of issues become reality:
+- duplicate topics with different wording
+	- (e.g. "90s Tv shows" and "Television series from the 1990s")
+- duplicate topics cause of different typing
+	- (e.g. "Science" and "science)
+	- (e.g. "Lord of the rings" and "Lord   of   the Rings")
+-  Split question pools over several different DB entries
+-  Increased API usage and DB growth arising from duplicates
+
+The Vector Embedding module was chosen to tackle all these problems by introducing semantic equivalence, allowing the system to group through meaning, rather than input strings
+
+### Technical Challenges
+
+1. **Semantic similarity detection**
+	1. The Module converts topics strings into a set of 1536-dimensional embedding vectors using an external AI API. These vectors allow the system to find the semantic distance between topics instead of relying on user input.
+	2.  A Similarity threshold is set to determine semantically relevant actions
+		1.  < threshold = Topics are semantically similar; no new DB entry required
+		2.  > threshold = Topics are distinct, create a new DB entry
+2.  **Vector Database queries**
+	1. The system runs nearest-neighbor searches against stored embeddings to find the closest match to the topic vector.
+3.  **Topic Deduplication**
+	1. Semantically equivalent topics are merged
+	2. New topics are created only when semantically distinct
+	3. Question Generation is consistently grouped under correct topic
+4. **AI Integration**
+	1. Input normalization and validation
+	2. Strict Embedding format validation
+	3. Rate limiting for AI requests
+	4. Error handling for malformed requests
+
+
 # Public API
 
 ## Overview
