@@ -32,10 +32,20 @@ export class QuizGateway {
 
   @SubscribeMessage('room:join')
   async handleJoin(client: Socket, payload: { roomId: string }) {
-    await client.join(payload.roomId);
-
     const state = await this.quizService.getRoomState(payload.roomId);
+    if (!state) {
+      client.emit('room:error', { message: 'Room does not exist' });
+      return;
+    } else {
+      await client.join(payload.roomId);
+      client.emit('room:state', state);
+    }
+  }
 
-    client.emit('room:state', state);
+  @SubscribeMessage('room:create')
+  async handleCreate(client: Socket) {
+    const roomId = await this.quizService.createRoom();
+    await client.join(roomId);
+    client.emit('room:created', { roomId });
   }
 }

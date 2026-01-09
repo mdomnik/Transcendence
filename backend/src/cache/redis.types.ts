@@ -8,6 +8,7 @@ export interface RoomMeta {
 }
 
 export interface RoomPlayer {
+  userId: string;
   name: string;
   score: number;
   connected: boolean;

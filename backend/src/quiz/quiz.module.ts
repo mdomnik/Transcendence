@@ -10,10 +10,10 @@ import { QuizController } from './quiz.controller';
 import { QuizGateway } from './quiz.gateway';
 import { QuizService } from './quiz.service';
 import { RedisModule } from 'src/cache/redis.module';
-import { QuizRoomService } from './quiz-room.service';
+import { QuizRoomService } from './quiz-cache.service';
 
 @Module({
-  imports: [HttpModule, AiModule, EmbeddingModule],
+  imports: [HttpModule, AiModule, EmbeddingModule, RedisModule],
   providers: [
     QuizService,
     QuizPromptBuilder,

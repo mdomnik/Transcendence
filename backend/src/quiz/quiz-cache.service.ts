@@ -12,8 +12,9 @@ export class QuizRoomService {
       status: 'WAITING',
       round: 0,
     });
+  // Add first player to the room player list
 
-    await this.redis.expire(`quiz:room:${roomId}:meta`, 1800);
+    // await this.redis.expire(`quiz:room:${roomId}:meta`, 1800);
   }
   async getRoomState(roomId: string) {
     const meta = await this.redis.hgetall(`quiz:room:${roomId}:meta`);

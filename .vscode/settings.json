@@ -1,4 +1,11 @@
 {
     "prisma.pinToPrisma6": false,
-	"eslint.rules.customizations": [{ "rule": "*", "severity": "warn" }]
+	"eslint.rules.customizations": [
+		{
+			"rule": "*",
+			"severity": "warn"
+		}
+	],
+    "editor.insertSpaces": true,
+    "editor.tabSize": 2
 }

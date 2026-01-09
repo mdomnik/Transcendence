@@ -7,6 +7,9 @@ up:
 	docker compose up -d
 	$(MAKE) pull-llm
 
+rebuild:
+	docker compose up --build
+
 pull-llm:
 	docker exec -it $(OLLAMA_CONTAINER) ollama pull $(MODEL)
 

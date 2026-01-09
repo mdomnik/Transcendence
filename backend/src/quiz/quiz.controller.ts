@@ -15,5 +15,10 @@ export class QuizController {
   async getQuestions(@Query() query: TopicDto, @User('id') userId: string) {
     return this.quizService.getQuestionSet(query, userId);
   }
-  async ;
+  @Post('room')
+  async createTestRoom() {
+    // const roomId = crypto.randomUUID();
+    const roomId = await this.quizService.createRoom();
+    return { roomId };
+  }
 }

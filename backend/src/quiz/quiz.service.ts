@@ -10,7 +10,7 @@ import { QuizRepository } from './repository/quiz.repository';
 import { diff } from 'util';
 import { EmbeddingService } from './ai/embedding/embedding.service';
 import { Query } from 'pg';
-import { QuizRoomService } from './quiz-room.service';
+import { QuizRoomService } from './quiz-cache.service';
 
 const TOPIC_SIMILARITY_THRESHOLD = 0.25;
 const MAX_EXCLUSIONS = 1000;
@@ -26,11 +26,13 @@ export class QuizService {
   ) {}
   // Calling from quiz-room.service.ts to fetch cache data from redis
   async getRoomState(roomId: string) {
-    const state = await this.roomService.getRoomState(roomId);
-    return state;
+    return this.roomService.getRoomState(roomId);
   }
-  async createRoom(roomId: string) {
-    return this.roomService.createRoom(roomId);
+  async createRoom(): Promise<string> {
+    const roomId = crypto.randomUUID();
+    await this.roomService.createRoom(roomId);
+
+    return roomId;
   }
 
   async getQuestionSet(dto: TopicDto, userId: string) {
