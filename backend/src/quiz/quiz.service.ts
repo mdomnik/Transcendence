@@ -1,8 +1,11 @@
+/* eslint-disable @typescript-eslint/no-unsafe-argument */
+/* eslint-disable @typescript-eslint/no-unsafe-return */
 import { Injectable } from '@nestjs/common';
 import { TopicDto } from './dto';
 import { AiService } from './ai/ai.service';
 import { EmbeddingService } from './ai/embedding/embedding.service';
 import { RepositoryService } from './repository/repository.service';
+import { CacheService } from './cache/cache.service';
 
 // Maximum amount of previous questions passed down to the question generation prompt for exclusion.
 const MAX_EXCLUSIONS = 100;
@@ -16,7 +19,22 @@ export class QuizService {
     private readonly repositoryService: RepositoryService,
     private readonly embeddingService: EmbeddingService,
     private readonly aiService: AiService,
-  ) { }
+    private readonly cacheService: CacheService,
+  ) {}
+
+  // Calling from cache.service.ts to fetch cache data from redis
+  async getRoomState(roomId: string) {
+    return this.cacheService.getRoomState(roomId);
+  }
+  // Create data in the redis cache and
+  // returns the roomId for the backend socket to send it to frontend
+  async createRoom(): Promise<string> {
+    const roomId = crypto.randomUUID();
+    await this.cacheService.createRoom(roomId);
+    this.cacheService.createRoom(roomId);
+
+    return roomId;
+  }
 
   // Generates a set of questions based on Topic, amount of questions, and difficulty
   async getQuestionSet(dto: TopicDto, userId: string) {

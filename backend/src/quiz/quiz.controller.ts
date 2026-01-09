@@ -14,13 +14,13 @@ export class QuizController {
   @UseGuards(AuthGuard('jwt')) // Guard Requiring jwt authentication for call
   @Throttle({ ai: { limit: 5, ttl: 60000 } }) // Throttler that limits ip to max 5 calls per minute
   @Get('questions')
-  async getQuestions(
-    @Query() query: TopicDto,
-    @User('id') userId: string,
-  ) {
-    return this.quizService.getQuestionSet(
-      query,
-      userId,
-    );
+  async getQuestions(@Query() query: TopicDto, @User('id') userId: string) {
+    return this.quizService.getQuestionSet(query, userId);
+  }
+  @Post('room')
+  async createTestRoom() {
+    // const roomId = crypto.randomUUID();
+    const roomId = await this.quizService.createRoom();
+    return { roomId };
   }
 }

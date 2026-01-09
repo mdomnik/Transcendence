@@ -20,6 +20,13 @@ services:
       interval: 5s
       timeout: 5s
       retries: 5
+  cache_redis:
+    image: redis:7-alpine
+    container_name: cache_redis
+    ports:
+      - "6379:6379"
+    volumes:
+      - redisData:/data
   backend_nestjs:
     build: ./backend
     container_name: backend_nestjs
@@ -65,3 +72,4 @@ services:
       - backend_nestjs
 volumes:
     postgresDBVolume:
+    redisData:

@@ -10,6 +10,7 @@ import { APP_GUARD } from '@nestjs/core';
 import { AiService } from './quiz/ai/ai.service';
 import { QuizModule } from './quiz/quiz.module';
 import { PublicApiModule } from './public-api/public-api.module';
+import { RedisModule } from './redis/redis.module';
 import { ParserModule } from './parser/parser.module';
 
 @Module({
@@ -28,13 +29,15 @@ import { ParserModule } from './parser/parser.module';
     AuthModule,
     QuizModule,
     PublicApiModule,
-    ParserModule],
+    ParserModule,
+    RedisModule,
+  ],
   controllers: [AppController, UserController],
   providers: [
     AppService,
     {
       provide: APP_GUARD,
-      useClass: ThrottlerGuard
+      useClass: ThrottlerGuard,
     },
   ],
 })
