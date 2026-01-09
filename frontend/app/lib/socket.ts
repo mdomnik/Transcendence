@@ -6,6 +6,7 @@ export function getSocket(): Socket {
   if (!socket) {
     socket = io('https://localhost:3000/quiz', {
       transports: ['websocket'],
+      withCredentials: true,
     });
   }
   return socket;

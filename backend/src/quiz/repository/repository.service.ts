@@ -213,4 +213,11 @@ export class RepositoryService {
         return result[0];
     }
 
+    async getPlayerUsername(userId: string) {
+        return this.prisma.user.findUnique({
+            where: { id: userId },
+            select: { username: true },
+        });
+    }
+
 }

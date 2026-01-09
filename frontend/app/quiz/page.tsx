@@ -1,7 +1,7 @@
 'use client';
 
 import { useEffect, useState } from 'react';
-import { getSocket } from './lib/socket';
+import { getSocket } from '../lib/socket';
 
 export default function QuizPage() {
   const [roomId, setRoomId] = useState<string | null>(null);

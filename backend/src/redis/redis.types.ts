@@ -12,6 +12,7 @@ export interface RoomPlayer {
   name: string;
   score: number;
   connected: boolean;
+  isLeader: boolean;
 }
 
 export interface RoomQuestion {
