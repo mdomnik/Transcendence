@@ -6,6 +6,8 @@ services:
   redis:
     image: redis:7-alpine
     container_name: redis-cache
+    networks:
+      - transcendenceNetwork
     ports:
       - "6379:6379"
     volumes:

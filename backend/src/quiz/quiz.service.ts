@@ -29,8 +29,7 @@ export class QuizService {
   // returns the roomId for the backend socket to send it to frontend
   async createRoom(): Promise<string> {
     const roomId = crypto.randomUUID();
-    await this.cacheService.createRoom(roomId);
-    this.cacheService.createRoom(roomId);
+    await this.roomService.createRoom(roomId);
 
     return roomId;
   }
