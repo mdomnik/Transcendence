@@ -9,6 +9,9 @@ import { ThrottlerGuard, ThrottlerModule } from '@nestjs/throttler';
 import { APP_GUARD } from '@nestjs/core';
 import { AiService } from './quiz/ai/ai.service';
 import { QuizModule } from './quiz/quiz.module';
+import { FriendshipService } from './friendship/friendship.service';
+import { FriendshipModule } from './friendship/friendship.module';
+import { UserModule } from './user/user.module';
 
 @Module({
   imports: [
@@ -24,7 +27,9 @@ import { QuizModule } from './quiz/quiz.module';
     }),
     PrismaModule,
     AuthModule,
-    QuizModule],
+    QuizModule,
+    UserModule,
+    FriendshipModule],
   controllers: [AppController, UserController],
   providers: [
     AppService,
@@ -32,6 +37,7 @@ import { QuizModule } from './quiz/quiz.module';
       provide: APP_GUARD,
       useClass: ThrottlerGuard
     },
+    FriendshipService,
   ],
 })
 export class AppModule { }
