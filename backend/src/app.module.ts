@@ -10,7 +10,7 @@ import { APP_GUARD } from '@nestjs/core';
 import { AiService } from './quiz/ai/ai.service';
 import { QuizModule } from './quiz/quiz.module';
 import { PublicApiModule } from './public-api/public-api.module';
-import { RedisModule } from './cache/redis.module';
+import { RedisModule } from './redis/redis.module';
 
 @Module({
   imports: [

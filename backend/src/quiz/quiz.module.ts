@@ -9,8 +9,8 @@ import { AiModule } from './ai/ai.module';
 import { QuizController } from './quiz.controller';
 import { QuizGateway } from './quiz.gateway';
 import { QuizService } from './quiz.service';
-import { RedisModule } from 'src/cache/redis.module';
-import { QuizRoomService } from './quiz-cache.service';
+import { RedisModule } from 'src/redis/redis.module';
+import { CacheService } from './cache/cache.service';
 
 @Module({
   imports: [HttpModule, AiModule, EmbeddingModule, RedisModule],
@@ -20,7 +20,7 @@ import { QuizRoomService } from './quiz-cache.service';
     QuizResponseParser,
     QuizRepository,
     QuizGateway,
-    QuizRoomService,
+    CacheService,
   ],
   controllers: [QuizController],
 })

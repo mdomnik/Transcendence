@@ -2,15 +2,11 @@
 /* eslint-disable @typescript-eslint/no-unsafe-return */
 import { Injectable } from '@nestjs/common';
 import { QuestionDto, TopicDto } from './dto';
-import { ConfigService } from '@nestjs/config';
 
 import { AiService } from './ai/ai.service';
-import { queryObjects } from 'v8';
 import { QuizRepository } from './repository/quiz.repository';
-import { diff } from 'util';
 import { EmbeddingService } from './ai/embedding/embedding.service';
-import { Query } from 'pg';
-import { QuizRoomService } from './quiz-cache.service';
+import { CacheService } from './cache/cache.service';
 
 const TOPIC_SIMILARITY_THRESHOLD = 0.25;
 const MAX_EXCLUSIONS = 1000;
@@ -22,18 +18,19 @@ export class QuizService {
     private readonly quizRepository: QuizRepository,
     private readonly embeddingService: EmbeddingService,
     private readonly aiService: AiService,
-    private readonly roomService: QuizRoomService,
+    private readonly cacheService: CacheService,
   ) {}
-  // Calling from quiz-cache.service.ts to fetch cache data from redis
+
+  // Calling from cache.service.ts to fetch cache data from redis
   async getRoomState(roomId: string) {
-    return this.roomService.getRoomState(roomId);
+    return this.cacheService.getRoomState(roomId);
   }
   // Create data in the redis cache and
   // returns the roomId for the backend socket to send it to frontend
   async createRoom(): Promise<string> {
     const roomId = crypto.randomUUID();
-    await this.roomService.createRoom(roomId);
-    this.roomService.createRoom(roomId);
+    await this.cacheService.createRoom(roomId);
+    this.cacheService.createRoom(roomId);
 
     return roomId;
   }
