@@ -31,7 +31,6 @@ export class QuizService {
   async createRoom(): Promise<string> {
     const roomId = crypto.randomUUID();
     await this.cacheService.createRoom(roomId);
-    this.cacheService.createRoom(roomId);
 
     return roomId;
   }
