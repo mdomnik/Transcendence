@@ -29,7 +29,7 @@ export async function fetchCurrentUser(): Promise<User | null> {
   }
 
   try {
-    const res = await fetch('http://localhost:8080/api/users/me', {
+    const res = await fetch('https://localhost/api/users/me', {
       credentials: 'include', // Important: sends cookies
       cache: 'no-store',
     });
@@ -52,7 +52,7 @@ export async function fetchCurrentUser(): Promise<User | null> {
 export async function logout(): Promise<void> {
   try {
     // Call backend logout endpoint to clear httpOnly cookie
-    await fetch('http://localhost:8080/api/auth/logout', {
+    await fetch('https://localhost/api/auth/logout', {
       method: 'POST',
       credentials: 'include',
     });

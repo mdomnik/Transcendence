@@ -7,10 +7,10 @@ import { AuthModule } from './auth/auth.module';
 import { UserController } from './user/user.controller';
 import { ThrottlerGuard, ThrottlerModule } from '@nestjs/throttler';
 import { APP_GUARD } from '@nestjs/core';
-import { AiService } from './quiz/ai/ai.service';
 import { QuizModule } from './quiz/quiz.module';
 import { PublicApiModule } from './public-api/public-api.module';
-import { ParserModule } from './parser/parser.module';
+import { ParserModule } from './parser/parser.module';;
+import { UserModule } from './user/user.module';
 
 @Module({
   imports: [
@@ -28,7 +28,9 @@ import { ParserModule } from './parser/parser.module';
     AuthModule,
     QuizModule,
     PublicApiModule,
-    ParserModule],
+    ParserModule,
+    UserModule,
+  ],
   controllers: [AppController, UserController],
   providers: [
     AppService,

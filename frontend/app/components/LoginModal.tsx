@@ -27,7 +27,7 @@ export default function LoginModal({ isOpen, onClose, onSwitchToSignUp, onLoginS
 
     try {
       // Send credentials to backend
-      const response = await fetch('http://localhost:8080/api/auth/signin', {
+      const response = await fetch('https://localhost/api/auth/signin', {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
