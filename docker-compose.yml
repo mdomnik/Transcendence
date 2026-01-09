@@ -1,20 +1,20 @@
 networks:
-  transcendenceNetwork:
+  internalNetwork:
     driver: bridge
 
 services:
   db_postgresql:
     image: pgvector/pgvector:pg16
-    container_name: transcendenceDatabase
+    container_name: db_postgresql
     restart: unless-stopped
     networks:
-      - transcendenceNetwork
+      - internalNetwork
     ports:
       - "5432:5432"
     env_file:
       - database/.env
     volumes:
-      - transcendenceDatabaseVolume:/var/lib/postgresql/data
+      - postgresDBVolume:/var/lib/postgresql/data
     healthcheck:
       test: ["CMD-SHELL", "pg_isready -U postgres"]
       interval: 5s
@@ -22,13 +22,10 @@ services:
       retries: 5
   backend_nestjs:
     build: ./backend
+    container_name: backend_nestjs
     restart: unless-stopped
     networks:
-      - transcendenceNetwork
-    expose:
-      - "8080"
-    environment:
-      - PORT=8080
+      - internalNetwork
     env_file:
       - backend/.env
     volumes:
@@ -41,11 +38,10 @@ services:
 
   frontend_nextjs:
     build: ./frontend
+    container_name: frontend_nextjs
     restart: unless-stopped
     networks:
-      - transcendenceNetwork
-    expose:
-      - "3000"
+      - internalNetwork
     env_file:
       - frontend/.env
     volumes:
@@ -53,19 +49,19 @@ services:
       - /app/node_modules
     command: npm run dev
 
-  server_nginx:
-    image: nginx:stable
+  server_caddy:
+    image: caddy:alpine
+    container_name: server_caddy
     restart: unless-stopped
     networks:
-      - transcendenceNetwork
+      - internalNetwork
     ports:
       - "80:80"
       - "443:443"
     volumes:
-      - ./nginx/default.conf:/etc/nginx/conf.d/default.conf:ro
-      - ./certs:/etc/nginx/certs:ro
+      - ./caddy/Caddyfile:/etc/caddy/Caddyfile:ro
     depends_on:
       - frontend_nextjs
       - backend_nestjs
 volumes:
-    transcendenceDatabaseVolume:
+    postgresDBVolume:
