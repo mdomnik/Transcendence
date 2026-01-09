@@ -24,13 +24,16 @@ export class QuizService {
     private readonly aiService: AiService,
     private readonly roomService: QuizRoomService,
   ) {}
-  // Calling from quiz-room.service.ts to fetch cache data from redis
+  // Calling from quiz-cache.service.ts to fetch cache data from redis
   async getRoomState(roomId: string) {
     return this.roomService.getRoomState(roomId);
   }
+  // Create data in the redis cache and
+  // returns the roomId for the backend socket to send it to frontend
   async createRoom(): Promise<string> {
     const roomId = crypto.randomUUID();
     await this.roomService.createRoom(roomId);
+    this.roomService.createRoom(roomId);
 
     return roomId;
   }

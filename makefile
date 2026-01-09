@@ -5,7 +5,7 @@ MODEL=llama3.1
 
 up:
 	docker compose up -d
-	$(MAKE) pull-llm
+# 	$(MAKE) pull-llm
 
 rebuild:
 	docker compose up --build

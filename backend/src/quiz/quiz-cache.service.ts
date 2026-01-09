@@ -7,17 +7,17 @@ import Redis from 'ioredis';
 export class QuizRoomService {
   constructor(@Inject('REDIS') private readonly redis: Redis) {}
 
+  // adds to the redis database
   async createRoom(roomId: string) {
     await this.redis.hset(`quiz:room:${roomId}:meta`, {
       status: 'WAITING',
       round: 0,
     });
-  // Add first player to the room player list
-
     // await this.redis.expire(`quiz:room:${roomId}:meta`, 1800);
   }
   async getRoomState(roomId: string) {
     const meta = await this.redis.hgetall(`quiz:room:${roomId}:meta`);
     return meta;
   }
+  // TODO! add functions for adding players, answers and questions. lock is to be implemented later
 }
