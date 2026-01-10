@@ -1,15 +1,25 @@
-import { Controller, Get, UseGuards, Req } from '@nestjs/common';
+import { Controller, Get, UseGuards, Param } from '@nestjs/common';
 import { AuthGuard } from '@nestjs/passport';
-import { User } from 'src/common/decorators/user.decorator';
+import { User as UserDecorator } from 'src/common/decorators/user.decorator';
+import { UserService } from './user.service';
 
 @Controller('users')
 export class UserController {
-    @UseGuards(AuthGuard('jwt'))
+    constructor(private usersService: UserService) {}
+
     @Get('me')
-    getMe(@User() user) {
-        return {
-            id: user.id,
-            email: user.email,
-        }
+    @UseGuards(AuthGuard('jwt'))
+    getMe(@UserDecorator() user: { id: string }) {
+        return this.usersService.getMe(user.id);
     }
+    
+    @Get(':userId')
+    getPublicProfile(@Param('userId') userId: string) {
+    return this.usersService.getPublicProfile(userId);
+  } 
+
+  
+    
+
 }
+
