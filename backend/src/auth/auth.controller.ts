@@ -19,15 +19,26 @@ export class AuthController {
     signin(@Body() dto: SignInDto) {
         return this.authService.signin(dto);
     }
-    
+    }
+
     @Post('logout')
     logout(@Res() res: Response) {
         res.clearCookie('access_token', {
             httpOnly: true,
             sameSite: 'lax',
-            secure: true,
+            secure: false,
             path: '/',
-            maxAge: 24 * 60 * 60 * 1000,
+        });
+        return res.status(200).json({ message: 'Logged out successfully' });
+    }
+
+    @Post('logout')
+    logout(@Res() res: Response) {
+        res.clearCookie('access_token', {
+            httpOnly: true,
+            sameSite: 'lax',
+            secure: false,
+            path: '/',
         });
         return res.status(200).json({ message: 'Logged out successfully' });
     }
@@ -46,11 +57,11 @@ export class AuthController {
         res.cookie('access_token', accessToken, {
           httpOnly: true,
           sameSite: 'lax',
-          secure: true, // true in production
+          secure: false, // true in production
           maxAge: 15 * 60 * 1000,
         });
         console.log("access token: ", accessToken)
         // Redirect to homepage - frontend will check auth and redirect to dashboard
-        return res.redirect('/');
+        return res.redirect('http://localhost:8080/');
     }
 }
