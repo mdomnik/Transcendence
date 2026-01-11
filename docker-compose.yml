@@ -28,13 +28,13 @@ services:
       - internalNetwork
     env_file:
       - backend/.env
-    volumes:
-      - ./backend:/app
-      - /app/node_modules
+    # volumes:
+    #   - ./backend:/app
+    #   - /app/node_modules
     depends_on:
       db_postgresql:
         condition: service_healthy
-    command: npm run start:dev
+    command: node /app/dist/src/main.js
 
   frontend_nextjs:
     build: ./frontend

@@ -19,7 +19,7 @@ export class AuthController {
     signin(@Body() dto: SignInDto) {
         return this.authService.signin(dto);
     }
-    
+
     @Post('logout')
     logout(@Res() res: Response) {
         res.clearCookie('access_token', {
@@ -47,10 +47,11 @@ export class AuthController {
           httpOnly: true,
           sameSite: 'lax',
           secure: true, // true in production
+          path: '/',
           maxAge: 15 * 60 * 1000,
         });
         console.log("access token: ", accessToken)
         // Redirect to homepage - frontend will check auth and redirect to dashboard
-        return res.redirect('/');
+        return res.redirect('https://localhost/');
     }
 }
