@@ -69,23 +69,20 @@ export class AuthService {
         username: string,
         userID: string,
         email: string, 
-    ): Promise<{ access_token: string }> {
+    ): Promise<string> {
         const payload = {
             sub: userID,
             email
         }
         const secret = process.env.JWT_SECRET 
 
-        const token = await this.jwt.signAsync(
+        return await this.jwt.signAsync(
             payload, 
             {
             expiresIn: '24h',
             secret: secret,
         });
 
-        return {
-            access_token: token,
-        };
     }
 
     async validateUser(email: string, googleId: string) {
