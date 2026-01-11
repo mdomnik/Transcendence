@@ -5,24 +5,21 @@ import { UserService } from './user.service';
 
 @Controller('users')
 export class UserController {
-  constructor(private usersService: UserService) { }
+  constructor(private usersService: UserService) {}
 
-    @Get('me')
-    @UseGuards(AuthGuard('jwt'))
-    getMe(@UserDecorator() user: { id: string }) {
-        return this.usersService.getMe(user.id);
-    }
-    
-    @Get(':userId')
-    getPublicProfile(@Param('userId') userId: string) {
+  @Get('me')
+  @UseGuards(AuthGuard('jwt'))
+  getMe(@UserDecorator() user: { id: string }) {
+    return this.usersService.getMe(user.id);
+  }
+
+  @Get(':userId')
+  getPublicProfile(@Param('userId') userId: string) {
     return this.usersService.getPublicProfile(userId);
-  } 
+  }
 
   @Get('username/:username')
   getIdFromUsername(@Param('username') username: string) {
     return this.usersService.getIdFromUsername(username);
   }
-
-
 }
-
