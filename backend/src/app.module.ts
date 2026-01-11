@@ -11,6 +11,9 @@ import { QuizModule } from './quiz/quiz.module';
 import { PublicApiModule } from './public-api/public-api.module';
 import { ParserModule } from './parser/parser.module';;
 import { UserModule } from './user/user.module';
+import { RedisModule } from './redis/redis.module';
+import { LobbyModule } from './lobby/lobby.module';
+import { GameModule } from './game/game.module';
 
 @Module({
   imports: [
@@ -30,6 +33,9 @@ import { UserModule } from './user/user.module';
     PublicApiModule,
     ParserModule,
     UserModule,
+    LobbyModule,
+    RedisModule,
+    GameModule
   ],
   controllers: [AppController, UserController],
   providers: [
