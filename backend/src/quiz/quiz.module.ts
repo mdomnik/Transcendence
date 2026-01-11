@@ -12,17 +12,15 @@ import { ParserService } from './parser/parser.service';
 
 // Quiz Module export end params
 @Module({
-    imports: [HttpModule, AiModule, EmbeddingModule, RepositoryModule, PromptModule],
-    providers: [
-        QuizService,
-        PromptService,
-        ParserService,
-        RepositoryService,
-    ],
-    controllers: [QuizController],
-    exports: [
-        QuizService,
-        RepositoryService,
-    ]
+  imports: [
+    HttpModule,
+    AiModule,
+    EmbeddingModule,
+    RepositoryModule,
+    PromptModule,
+  ],
+  providers: [QuizService, PromptService, ParserService, RepositoryService],
+  controllers: [QuizController],
+  exports: [QuizService, RepositoryService],
 })
-export class QuizModule { }
+export class QuizModule {}

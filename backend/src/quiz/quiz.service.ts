@@ -16,13 +16,12 @@ export class QuizService {
     private readonly repositoryService: RepositoryService,
     private readonly embeddingService: EmbeddingService,
     private readonly aiService: AiService,
-  ) { }
+  ) {}
 
   // Generates a set of questions based on Topic, amount of questions, and difficulty
   async getQuestionSet(dto: TopicDto, userOrUsers: string | string[]) {
-
     const userIds = Array.isArray(userOrUsers) ? userOrUsers : [userOrUsers];
-    
+
     const { topic, qnum, difficulty } = dto;
 
     // runs topic similarity calculations based on vector embeddings
@@ -43,24 +42,22 @@ export class QuizService {
       totalQuestionsForTopicDifficulty >= MAX_QUESTIONS_PER_DIFFICULTY;
 
     // get the number of questions that user has seen under that topic and difficulty
-    const unseenQuestions = await this.repositoryService.findUnseenQuestionsForUsers(
-      topicId,
-      difficulty,
-      userIds,
-    );
-
+    const unseenQuestions =
+      await this.repositoryService.findUnseenQuestionsForUsers(
+        topicId,
+        difficulty,
+        userIds,
+      );
 
     // if user has seen all topics and there is no space for generation, return a set of random questions
     if (unseenQuestions.length < qnum && limitReached) {
-      const allQuestions = await this.repositoryService.getAllQuestionsByTopicAndDifficutly(
-        topicId,
-        difficulty,
-      )
+      const allQuestions =
+        await this.repositoryService.getAllQuestionsByTopicAndDifficutly(
+          topicId,
+          difficulty,
+        );
 
-      const result = this.pickRandom(
-        allQuestions,
-        qnum,
-      );
+      const result = this.pickRandom(allQuestions, qnum);
 
       await this.repositoryService.markQuestionAsSeenForUsers(
         userIds,
@@ -74,12 +71,21 @@ export class QuizService {
     if (unseenQuestions.length < qnum) {
       const amountToGenerate = qnum - unseenQuestions.length;
 
-      // Get list of topic questions 
-      const ListOfQuestionTexts = await this.repositoryService.findQuestionTextsByTopicAndDifficulty(topicId, difficulty);
+      // Get list of topic questions
+      const ListOfQuestionTexts =
+        await this.repositoryService.findQuestionTextsByTopicAndDifficulty(
+          topicId,
+          difficulty,
+        );
       // transform topics into a set
-      const SetofQuestionTexts = new Set(ListOfQuestionTexts.map((q) => q.toLowerCase().trim()));
+      const SetofQuestionTexts = new Set(
+        ListOfQuestionTexts.map((q) => q.toLowerCase().trim()),
+      );
       // form an exclusion array for all previous questions in the category
-      const ListOfExcludedQuestions = Array.from(SetofQuestionTexts).slice(0, MAX_EXCLUSIONS);
+      const ListOfExcludedQuestions = Array.from(SetofQuestionTexts).slice(
+        0,
+        MAX_EXCLUSIONS,
+      );
 
       // run a generation call
       const newGeneratedQuestions = await this.aiService.generateQuestions(
@@ -89,7 +95,7 @@ export class QuizService {
           qnum: amountToGenerate,
         },
         ListOfExcludedQuestions,
-      )
+      );
 
       // print questions to console
       console.log('GENERATED QUESTIONS: ');
@@ -98,13 +104,16 @@ export class QuizService {
       });
 
       // check for duplicated
-      const filteredGeneratedQuestions = newGeneratedQuestions.filter((q) => !SetofQuestionTexts.has(q.question.toLocaleLowerCase().trim()));
+      const filteredGeneratedQuestions = newGeneratedQuestions.filter(
+        (q) => !SetofQuestionTexts.has(q.question.toLocaleLowerCase().trim()),
+      );
 
       // form questions from question set and add them to db topic
-      const newQuestions = await this.repositoryService.createQuestionsWithAnswers(
-        filteredGeneratedQuestions,
-        topicId,
-      );
+      const newQuestions =
+        await this.repositoryService.createQuestionsWithAnswers(
+          filteredGeneratedQuestions,
+          topicId,
+        );
 
       // take random assortment of unseen questions
       let result = [
@@ -114,19 +123,17 @@ export class QuizService {
 
       // if still not all questions, take the remaining from all questions
       if (result.length < qnum) {
-        const allQuestions = await this.repositoryService.getAllQuestionsByTopicAndDifficutly(
-          topicId,
-          difficulty,
-        )
-        const filler = this.pickRandom(allQuestions, (qnum - result.length));
+        const allQuestions =
+          await this.repositoryService.getAllQuestionsByTopicAndDifficutly(
+            topicId,
+            difficulty,
+          );
+        const filler = this.pickRandom(allQuestions, qnum - result.length);
 
         let temp = result;
 
         // join generated with random seen
-        temp = [
-          ...result,
-          ...filler,
-        ].slice(0, qnum);
+        temp = [...result, ...filler].slice(0, qnum);
 
         result = temp;
       }
@@ -152,12 +159,8 @@ export class QuizService {
     return result;
   }
 
-
   // private helper template code to generate a random set of items
   private pickRandom<T>(items: T[], count: number): T[] {
-    return [...items]
-      .sort(() => Math.random() - 0.5)
-      .slice(0, count);
+    return [...items].sort(() => Math.random() - 0.5).slice(0, count);
   }
-
 }
