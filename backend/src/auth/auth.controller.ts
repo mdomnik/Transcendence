@@ -16,20 +16,33 @@ export class AuthController {
     }
 
     @Post('signin')
-    signin(@Body() dto: SignInDto) {
-        return this.authService.signin(dto);
+    async signin(
+      @Body() dto: SignInDto,
+      @Res({ passthrough: true }) res: Response,
+    ) {
+      const accessToken = await this.authService.signin(dto); // or return token from service
+    
+      res.cookie('access_token', accessToken, {
+        httpOnly: true,
+        sameSite: 'lax',
+        secure: true,
+        path: '/api',
+        maxAge: 15 * 60 * 1000,
+      });
+  
+      return { ok: true };
     }
+
     
     @Post('logout')
     logout(@Res() res: Response) {
-        res.clearCookie('access_token', {
-            httpOnly: true,
-            sameSite: 'lax',
-            secure: true,
-            path: '/',
-            maxAge: 24 * 60 * 60 * 1000,
-        });
-        return res.status(200).json({ message: 'Logged out successfully' });
+      res.clearCookie('access_token', {
+        httpOnly: true,
+        sameSite: 'lax',
+        secure: true,
+        path: '/api',
+      });
+      return res.status(200).json({ message: 'Logged out successfully' });
     }
 
     @Get('google/login')
@@ -47,10 +60,11 @@ export class AuthController {
           httpOnly: true,
           sameSite: 'lax',
           secure: true, // true in production
+          path: '/api',
           maxAge: 15 * 60 * 1000,
         });
         console.log("access token: ", accessToken)
         // Redirect to homepage - frontend will check auth and redirect to dashboard
-        return res.redirect('/');
+        return res.redirect('/dashboard');
     }
 }

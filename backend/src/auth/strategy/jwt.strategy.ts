@@ -1,22 +1,23 @@
-import { Injectable } from '@nestjs/common';
-import { ConfigService } from '@nestjs/config';
-import { PassportStrategy } from '@nestjs/passport';
-import { ExtractJwt, Strategy } from 'passport-jwt';
-import { PrismaService } from 'src/prisma/prisma.service';
+import { Injectable } from "@nestjs/common";
+import { ConfigService } from "@nestjs/config";
+import { PassportStrategy } from "@nestjs/passport";
+import { ExtractJwt, Strategy } from "passport-jwt";
+import { PrismaService } from "src/prisma/prisma.service";
+import { Request } from 'express';
 
+const cookieExtractor = (req: Request): string | null => {
+  return req?.cookies?.access_token ?? null;
+};
 @Injectable()
 export class JwtStrategy extends PassportStrategy(Strategy, 'jwt') {
-  constructor(
-    config: ConfigService,
-    private prisma: PrismaService,
-  ) {
-    super({
-      jwtFromRequest: ExtractJwt.fromExtractors([
-        (req) => req?.cookies?.access_token,
-        ExtractJwt.fromAuthHeaderAsBearerToken(),
-      ]),
-      ignoreExpiration: false,
-      secretOrKey: config.getOrThrow<string>('JWT_SECRET'),
+    constructor(config: ConfigService, private prisma: PrismaService) {
+        super({
+        jwtFromRequest: ExtractJwt.fromExtractors([
+          cookieExtractor,
+          ExtractJwt.fromAuthHeaderAsBearerToken(),
+        ]),
+        ignoreExpiration: false,
+        secretOrKey: config.getOrThrow<string>('JWT_SECRET'),
     });
   }
 
