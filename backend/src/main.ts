@@ -9,6 +9,11 @@ async function bootstrap() {
   app.getHttpAdapter().getInstance().set('trust proxy', true);
   app.use(cookieParser());
 
+  app.enableCors({
+    origin: 'https://localhost',
+    credentials: true,
+  });
+
   app.useGlobalPipes(new ValidationPipe({
       whitelist: true,
     }),
