@@ -1,6 +1,9 @@
 https://localhost {
 	tls internal
 
+	# Socket.IO
+	reverse_proxy /socket.io/* backend_nestjs:8080
+
 	# Backend (NestJS) under /api/*
 	reverse_proxy /api/* backend_nestjs:8080
 

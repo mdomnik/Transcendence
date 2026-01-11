@@ -1,4 +1,5 @@
 import { Injectable, NotFoundException } from "@nestjs/common";
+import { use } from "passport";
 import { PrismaService } from "src/prisma/prisma.service";
 
 
@@ -96,6 +97,13 @@ async getMe(userId: string) {
       where: { userId },
       update: {},
       create: { userId },
+    });
+  }
+
+  async getIdFromUsername(username: string) {
+    return this.prisma.user.findUnique({
+      where: { username: username},
+      select: { id: true },
     });
   }
 }
