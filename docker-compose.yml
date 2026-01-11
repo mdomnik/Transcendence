@@ -20,6 +20,12 @@ services:
       interval: 5s
       timeout: 5s
       retries: 5
+  cache_redis:
+    image: redis:7
+    container_name: cache_redis
+    restart: unless-stopped
+    networks:
+      - internalNetwork
   backend_nestjs:
     build: ./backend
     container_name: backend_nestjs
