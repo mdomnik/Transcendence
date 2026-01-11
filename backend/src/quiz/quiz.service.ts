@@ -19,8 +19,10 @@ export class QuizService {
   ) { }
 
   // Generates a set of questions based on Topic, amount of questions, and difficulty
-  async getQuestionSet(dto: TopicDto, userId: string) {
+  async getQuestionSet(dto: TopicDto, userOrUsers: string | string[]) {
 
+    const userIds = Array.isArray(userOrUsers) ? userOrUsers : [userOrUsers];
+    
     const { topic, qnum, difficulty } = dto;
 
     // runs topic similarity calculations based on vector embeddings
@@ -41,10 +43,10 @@ export class QuizService {
       totalQuestionsForTopicDifficulty >= MAX_QUESTIONS_PER_DIFFICULTY;
 
     // get the number of questions that user has seen under that topic and difficulty
-    const unseenQuestions = await this.repositoryService.findUnseenQuestions(
+    const unseenQuestions = await this.repositoryService.findUnseenQuestionsForUsers(
       topicId,
       difficulty,
-      userId,
+      userIds,
     );
 
 
@@ -60,8 +62,8 @@ export class QuizService {
         qnum,
       );
 
-      await this.repositoryService.markQuestionAsSeen(
-        userId,
+      await this.repositoryService.markQuestionAsSeenForUsers(
+        userIds,
         result.map((q) => q.id),
       );
 
@@ -130,8 +132,8 @@ export class QuizService {
       }
 
       // mark presented entries as seen
-      await this.repositoryService.markQuestionAsSeen(
-        userId,
+      await this.repositoryService.markQuestionAsSeenForUsers(
+        userIds,
         result.map((q) => q.id),
       );
 
@@ -142,8 +144,8 @@ export class QuizService {
 
     const result = this.pickRandom(unseenQuestions, qnum);
 
-    await this.repositoryService.markQuestionAsSeen(
-      userId,
+    await this.repositoryService.markQuestionAsSeenForUsers(
+      userIds,
       result.map((q) => q.id),
     );
 

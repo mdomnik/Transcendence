@@ -20,5 +20,9 @@ import { ParserService } from './parser/parser.service';
         RepositoryService,
     ],
     controllers: [QuizController],
+    exports: [
+        QuizService,
+        RepositoryService,
+    ]
 })
 export class QuizModule { }

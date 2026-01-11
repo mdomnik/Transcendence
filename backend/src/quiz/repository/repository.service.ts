@@ -9,10 +9,10 @@ export class RepositoryService {
     constructor(private readonly prisma: PrismaService) { }
 
     // finds questions given user did not see under topic per difficulty
-    async findUnseenQuestions(
+    async findUnseenQuestionsForUsers(
         topicId: string,
         difficulty: number,
-        userId: string,
+        userIds: string[],
     ) {
         return this.prisma.question.findMany({
             where: {
@@ -20,16 +20,14 @@ export class RepositoryService {
                 topicId: topicId,
                 seenBy: {
                     none: {
-                        userId,
+                        userId: {
+                            in: userIds,
+                        }
                     },
                 },
             },
             include: {
-                answers: {
-                    orderBy: {
-                        position: 'asc',
-                    },
-                },
+                answers: true,
             },
         });
     }
@@ -73,17 +71,19 @@ export class RepositoryService {
     }
 
     // mark question as seen in a user question in a user/question map
-    async markQuestionAsSeen(
-        userId: string,
+    async markQuestionAsSeenForUsers(
+        userIds: string[],
         questionIds: string[],
     ) {
         if (questionIds.length === 0) return;
 
         await this.prisma.userQuestion.createMany({
-            data: questionIds.map((questionId) => ({
+            data: userIds.flatMap(userId =>
+                questionIds.map(questionId => ({
                 userId,
                 questionId,
             })),
+        ),
             skipDuplicates: true,
         });
     }
@@ -211,6 +211,22 @@ export class RepositoryService {
         >(sql, data.title);
 
         return result[0];
+    }
+
+    async getRandomTopic(): Promise<any> {
+        const count = await this.prisma.quizTopic.count();
+
+        if (count === 0)
+            return null;
+
+        const skip = Math.floor(Math.random() * count);
+
+        return this.prisma.quizTopic.findFirst({
+            skip,
+            orderBy: {
+                createdAt: 'asc',
+            },
+        });
     }
 
 }
