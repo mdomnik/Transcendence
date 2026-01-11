@@ -13,6 +13,7 @@ import {
 import { Type } from 'class-transformer';
 
 
+// Answer DTO
 class AnswerDto {
   @IsString()
   @IsNotEmpty()
@@ -28,6 +29,7 @@ class AnswerDto {
   position: number;
 }
 
+// Question DTO
 export class QuestionDto {
   @IsString()
   @IsNotEmpty()

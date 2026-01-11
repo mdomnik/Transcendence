@@ -1,6 +1,7 @@
 import { Type } from "class-transformer";
-import { IsInt, IsNotEmpty, IsNumber, IsString, Max, MaxLength, Min } from "class-validator";
+import { IsInt, IsNotEmpty, IsString, Max, MaxLength, Min } from "class-validator";
 
+// TOPIC DTO
 export class TopicDto {
     @IsString()
     @IsNotEmpty()

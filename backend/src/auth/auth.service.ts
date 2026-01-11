@@ -5,10 +5,11 @@ import * as argon from 'argon2';
 import { PrismaClientKnownRequestError } from '@prisma/client/runtime/client';
 import { JwtService } from '@nestjs/jwt';
 import { ConfigService } from '@nestjs/config';
+import { UserService } from 'src/user/user.service';
 
 @Injectable()
 export class AuthService {
-    constructor(private prisma: PrismaService, private jwt: JwtService) {}
+    constructor(private prisma: PrismaService, private jwt: JwtService, private userservice : UserService) {}
 
     async signup(dto: AuthDto) {
     //generate
@@ -23,13 +24,13 @@ export class AuthService {
     
                 
             });
-    
+            await this.userservice.ensureUserStats(user.id);
             return this.signToken(user.username, user.id, user.email);
             
         } catch (error) {
             if (error instanceof PrismaClientKnownRequestError)
                 if (error.code === 'P2002')
-                    throw new ForbiddenException('Crednt.. taken');
+                    throw new ForbiddenException('Credentials taken');
             throw error;
         }
     }
@@ -47,7 +48,7 @@ export class AuthService {
         //if user doesnt exist throw exception
         if(!user)
             throw new ForbiddenException(
-                'Crecg incorrect',
+                'Credentials incorrect',
         );
         //compare password
         const pwMatches = user.password ? await argon.verify(
@@ -57,7 +58,7 @@ export class AuthService {
         //if password incorrect throw exception
         if(!pwMatches)
             throw new ForbiddenException(
-                'Credir.. incorrect',
+                'Credentials incorrect',
         );
         // send back the user
 

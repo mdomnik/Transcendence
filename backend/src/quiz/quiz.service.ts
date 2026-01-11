@@ -1,136 +1,148 @@
 import { Injectable } from '@nestjs/common';
-import { QuestionDto, TopicDto } from './dto';
-import { ConfigService } from '@nestjs/config';
-
+import { TopicDto } from './dto';
 import { AiService } from './ai/ai.service';
-import { queryObjects } from 'v8';
-import { QuizRepository } from './repository/quiz.repository';
-import { diff } from 'util';
+import { EmbeddingService } from './ai/embedding/embedding.service';
+import { RepositoryService } from './repository/repository.service';
+
+// Maximum amount of previous questions passed down to the question generation prompt for exclusion.
+const MAX_EXCLUSIONS = 100;
+
+// Max db entries per topic per difficulty
+const MAX_QUESTIONS_PER_DIFFICULTY = 100;
 
 @Injectable()
 export class QuizService {
   constructor(
-    private readonly quizRepository: QuizRepository,
+    private readonly repositoryService: RepositoryService,
+    private readonly embeddingService: EmbeddingService,
     private readonly aiService: AiService,
-  ) {}
+  ) { }
 
-async getQuestionSet(dto: TopicDto, userId: string) {
-  const MAX_EXCLUSIONS = 1000;
-  const MAX_QUESTIONS_PER_DIFFICULTY = 1000;
+  // Generates a set of questions based on Topic, amount of questions, and difficulty
+  async getQuestionSet(dto: TopicDto, userId: string) {
 
-  const { topic, qnum, difficulty } = dto;
+    const { topic, qnum, difficulty } = dto;
 
-  // See if topic exists, if doesn't create it; retrieve the Id (Later Add lexing)
-  const quizTopic = await this.quizRepository.findOrCreateTopic(topic);
-  const topicId = quizTopic.id;
+    // runs topic similarity calculations based on vector embeddings
+    const topicId = await this.embeddingService.findOrCreateEmbedding(topic);
 
-  console.log('user:', userId, 'requesting topic:', dto);
-  // Increment how many times users asked for that topic [Analytics]
-  await this.quizRepository.incrementTopicRequestCount(topicId);
+    // Increment how many times users asked for that topic [Analytics]
+    await this.repositoryService.incrementTopicRequestCount(topicId);
 
-  // Find how many entries of Questions exist under that topic and difficulty
-  const totalQuestionsForTopicDifficulty =
-    await this.quizRepository.countQuestionsByTopicAndDifficulty(
-      topicId,
-      difficulty,
-    );
+    // Find how many entries of Questions exist under that topic and difficulty
+    const totalQuestionsForTopicDifficulty =
+      await this.repositoryService.countQuestionsByTopicAndDifficulty(
+        topicId,
+        difficulty,
+      );
 
-  // disable generation if the database is full
-  const limitReached =
+    // disable generation if the database is full
+    const limitReached =
       totalQuestionsForTopicDifficulty >= MAX_QUESTIONS_PER_DIFFICULTY;
 
-  // get the number of questions that user has seen under that topic and difficulty
-  const unseenQuestions = await this.quizRepository.findUnseenQuestions(
-      topic,
+    // get the number of questions that user has seen under that topic and difficulty
+    const unseenQuestions = await this.repositoryService.findUnseenQuestions(
+      topicId,
       difficulty,
       userId,
     );
 
-  // if user has seen all topics and there is no space for generation, return a set of random questions
-  if (unseenQuestions.length < qnum && limitReached)
-  {
-    console.log(`MaxSizeReached and seen it all; giving a random set of questions`);
 
-    const allQuestions = await this.quizRepository.getAllQuestionsByTopicAndDifficutly(
-      topicId,
-      difficulty,
-    )
-    
-    const result = this.pickRandom(
-      allQuestions,
-      qnum,
-    );
-
-    await this.quizRepository.markQuestionAsSeen(
-      userId,
-      result.map((q) => q.id),
-    );
-
-    return result;
-  }
-  
-  //
-  if (unseenQuestions.length < qnum)
-  {
-    console.log(`The user has seen more than the database; generating more; unseen ${unseenQuestions.length}, question amount: ${qnum}`);
-
-    const amountToGenerate = qnum - unseenQuestions.length;
-
-
-    const ListOfQuestionTexts = await this.quizRepository.findQuestionTextsByTopicAndDifficulty(topicId, difficulty);
-    const SetofQuestionTexts = new Set(ListOfQuestionTexts.map((q) => q.toLowerCase().trim()));
-    const ListOfExcludedQuestions = Array.from(SetofQuestionTexts).slice(0, MAX_EXCLUSIONS);
-
-    const newGeneratedQuestions = await this.aiService.generateQuestions(
-      {
-        topic,
-        difficulty,
-        qnum: amountToGenerate,
-      },
-      ListOfExcludedQuestions,
-    )
-
-    console.log('=== NEW GENERATED QUESTIONS ===');
-
-newGeneratedQuestions.forEach((q, index) => {
-  console.log(`${index + 1}. ${q.question}`);
-});
-
-console.log('=== END OF NEW GENERATED QUESTIONS ===');
-
-    const filteredGeneratedQuestions = newGeneratedQuestions.filter((q) => !SetofQuestionTexts.has(q.question.toLocaleLowerCase().trim()));
-
-    const newQuestions = await this.quizRepository.createQuestionsWithAnswers(
-      filteredGeneratedQuestions,
-      topicId,
-    );
-
-    console.log(`new questions: ${newQuestions}; end of new questions`);
-
-    let result = [
-      ...this.pickRandom(unseenQuestions, unseenQuestions.length),
-      ...newQuestions,
-    ].slice(0, qnum);
-
-    if (result.length < qnum)
-    {
-      const allQuestions = await this.quizRepository.getAllQuestionsByTopicAndDifficutly(
+    // if user has seen all topics and there is no space for generation, return a set of random questions
+    if (unseenQuestions.length < qnum && limitReached) {
+      const allQuestions = await this.repositoryService.getAllQuestionsByTopicAndDifficutly(
         topicId,
         difficulty,
       )
-      const filler = this.pickRandom(allQuestions, (qnum - result.length));
 
-      let temp = result;
+      const result = this.pickRandom(
+        allQuestions,
+        qnum,
+      );
 
-      temp = [
-        ...result,
-        ...filler,
-      ].slice(0, qnum);
-      
-      result = temp;
+      await this.repositoryService.markQuestionAsSeen(
+        userId,
+        result.map((q) => q.id),
+      );
+
+      return result;
     }
 
-    await this.quizRepository.markQuestionAsSeen(
+    // if user has seen all questions in db, and there is space for more; run ai topic generation
+    if (unseenQuestions.length < qnum) {
+      const amountToGenerate = qnum - unseenQuestions.length;
+
+      // Get list of topic questions 
+      const ListOfQuestionTexts = await this.repositoryService.findQuestionTextsByTopicAndDifficulty(topicId, difficulty);
+      // transform topics into a set
+      const SetofQuestionTexts = new Set(ListOfQuestionTexts.map((q) => q.toLowerCase().trim()));
+      // form an exclusion array for all previous questions in the category
+      const ListOfExcludedQuestions = Array.from(SetofQuestionTexts).slice(0, MAX_EXCLUSIONS);
+
+      // run a generation call
+      const newGeneratedQuestions = await this.aiService.generateQuestions(
+        {
+          topic,
+          difficulty,
+          qnum: amountToGenerate,
+        },
+        ListOfExcludedQuestions,
+      )
+
+      // print questions to console
+      console.log('GENERATED QUESTIONS: ');
+      newGeneratedQuestions.forEach((q, index) => {
+        console.log(`${index + 1}. ${q.question}`);
+      });
+
+      // check for duplicated
+      const filteredGeneratedQuestions = newGeneratedQuestions.filter((q) => !SetofQuestionTexts.has(q.question.toLocaleLowerCase().trim()));
+
+      // form questions from question set and add them to db topic
+      const newQuestions = await this.repositoryService.createQuestionsWithAnswers(
+        filteredGeneratedQuestions,
+        topicId,
+      );
+
+      // take random assortment of unseen questions
+      let result = [
+        ...this.pickRandom(unseenQuestions, unseenQuestions.length),
+        ...newQuestions,
+      ].slice(0, qnum);
+
+      // if still not all questions, take the remaining from all questions
+      if (result.length < qnum) {
+        const allQuestions = await this.repositoryService.getAllQuestionsByTopicAndDifficutly(
+          topicId,
+          difficulty,
+        )
+        const filler = this.pickRandom(allQuestions, (qnum - result.length));
+
+        let temp = result;
+
+        // join generated with random seen
+        temp = [
+          ...result,
+          ...filler,
+        ].slice(0, qnum);
+
+        result = temp;
+      }
+
+      // mark presented entries as seen
+      await this.repositoryService.markQuestionAsSeen(
+        userId,
+        result.map((q) => q.id),
+      );
+
+      return result;
+    }
+
+    // User has not seen all the entries, simply return a random set of questions
+
+    const result = this.pickRandom(unseenQuestions, qnum);
+
+    await this.repositoryService.markQuestionAsSeen(
       userId,
       result.map((q) => q.id),
     );
@@ -138,22 +150,12 @@ console.log('=== END OF NEW GENERATED QUESTIONS ===');
     return result;
   }
 
-  console.log(`user has not seen all questions, returning a random array of unseen questions`);
 
-  const result = this.pickRandom(unseenQuestions, qnum);
-
-  await this.quizRepository.markQuestionAsSeen(
-    userId,
-    result.map((q) => q.id),
-  );
-
-  return result;
-}
-
-
+  // private helper template code to generate a random set of items
   private pickRandom<T>(items: T[], count: number): T[] {
     return [...items]
-    .sort(() => Math.random() - 0.5)
-    .slice(0, count);
+      .sort(() => Math.random() - 0.5)
+      .slice(0, count);
   }
+
 }

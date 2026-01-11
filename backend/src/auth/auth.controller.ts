@@ -11,46 +11,23 @@ export class AuthController {
     constructor(private authService: AuthService) {}
 
     @Post('signup')
-    async signup(@Body() dto: AuthDto, @Res() res: Response) {
-        const result = await this.authService.signup(dto);
-        
-        // Set httpOnly cookie
-        res.cookie('access_token', result.access_token, {
-            httpOnly: true,
-            sameSite: 'lax',
-            secure: false,
-            maxAge: 24 * 60 * 60 * 1000,
-            path: '/',
-            domain: 'localhost',
-        });
-        
-        return res.status(201).json({ message: 'Signup successful' });
+    signup(@Body() dto: AuthDto) {
+        return this.authService.signup(dto);
     }
 
     @Post('signin')
-    async signin(@Body() dto: SignInDto, @Res() res: Response) {
-        const result = await this.authService.signin(dto);
-        
-        // Set httpOnly cookie
-        res.cookie('access_token', result.access_token, {
-            httpOnly: true,
-            sameSite: 'lax',
-            secure: false,
-            maxAge: 24 * 60 * 60 * 1000,
-            path: '/',
-            domain: 'localhost',
-        });
-        
-        return res.status(200).json({ message: 'Login successful' });
+    signin(@Body() dto: SignInDto) {
+        return this.authService.signin(dto);
     }
-
+    
     @Post('logout')
     logout(@Res() res: Response) {
         res.clearCookie('access_token', {
             httpOnly: true,
             sameSite: 'lax',
-            secure: false,
+            secure: true,
             path: '/',
+            maxAge: 24 * 60 * 60 * 1000,
         });
         return res.status(200).json({ message: 'Logged out successfully' });
     }
@@ -65,28 +42,15 @@ export class AuthController {
     @UseGuards(GoogleAuthGuard)
     async handleRedirect(@User() user, @Res() res: Response) {
         // const user = await this.authService.handleGoogleLogin(googleUser);
-        const { access_token } = await this.authService.signToken(user.username, user.id, user.email);
-        res.cookie('access_token', access_token, {
+        const accessToken = await this.authService.signToken(user.username, user.id, user.email);
+        res.cookie('access_token', accessToken, {
           httpOnly: true,
           sameSite: 'lax',
-          secure: false, // true in production
-          maxAge: 24 * 60 * 60 * 1000, // 24 hours
-          path: '/',
-          domain: 'localhost',
+          secure: true, // true in production
+          maxAge: 15 * 60 * 1000,
         });
-        console.log("access token: ", access_token)
-        // Send HTML with client-side redirect
-        return res.send(`
-          <html>
-            <head>
-              <script>
-                window.location.href = 'http://localhost:8080/auth/callback';
-              </script>
-            </head>
-            <body>
-              <p>Redirecting...</p>
-            </body>
-          </html>
-        `);
+        console.log("access token: ", accessToken)
+        // Redirect to homepage - frontend will check auth and redirect to dashboard
+        return res.redirect('/');
     }
 }
