@@ -10,6 +10,13 @@ export default function QuizPage() {
   useEffect(() => {
     const socket = getSocket();
 
+	socket.on('connect', () => {
+		console.log('Socket connected', socket.id);
+	});
+	socket.on('connect_error', (err) => {
+		console.error('Socket connection error', err);
+	});
+
     // Listen for room created
     socket.on('lobby:created', ({ roomId }) => {
       console.log('Room created:', roomId);
@@ -35,10 +42,11 @@ export default function QuizPage() {
   }, []);
 
   const createRoom = () => {
-	console.log("is it actually working?");
     const socket = getSocket();
+    console.log("is it actually working?");
 
     if (!socket.connected) {
+		console.log('not connected');
       socket.once('connect', () => {
         socket.emit('lobby:create');
       });

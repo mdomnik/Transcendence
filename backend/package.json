@@ -43,6 +43,7 @@
     "bottleneck": "^2.19.5",
     "class-transformer": "^0.5.1",
     "class-validator": "^0.14.3",
+    "cookie": "^1.1.1",
     "cookie-parser": "^1.4.7",
     "dotenv": "^17.2.3",
     "ioredis": "^5.9.1",

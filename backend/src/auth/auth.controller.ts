@@ -23,7 +23,7 @@ export class AuthController {
       const accessToken = await this.authService.signin(dto); // or return token from service
     
       res.cookie('access_token', accessToken, {
-        httpOnly: true,
+        httpOnly: false,
         sameSite: 'lax',
         secure: true,
         path: '/api',

@@ -8,11 +8,7 @@ import { AuthModule } from 'src/auth/auth.module';
 
 @Module({
   imports: [RedisModule, AuthModule],
-  providers: [
-    LobbyService,
-    LobbyGateway,
-    PrismaService,
-  ],
-  controllers: [LobbyController]
+  providers: [LobbyService, LobbyGateway, PrismaService],
+  controllers: [LobbyController],
 })
 export class LobbyModule {}

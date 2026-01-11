@@ -4,7 +4,7 @@ import { Socket } from 'socket.io';
 
 @Injectable()
 export class WsJwtGuard implements CanActivate {
-  constructor(private readonly jwtService: AuthService) {}
+  constructor(private readonly jwtService: JwtService) {}
 
   canActivate(context: ExecutionContext): boolean {
     console.log('jwt');
@@ -13,7 +13,7 @@ export class WsJwtGuard implements CanActivate {
 
     if (!auth) return false;
 
-	const token = auth.split(' ')[1];
+    const token = auth.split(' ')[1];
 
     try {
       const payload = this.jwtService.verify(token);
