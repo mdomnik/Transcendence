@@ -1,0 +1,9 @@
+https://localhost {
+	tls internal
+
+	# Backend (NestJS) under /api/*
+	reverse_proxy /api/* backend_nestjs:8080
+
+	# Frontend (Next.js) as root
+	reverse_proxy frontend_nextjs:3000
+}
