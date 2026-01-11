@@ -174,7 +174,7 @@ export default function LobbyPage() {
         <div className="flex gap-4">
           <Button
             onClick={handleToggleReady}
-            variant={isReady ? 'secondary' : 'primary'}
+            variant={isReady ? 'outline' : 'primary'}
             disabled={connectionStatus !== 'connected'}
           >
             {isReady ? '✓ Ready' : 'Mark as Ready'}
@@ -193,7 +193,7 @@ export default function LobbyPage() {
 
           <Button
             onClick={() => router.push('/dashboard')}
-            variant="secondary"
+            variant="outline"
           >
             Leave Lobby
           </Button>

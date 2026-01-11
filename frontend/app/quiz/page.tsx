@@ -164,7 +164,7 @@ export default function QuizPage() {
             <Button onClick={handlePlayAgain} variant="primary">
               Play Again
             </Button>
-            <Button onClick={handleBackToDashboard} variant="secondary">
+            <Button onClick={handleBackToDashboard} variant="outline">
               Back to Dashboard
             </Button>
           </div>
