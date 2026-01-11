@@ -28,9 +28,9 @@ export class QuizService {
   }
   // Create data in the redis cache and
   // returns the roomId for the backend socket to send it to frontend
-  async createRoom(): Promise<string> {
+  async createRoom(hostId: string): Promise<string> {
     const roomId = crypto.randomUUID();
-    await this.cacheService.createRoom(roomId);
+    await this.cacheService.createRoom(roomId, hostId);
 
     return roomId;
   }

@@ -1,9 +1,12 @@
 https://localhost {
-	tls internal
+    tls internal
 
-	# Backend (NestJS) under /api/*
-	reverse_proxy /api/* backend_nestjs:8080
+    # Socket.IO handshake
+    reverse_proxy /socket.io/* backend_nestjs:8080
 
-	# Frontend (Next.js) as root
-	reverse_proxy frontend_nextjs:3000
+    # Backend (NestJS) under /api/*
+    reverse_proxy /api/* backend_nestjs:8080
+
+    # Frontend (Next.js) as root
+    reverse_proxy frontend_nextjs:3000
 }

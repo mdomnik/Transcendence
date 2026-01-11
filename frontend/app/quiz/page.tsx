@@ -36,7 +36,14 @@ export default function QuizPage() {
 
   const createRoom = () => {
     const socket = getSocket();
-    socket.emit('room:create');
+
+    if (!socket.connected) {
+      socket.once('connect', () => {
+        socket.emit('room:create');
+      });
+    } else {
+      socket.emit('room:create');
+    }
   };
 
   return (

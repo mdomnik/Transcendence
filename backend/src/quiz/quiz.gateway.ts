@@ -9,7 +9,8 @@ import { QuizService } from './quiz.service';
 @WebSocketGateway({
   namespace: '/quiz',
   cors: {
-    origin: '*',
+    origin: 'https://localhost',
+    credentials: true,
   },
 })
 export class QuizGateway {
@@ -43,8 +44,9 @@ export class QuizGateway {
   }
 
   @SubscribeMessage('room:create')
-  async handleCreate(client: Socket) {
-    const roomId = await this.quizService.createRoom();
+  // TODO! Replace hostId payload with jwt Auth (IMPORTANT TO DO LATER)
+  async handleCreate(client: Socket, payload: { hostId: string }) {
+    const roomId = await this.quizService.createRoom(payload.hostId);
     await client.join(roomId);
     client.emit('room:created', { roomId });
   }
