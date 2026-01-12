@@ -1,4 +1,12 @@
-import { Body, Controller, Get, Post, Req, Res, UseGuards } from '@nestjs/common';
+import {
+  Body,
+  Controller,
+  Get,
+  Post,
+  Req,
+  Res,
+  UseGuards,
+} from '@nestjs/common';
 import { AuthService } from './auth.service';
 import { AuthDto, SignInDto } from './dto';
 import { GoogleAuthGuard } from './strategy/Guards';
@@ -7,62 +15,65 @@ import { User } from 'src/common/decorators/user.decorator';
 
 @Controller('auth')
 export class AuthController {
-    constructor(private authService: AuthService) {}
+  constructor(private authService: AuthService) {}
 
-    @Post('signup')
-    signup(@Body() dto: AuthDto) {
-        return this.authService.signup(dto);
-    }
+  @Post('signup')
+  signup(@Body() dto: AuthDto) {
+    return this.authService.signup(dto);
+  }
 
-    @Post('signin')
-    async signin(
-      @Body() dto: SignInDto,
-      @Res({ passthrough: true }) res: Response,
-    ) {
-      const accessToken = await this.authService.signin(dto);
-      
-      res.cookie('access_token', accessToken, {
-        httpOnly: true,
-        sameSite: 'lax',
-        secure: false, 
-        path: '/',     
-        maxAge: 24 * 60 * 60 * 1000,
-      });
-  
-      return { ok: true, access_token: accessToken };
-    }
+  @Post('signin')
+  async signin(
+    @Body() dto: SignInDto,
+    @Res({ passthrough: true }) res: Response,
+  ) {
+    const accessToken = await this.authService.signin(dto);
 
-    @Post('logout')
-    logout(@Res() res: Response) {
-      res.clearCookie('access_token', {
-        httpOnly: true,
-        sameSite: 'lax',
-        secure: false,
-        path: '/',
-      });
-      return res.status(200).json({ message: 'Logged out successfully' });
-    }
+    res.cookie('access_token', accessToken, {
+      httpOnly: true,
+      sameSite: 'lax',
+      secure: true,
+      path: '/',
+      maxAge: 24 * 60 * 60 * 1000,
+    });
 
-    @Get('google/login')
-    @UseGuards(GoogleAuthGuard)
-    handleLogin(){
-    }
+    return { ok: true, access_token: accessToken };
+  }
 
-    @Get('google/redirect')
-    @UseGuards(GoogleAuthGuard)
-    async handleRedirect(@User() user, @Res() res: Response) {
-        const accessToken = await this.authService.signToken(user.username, user.id, user.email);
-        
-        res.cookie('access_token', accessToken, {
-          httpOnly: true,
-          sameSite: 'lax',
-          secure: false,
-          path: '/',
-          maxAge: 15 * 60 * 1000,
-        });
-        
-        console.log("access token: ", accessToken)
-        // Redirect to dashboard
-        return res.redirect('http://localhost/dashboard');
-    }
+  @Post('logout')
+  logout(@Res() res: Response) {
+    res.clearCookie('access_token', {
+      httpOnly: true,
+      sameSite: 'lax',
+      secure: true,
+      path: '/',
+    });
+    return res.status(200).json({ message: 'Logged out successfully' });
+  }
+
+  @Get('google/login')
+  @UseGuards(GoogleAuthGuard)
+  handleLogin() {}
+
+  @Get('google/redirect')
+  @UseGuards(GoogleAuthGuard)
+  async handleRedirect(@User() user, @Res() res: Response) {
+    const accessToken = await this.authService.signToken(
+      user.username,
+      user.id,
+      user.email,
+    );
+
+    res.cookie('access_token', accessToken, {
+      httpOnly: true,
+      sameSite: 'lax',
+      secure: true,
+      path: '/',
+      maxAge: 15 * 60 * 1000,
+    });
+
+    console.log('access token: ', accessToken);
+    // Redirect to dashboard
+    return res.redirect('/dashboard');
+  }
 }
