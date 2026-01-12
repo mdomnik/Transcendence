@@ -40,7 +40,7 @@ export class AuthController {
         httpOnly: true,
         sameSite: 'lax',
         secure: true,
-        path: '/api',
+        path: '/',
       });
       return res.status(200).json({ message: 'Logged out successfully' });
     }
