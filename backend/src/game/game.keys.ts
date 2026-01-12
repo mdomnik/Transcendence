@@ -12,6 +12,9 @@ export const GameKeys = {
     roundVotes: (lobbyId: string, round: number) =>
         `match:${lobbyId}:round:${round}:votes`,
 
+    roundScore: (lobbyId: string, round: number) =>
+        `match:${lobbyId}:round:${round}:score`,
+
     selected: (lobbyId: string, round: number) =>
         `match:${lobbyId}:round:${round}:selected`,
 
@@ -20,4 +23,5 @@ export const GameKeys = {
 
     answers: (lobbyId: string, round: number) =>
         `match:${lobbyId}:round:${round}:answers`,
+
 }
