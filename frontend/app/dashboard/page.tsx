@@ -10,7 +10,7 @@ import { logout } from "../lib/auth";
 
 export default function Dashboard() {
   const router = useRouter();
-  const { user, loading } = useAuth();
+  const { user, loading, logout } = useAuth();
 
   // Redirect to login if not authenticated
   useEffect(() => {
@@ -20,7 +20,8 @@ export default function Dashboard() {
   }, [user, loading, router]);
 
   const handleLogout = async () => {
-    await logout(); // Now properly clears cookies and calls backend
+   await logout();
+   router.push('/');
   };
 
   // Show loading state while checking auth
