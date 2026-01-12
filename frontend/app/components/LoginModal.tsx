@@ -9,7 +9,7 @@ interface LoginModalProps {
   onLoginSuccess: () => void;
 }
 const handleGoogleSignup = () => {
-  window.location.href = "https://localhost/api/auth/google/login";
+  window.location.href = "http://localhost/api/auth/google/login";
 };
 
 export default function LoginModal({ isOpen, onClose, onSwitchToSignUp, onLoginSuccess }: LoginModalProps) {
@@ -27,7 +27,7 @@ export default function LoginModal({ isOpen, onClose, onSwitchToSignUp, onLoginS
 
     try {
       // Send credentials to backend
-      const response = await fetch('https://localhost/api/auth/signin', {
+      const response = await fetch('http://localhost/api/auth/signin', {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',

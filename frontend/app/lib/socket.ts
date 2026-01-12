@@ -4,7 +4,7 @@ let socket: Socket | null = null;
 
 export function getSocket(): Socket {
   if (!socket) {
-    socket = io('https://localhost/quiz', {
+    socket = io('http://localhost', {
       transports: ['websocket'],
       withCredentials: true,
     });

@@ -89,14 +89,18 @@ export default function Dashboard() {
           <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
             
             {/* Quick Play */}
-            <div className="p-6 rounded-2xl bg-[#0A192F] border border-[#64FFDA]/20 hover:border-[#64FFDA]/50 transition-all hover:scale-105 cursor-pointer">
+            <div 
+              onClick={() => router.push("/lobby")}
+              className="p-6 rounded-2xl bg-[#0A192F] border border-[#64FFDA]/20 hover:border-[#64FFDA]/50 transition-all hover:scale-105 cursor-pointer">
               <div className="text-4xl mb-4">🎮</div>
               <h3 className="text-xl font-bold text-[#CCD6F6] mb-2">Quick Play</h3>
               <p className="text-[#8892B0] text-sm">Jump into a random quiz instantly</p>
             </div>
 
             {/* Multiplayer */}
-            <div className="p-6 rounded-2xl bg-[#0A192F] border border-[#64FFDA]/20 hover:border-[#64FFDA]/50 transition-all hover:scale-105 cursor-pointer">
+            <div 
+              onClick={() => router.push("/lobby")}
+              className="p-6 rounded-2xl bg-[#0A192F] border border-[#64FFDA]/20 hover:border-[#64FFDA]/50 transition-all hover:scale-105 cursor-pointer">
               <div className="text-4xl mb-4">👥</div>
               <h3 className="text-xl font-bold text-[#CCD6F6] mb-2">Multiplayer</h3>
               <p className="text-[#8892B0] text-sm">Challenge friends in real-time</p>
@@ -113,7 +117,10 @@ export default function Dashboard() {
 
           {/* Play Button */}
           <div className="flex justify-center pt-4">
-            <Button variant="Play">
+            <Button 
+              variant="Play"
+              onClick={() => router.push("/lobby")}
+            >
               Start New Game
             </Button>
           </div>

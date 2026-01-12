@@ -5,12 +5,12 @@ import cookieParser from 'cookie-parser';
 
 async function bootstrap() {
   const app = await NestFactory.create(AppModule);
-
+  
   app.getHttpAdapter().getInstance().set('trust proxy', true);
   app.use(cookieParser());
 
   app.enableCors({
-    origin: 'https://localhost',
+    origin: ['http://localhost', 'https://localhost'\],
     credentials: true,
   });
 
@@ -20,6 +20,6 @@ async function bootstrap() {
   );
   app.setGlobalPrefix('api');
 
-  await app.listen(8080, '0.0.0.0');
+  await app.listen(process.env.PORT || 3000, '0.0.0.0');
 }
 bootstrap();

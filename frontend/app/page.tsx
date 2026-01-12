@@ -19,13 +19,15 @@ export default function Home() {
 
   // Redirect to dashboard if already authenticated
   useEffect(() => {
+    console.log('Auth state:', { loading, user });
     if (!loading && user) {
+      console.log('Redirecting to dashboard...');
       router.push("/dashboard");
     }
   }, [user, loading, router]);
 
   const handleGoogleSignup = () => {
-    window.location.href = "https://localhost/api/auth/google/login";
+    window.location.href = "http://localhost/api/auth/google/login";
   };
 
   const handleLoginSuccess = () => {
