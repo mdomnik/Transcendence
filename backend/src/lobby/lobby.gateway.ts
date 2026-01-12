@@ -2,7 +2,7 @@ import { MessageBody, SubscribeMessage, WebSocketGateway } from "@nestjs/websock
 
 @WebSocketGateway({
   cors: {
-    origin: ['http://localhost', 'https://localhost'\],
+    origin: ['http://localhost', 'https://localhost'],
     credentials: true,
   },
 })

@@ -14,3 +14,7 @@ https://localhost {
         reverse_proxy /api/* backend_nestjs:3000
         reverse_proxy /socket.io/* backend_nestjs:3000
 
+        # Frontend (Next.js) as root
+        reverse_proxy frontend_nextjs:3000
+}
+
