@@ -22,34 +22,35 @@ export class AuthController {
     return this.authService.signup(dto);
   }
 
-  @Post('signin')
-  async signin(
-    @Body() dto: SignInDto,
-    @Res({ passthrough: true }) res: Response,
-  ) {
-    const accessToken = await this.authService.signin(dto);
+    @Post('signin')
+    async signin(
+      @Body() dto: SignInDto,
+      @Res({ passthrough: true }) res: Response,
+    ) {
+      const accessToken = await this.authService.signin(dto); // or return token from service
+    
+      res.cookie('access_token', accessToken, {
+        httpOnly: true,
+        sameSite: 'lax',
+        secure: true,
+        path: '/api',
+        maxAge: 15 * 60 * 1000,
+      });
+  
+      return { ok: true };
+    }
 
-    res.cookie('access_token', accessToken, {
-      httpOnly: true,
-      sameSite: 'lax',
-      secure: true,
-      path: '/',
-      maxAge: 24 * 60 * 60 * 1000,
-    });
-
-    return { ok: true, access_token: accessToken };
-  }
-
-  @Post('logout')
-  logout(@Res() res: Response) {
-    res.clearCookie('access_token', {
-      httpOnly: true,
-      sameSite: 'lax',
-      secure: true,
-      path: '/',
-    });
-    return res.status(200).json({ message: 'Logged out successfully' });
-  }
+    
+    @Post('logout')
+    logout(@Res() res: Response) {
+      res.clearCookie('access_token', {
+        httpOnly: true,
+        sameSite: 'lax',
+        secure: true,
+        path: '/',
+      });
+      return res.status(200).json({ message: 'Logged out successfully' });
+    }
 
   @Get('google/login')
   @UseGuards(GoogleAuthGuard)

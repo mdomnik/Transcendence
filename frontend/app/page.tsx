@@ -12,7 +12,7 @@ import { useAuth } from "./context/AuthContext";
 
 export default function Home() {
   const router = useRouter();
-  const { user, loading } = useAuth();
+  const { user, loading, refresh } = useAuth();
   const [isLoginOpen, setIsLoginOpen] = useState(false);
   const [isSignUpOpen, setIsSignUpOpen] = useState(false);
   const [is2FAOpen, setIs2FAOpen] = useState(false);
@@ -30,18 +30,22 @@ export default function Home() {
     window.location.href = "http://localhost/api/auth/google/login";
   };
 
-  const handleLoginSuccess = () => {
+  const handleLoginSuccess = async () => {
     setIsLoginOpen(false);
-    setIs2FAOpen(true);
-  };
-
-  const handle2FAVerify = (code: string) => {
-    console.log("Verifying 2FA code:", code);
-    // TODO: Call the backend to verify the code
-    // On success, redirect to dashboard
-    setIs2FAOpen(false);
+  
+    // Important: sync client auth state with the httpOnly cookie that was just set
+    await refresh();
+  
     router.push("/dashboard");
   };
+
+  // const handle2FAVerify = (code: string) => {
+  //   console.log("Verifying 2FA code:", code);
+  //   // TODO: Call the backend to verify the code
+  //   // On success, redirect to dashboard
+  //   setIs2FAOpen(false);
+  //   router.push("/dashboard");
+  // };
 
   // Show loading state while checking auth
   if (loading) {
@@ -134,11 +138,11 @@ export default function Home() {
         }}
       />
       {/* 2FA Modal */}
-      <TwoFaAuthentication
+      {/* <TwoFaAuthentication
         isOpen={is2FAOpen}
         onClose={() => setIs2FAOpen(false)}
         onVerify={handle2FAVerify}
-      />
+      /> */}
     </main>
   );
 }
