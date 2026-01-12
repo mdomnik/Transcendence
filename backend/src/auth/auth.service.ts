@@ -5,10 +5,11 @@ import * as argon from 'argon2';
 import { PrismaClientKnownRequestError } from '@prisma/client/runtime/client';
 import { JwtService } from '@nestjs/jwt';
 import { ConfigService } from '@nestjs/config';
+import { UserService } from 'src/user/user.service';
 
 @Injectable()
 export class AuthService {
-    constructor(private prisma: PrismaService, private jwt: JwtService) {}
+    constructor(private prisma: PrismaService, private jwt: JwtService, private userservice : UserService) {}
 
     async signup(dto: AuthDto) {
     //generate
@@ -23,7 +24,7 @@ export class AuthService {
     
                 
             });
-    
+            await this.userservice.ensureUserStats(user.id);
             return this.signToken(user.username, user.id, user.email);
             
         } catch (error) {
@@ -68,23 +69,20 @@ export class AuthService {
         username: string,
         userID: string,
         email: string, 
-    ): Promise<{ access_token: string }> {
+    ): Promise<string> {
         const payload = {
             sub: userID,
             email
         }
         const secret = process.env.JWT_SECRET 
 
-        const token = await this.jwt.signAsync(
+        return await this.jwt.signAsync(
             payload, 
             {
             expiresIn: '24h',
             secret: secret,
         });
 
-        return {
-            access_token: token,
-        };
     }
 
     async validateUser(email: string, googleId: string) {

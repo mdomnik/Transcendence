@@ -5,7 +5,6 @@ import { GoogleAuthGuard } from './strategy/Guards';
 import type { Request, Response } from 'express';
 import { User } from 'src/common/decorators/user.decorator';
 
-
 @Controller('auth')
 export class AuthController {
     constructor(private authService: AuthService) {}
@@ -16,42 +15,54 @@ export class AuthController {
     }
 
     @Post('signin')
-    signin(@Body() dto: SignInDto) {
-        return this.authService.signin(dto);
+    async signin(
+      @Body() dto: SignInDto,
+      @Res({ passthrough: true }) res: Response,
+    ) {
+      const accessToken = await this.authService.signin(dto);
+      
+      res.cookie('access_token', accessToken, {
+        httpOnly: true,
+        sameSite: 'lax',
+        secure: false, 
+        path: '/',     
+        maxAge: 24 * 60 * 60 * 1000,
+      });
+  
+      return { ok: true, access_token: accessToken };
     }
 
     @Post('logout')
     logout(@Res() res: Response) {
-        res.clearCookie('access_token', {
-            httpOnly: true,
-            sameSite: 'lax',
-            secure: true,
-            path: '/',
-            maxAge: 24 * 60 * 60 * 1000,
-        });
-        return res.status(200).json({ message: 'Logged out successfully' });
+      res.clearCookie('access_token', {
+        httpOnly: true,
+        sameSite: 'lax',
+        secure: false,
+        path: '/',
+      });
+      return res.status(200).json({ message: 'Logged out successfully' });
     }
 
     @Get('google/login')
     @UseGuards(GoogleAuthGuard)
     handleLogin(){
-
     }
 
     @Get('google/redirect')
     @UseGuards(GoogleAuthGuard)
     async handleRedirect(@User() user, @Res() res: Response) {
-        // const user = await this.authService.handleGoogleLogin(googleUser);
         const accessToken = await this.authService.signToken(user.username, user.id, user.email);
+        
         res.cookie('access_token', accessToken, {
           httpOnly: true,
           sameSite: 'lax',
-          secure: true, // true in production
+          secure: false,
           path: '/',
           maxAge: 15 * 60 * 1000,
         });
+        
         console.log("access token: ", accessToken)
-        // Redirect to homepage - frontend will check auth and redirect to dashboard
-        return res.redirect('https://localhost/');
+        // Redirect to dashboard
+        return res.redirect('http://localhost/dashboard');
     }
 }
