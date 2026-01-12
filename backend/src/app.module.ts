@@ -11,6 +11,7 @@ import { QuizModule } from './quiz/quiz.module';
 import { PublicApiModule } from './public-api/public-api.module';
 import { ParserModule } from './parser/parser.module';;
 import { UserModule } from './user/user.module';
+import { FriendshipModule } from './friendship/friendship.module';
 
 @Module({
   imports: [
@@ -30,6 +31,7 @@ import { UserModule } from './user/user.module';
     PublicApiModule,
     ParserModule,
     UserModule,
+    FriendshipModule,
   ],
   controllers: [AppController, UserController],
   providers: [

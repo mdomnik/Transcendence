@@ -27,8 +27,7 @@ async getMe(userId: string) {
         _count: {
           select: {
             games: true,
-            friendshipsSent: true,
-            friendshipsReceived: true,
+            requestsSent: true,
           },
         },
       },
