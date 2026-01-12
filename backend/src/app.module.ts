@@ -35,14 +35,14 @@ import { GameModule } from './game/game.module';
     UserModule,
     LobbyModule,
     RedisModule,
-    GameModule
+    GameModule,
   ],
   controllers: [AppController, UserController],
   providers: [
     AppService,
     {
       provide: APP_GUARD,
-      useClass: ThrottlerGuard
+      useClass: ThrottlerGuard,
     },
   ],
 })

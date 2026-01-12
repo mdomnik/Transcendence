@@ -13,14 +13,55 @@ import { LobbyKeys } from './lobby.keys';
 
 type LobbyState = 'WAITING' | 'SETUP' | 'IN_GAME' | 'FINISHED';
 
+export interface LobbyView {
+  lobbyId: string;
+  ownerId: string;
+  state: LobbyState;
+  members: Array<{
+    userId: string;
+    username: string;
+    ready: boolean;
+  }>;
+}
+
 @Injectable()
 export class LobbyService {
   constructor(
     private readonly redis: RedisService,
     private readonly prisma: PrismaService,
   ) {}
+  
+  async getLobby(lobbyId: string): Promise<LobbyView> {
+    const meta = await this.redis.client.hgetall(LobbyKeys.meta(lobbyId));
+    if (!meta?.ownerId) throw new NotFoundException('Lobby not Found');
 
-  async createLobby(ownerId: string) {
+    const memberIds = await this.redis.client.smembers(
+      LobbyKeys.members(lobbyId),
+    );
+    const readyMap = await this.redis.client.hgetall(LobbyKeys.ready(lobbyId));
+
+    const users = await this.prisma.user.findMany({
+      where: { id: { in: memberIds } },
+      select: { id: true, username: true },
+    });
+
+    const members = users
+    .map((u) => ({
+      userId: u.id,
+      username: u.username,
+      ready: readyMap[u.id] === '1',
+    }))
+    .sort((a, b) => (a.userId == meta.ownerId ? -1 : 1));
+
+    return {
+      lobbyId,
+      ownerId: meta.ownerId,
+      state: meta.state as LobbyState,
+      members,
+    };
+  }
+  
+  async createLobby(ownerId: string): Promise <LobbyView> {
     const owner = await this.prisma.user.findUnique({
       where: { id: ownerId },
       select: { id: true },
@@ -45,40 +86,15 @@ export class LobbyService {
     await this.redis.client.sadd(LobbyKeys.members(lobbyId), ownerId);
     await this.redis.client.hset(LobbyKeys.ready(lobbyId), ownerId, '0');
 
+    await this.redis.client.set(LobbyKeys.userLobby(ownerId), lobbyId);
+
     await this.refreshTTL(lobbyId);
 
-    return { lobbyId };
+    return this.getLobby(lobbyId);
   }
 
-  async getLobby(lobbyId: string) {
-    const meta = await this.redis.client.hgetall(LobbyKeys.meta(lobbyId));
-    if (!meta?.ownerId) throw new NotFoundException('Lobby not Found');
 
-    const memberIds = await this.redis.client.smembers(
-      LobbyKeys.members(lobbyId),
-    );
-    const readyMap = await this.redis.client.hgetall(LobbyKeys.ready(lobbyId));
-
-    const users = await this.prisma.user.findMany({
-      where: { id: { in: memberIds } },
-      select: { id: true, username: true },
-    });
-
-    const members = users.map((u) => ({
-      userId: u.id,
-      username: u.username,
-      ready: readyMap[u.id] === '1',
-    }));
-
-    return {
-      lobbyId,
-      ownerId: meta.ownerId,
-      state: meta.state as LobbyState,
-      members,
-    };
-  }
-
-  async joinLobby(lobbyId: string, userId: string) {
+  async joinLobby(lobbyId: string, userId: string): Promise <LobbyView> {
     const meta = await this.redis.client.hgetall(LobbyKeys.meta(lobbyId));
     if (!meta?.ownerId) throw new NotFoundException('Lobby not found');
 
@@ -98,15 +114,27 @@ export class LobbyService {
     if (existingLobby)
       throw new ForbiddenException('User is already in a lobby');
 
+    const alreadyMember = await this.redis.client.sismember(
+        LobbyKeys.members(lobbyId),
+        userId,
+    );
+
+    if (alreadyMember) {
+        await this.refreshTTL(lobbyId);
+        return this.getLobby(lobbyId);
+    }
+
     await this.redis.client.sadd(LobbyKeys.members(lobbyId), userId);
     await this.redis.client.hset(LobbyKeys.ready(lobbyId), userId, '0');
+
+    await this.redis.client.set(LobbyKeys.userLobby(userId), lobbyId);
 
     await this.refreshTTL(lobbyId);
 
     return this.getLobby(lobbyId);
   }
 
-  async leaveLobby(lobbyId: string, userId: string) {
+  async leaveLobby(lobbyId: string, userId: string): Promise <LobbyView | null> {
     const meta = await this.redis.client.hgetall(LobbyKeys.meta(lobbyId));
     if (!meta?.ownerId) throw new NotFoundException('Lobby not found');
 
@@ -124,7 +152,7 @@ export class LobbyService {
     return this.removeMember(lobbyId, userId);
   }
 
-  async kickPlayer(lobbyId: string, ownerId: string, targetUserId: string) {
+  async kickPlayer(lobbyId: string, ownerId: string, targetUserId: string): Promise<LobbyView | null> {
     const meta = await this.redis.client.hgetall(LobbyKeys.meta(lobbyId));
     if (!meta?.ownerId) throw new NotFoundException('Lobby not found');
 
@@ -151,7 +179,7 @@ export class LobbyService {
     return this.removeMember(lobbyId, targetUserId);
   }
 
-  private async removeMember(lobbyId: string, userId: string) {
+  private async removeMember(lobbyId: string, userId: string): Promise<LobbyView | null> {
     await this.redis.client.srem(LobbyKeys.members(lobbyId), userId);
     await this.redis.client.hdel(LobbyKeys.ready(lobbyId), userId);
     await this.redis.client.del(LobbyKeys.userLobby(userId));
@@ -162,7 +190,7 @@ export class LobbyService {
 
     if (remainingPlayers.length === 0) {
       await this.destroyLobby(lobbyId);
-      return { type: 'DESTROYED' };
+      return null;
     }
 
     const meta = await this.redis.client.hgetall(LobbyKeys.meta(lobbyId));
@@ -176,13 +204,10 @@ export class LobbyService {
 
     await this.refreshTTL(lobbyId);
 
-    return {
-      type: 'UPDATED',
-      lobby: await this.getLobby(lobbyId),
-    };
+    return this.getLobby(lobbyId);
   }
 
-  async setReady(lobbyId: string, userId: string, ready: boolean) {
+  async setReady(lobbyId: string, userId: string, ready: boolean): Promise <LobbyView> {
     const user = await this.prisma.user.findUnique({
       where: { id: userId },
       select: { id: true },
@@ -207,7 +232,7 @@ export class LobbyService {
     return this.getLobby(lobbyId);
   }
 
-  async startSetup(lobbyId: string, userId: string) {
+  async startSetup(lobbyId: string, userId: string): Promise <LobbyView> {
     const meta = await this.redis.client.hgetall(LobbyKeys.meta(lobbyId));
     if (!meta?.ownerId) throw new NotFoundException('Lobby not Found');
     if (meta.ownerId !== userId)
@@ -236,6 +261,11 @@ export class LobbyService {
     await this.redis.client.expire(LobbyKeys.meta(lobbyId), ttl);
     await this.redis.client.expire(LobbyKeys.members(lobbyId), ttl);
     await this.redis.client.expire(LobbyKeys.ready(lobbyId), ttl);
+
+    const members = await this.redis.client.smembers(LobbyKeys.members(lobbyId));
+    for (const userId of members) {
+        await this.redis.client.expire(LobbyKeys.userLobby(userId), ttl);
+    }
   }
 
   async clearLobbyForUsers(lobbyId: string) {
@@ -265,5 +295,13 @@ export class LobbyService {
     );
 
     return `Destroyed lobby: ${lobbyId}`;
+  }
+
+  async getLobbyIdForUser(userId: string): Promise<string | null> {
+    const lobbyId = await this.redis.client.get(
+        LobbyKeys.userLobby(userId),
+    );
+
+    return lobbyId ?? null;
   }
 }

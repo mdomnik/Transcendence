@@ -2,7 +2,7 @@ import { IsBoolean, IsUUID } from "class-validator";
 
 export class LobbyReadyDto {
     @IsUUID()
-    id: string;
+    lobbyId: string;
 
     @IsBoolean()
     ready: boolean;
