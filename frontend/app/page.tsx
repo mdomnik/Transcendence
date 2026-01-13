@@ -27,7 +27,7 @@ export default function Home() {
   }, [user, loading, router]);
 
   const handleGoogleSignup = () => {
-    window.location.href = "http://localhost/api/auth/google/login";
+    window.location.href = "/api/auth/google/login";
   };
 
   const handleLoginSuccess = async () => {

@@ -29,27 +29,23 @@ export default function LobbyPage() {
     const handleSync = () => {
       console.log('Emitting lobby:sync...');
       socket.emit('lobby:sync', (response: any) => {
-        console.log('lobby:sync raw response:', response);
-        if (response && typeof response === 'object' && response.ok && response.lobby) {
-          console.log('Lobby sync successful:', response.lobby);
-          setPlayers(response.lobby.members || []);
-          setLobbyId(response.lobby.lobbyId);
-          setOwnerId(response.lobby.ownerId);
+        console.log('lobby:sync response ack:', response);
+        if (response && response.ok) {
+           console.log('Lobby sync requested successfully, waiting for lobby:update event...');
+           // We don't set state here anymore, as recommended by @mdomnik.
+           // The backend will push a 'lobby:update' event to our listener below.
         } else {
           console.error('Failed to sync lobby. Response:', JSON.stringify(response));
-          // If we fail to sync, maybe wait a bit and retry once or redirect
-          setTimeout(() => {
-             console.log('Retrying sync...');
-             socket.emit('lobby:sync', (secondResp: any) => {
-                if (secondResp?.ok) {
-                    setPlayers(secondResp.lobby.members || []);
-                    setLobbyId(secondResp.lobby.lobbyId);
-                    setOwnerId(secondResp.lobby.ownerId);
-                } else {
-                    router.push('/dashboard');
-                }
-             });
-          }, 1000);
+          // If the user isn't in a lobby according to the server, return to dashboard
+          if (response?.error === 'User not in a lobby') {
+            router.push('/dashboard');
+          } else {
+            // Retry once after 2 seconds for transient errors
+            setTimeout(() => {
+               console.log('Retrying sync...');
+               socket.emit('lobby:sync');
+            }, 2000);
+          }
         }
       });
     };

@@ -28,7 +28,7 @@ export interface Friendship {
 
 //This functions is to get my list if accepted friends
 export async function getFriends(): Promise<Friendship[]> {
-	const res = await fetch('http://localhost/api/friends', {
+	const res = await fetch('/api/friends', {
 		credentials: 'include',
 		cache: 'no-store',
 	});
@@ -38,7 +38,7 @@ export async function getFriends(): Promise<Friendship[]> {
 
 // Function to get pending requests (people who added me)
 export async function getFriendRequests(): Promise<Friendship[]> {
-  const res = await fetch('http://localhost/api/friends/requests', {
+  const res = await fetch('/api/friends/requests', {
     credentials: 'include',
     cache: 'no-store',
   });
@@ -48,7 +48,7 @@ export async function getFriendRequests(): Promise<Friendship[]> {
 
 // Function to send a request to someone by username
 export async function sendFriendRequest(username: string) {
-  const res = await fetch('http://localhost/api/friends/request', {
+  const res = await fetch('/api/friends/request', {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({ username }),
@@ -60,7 +60,7 @@ export async function sendFriendRequest(username: string) {
 
 // Function to Accept or Reject a request
 export async function respondToRequest(requestId: string, status: FriendStatus.ACCEPTED | FriendStatus.REJECTED) {
-  const res = await fetch(`http://localhost/api/friends/${requestId}/respond`, {
+  const res = await fetch(`/api/friends/${requestId}/respond`, {
     method: 'PATCH',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({ status }),
