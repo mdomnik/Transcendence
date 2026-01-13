@@ -6,7 +6,7 @@ import { useAuth } from "../../context/AuthContext";
 
 export default function AuthCallback() {
   const router = useRouter();
-  const { refreshUser } = useAuth();
+//   const { refreshUser } = useAuth();
 
   useEffect(() => {
     const handleCallback = async () => {
@@ -14,14 +14,14 @@ export default function AuthCallback() {
       await new Promise(resolve => setTimeout(resolve, 100));
       
       // Refresh user data to fetch the authenticated user
-      await refreshUser();
+    //   await refreshUser();
       
       // Redirect to dashboard
       router.push("/dashboard");
     };
 
     handleCallback();
-  }, [refreshUser, router]);
+  }, [router]);
 
   return (
     <main className="relative min-h-screen bg-[#0A192F] flex items-center justify-center">

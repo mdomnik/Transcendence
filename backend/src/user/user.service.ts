@@ -1,5 +1,4 @@
-import { Injectable, NotFoundException } from "@nestjs/common";
-import { use } from "passport";
+import { Injectable, NotFoundException, BadRequestException } from "@nestjs/common";
 import { PrismaService } from "src/prisma/prisma.service";
 
 
@@ -100,10 +99,41 @@ async getMe(userId: string) {
     });
   }
 
-  async getIdFromUsername(username: string) {
-    return this.prisma.user.findUnique({
-      where: { username: username},
-      select: { id: true },
+  async searchUsers(query: string, requesterId: string) {
+    console.log("query: ", query);
+    const q = (query ?? '').trim();
+
+    if (q.length < 2) {
+      throw new BadRequestException('Query must be at least 2 characters');
+    }
+
+    const users = await this.prisma.user.findMany({
+      where: {
+        AND: [
+          { id: { not: requesterId } }, // don't show yourself
+          {
+            OR: [
+              { username: { contains: q, mode: 'insensitive' } },
+            ],
+          },
+        ],
+      },
+      select: {
+        id: true,
+        username: true,
+        createdAt: true,
+        stats: {
+          select: {
+            gamesPlayed: true,
+            gamesWon: true,
+            gamesLost: true,
+          },
+        },
+      },
+      take: 20,
+      orderBy: { username: 'asc' },
     });
+
+    return users;
   }
 }

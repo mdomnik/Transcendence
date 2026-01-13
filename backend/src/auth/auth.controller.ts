@@ -18,8 +18,20 @@ export class AuthController {
   constructor(private authService: AuthService) {}
 
   @Post('signup')
-  signup(@Body() dto: AuthDto) {
-    return this.authService.signup(dto);
+  async signup(@Body() dto: AuthDto,
+    @Res({ passthrough: true }) res: Response,
+    ) {
+    const accessToken = await this.authService.signup(dto); // or return token from service
+
+    res.cookie('access_token', accessToken, {
+      httpOnly: false,
+      sameSite: 'lax',
+      secure: true,
+      path: '/',
+      maxAge: 15 * 60 * 1000,
+    });
+
+    return { ok: true };
   }
 
   @Post('signin')

@@ -1,3 +1,4 @@
+// src/lib/auth.ts
 export interface User {
   id: string;
   email: string;
@@ -8,6 +9,7 @@ export async function fetchCurrentUser(): Promise<User | null> {
   try {
     console.log('Fetching current user...');
     const res = await fetch('/api/users/me', {
+      method: 'GET',
       credentials: 'include', // Important: sends httpOnly cookies
       cache: 'no-store',
     });
@@ -29,15 +31,10 @@ export async function fetchCurrentUser(): Promise<User | null> {
 }
 
 export async function logout(): Promise<void> {
-  try {
-    // Call backend logout endpoint to clear httpOnly cookie
-    await fetch('/api/auth/logout', {
-      method: 'POST',
-      credentials: 'include',
-    });
-  } catch (error) {
-    console.error('Logout failed:', error);
-  } finally {
-    window.location.href = '/';
-  }
+  // Backend must clear the httpOnly cookie
+  await fetch('/api/auth/logout', {
+    method: 'POST',
+    credentials: 'include',
+  });
 }
+

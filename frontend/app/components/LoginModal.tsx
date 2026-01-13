@@ -6,7 +6,7 @@ interface LoginModalProps {
   isOpen: boolean;
   onClose: () => void;
   onSwitchToSignUp: () => void;
-  onLoginSuccess: () => void;
+  onLoginSuccess: () => void | Promise<void>;
 }
 const handleGoogleSignup = () => {
   window.location.href = "/api/auth/google/login";
@@ -29,12 +29,11 @@ export default function LoginModal({ isOpen, onClose, onSwitchToSignUp, onLoginS
       // Send credentials to backend
       const response = await fetch('/api/auth/signin', {
         method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        credentials: 'include', // Important: allows cookies to be sent/received
+        headers: { 'Content-Type': 'application/json' },
+        credentials: 'include',
         body: JSON.stringify({ identifier, password }),
       });
+
 
       if (!response.ok) {
         const errorData = await response.json();

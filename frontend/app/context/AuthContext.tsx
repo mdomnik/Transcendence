@@ -1,50 +1,51 @@
-"use client";
+// src/context/AuthContext.tsx
+'use client';
 
-import { createContext, useContext, useEffect, useState, ReactNode } from "react";
-import { User, fetchCurrentUser } from "../lib/auth";
+import React, { createContext, useContext, useEffect, useMemo, useState } from 'react';
+import type { User } from '../lib/auth';
+import { fetchCurrentUser, logout as apiLogout } from '../lib/auth';
 
-interface AuthContextType {
+type AuthContextValue = {
   user: User | null;
   loading: boolean;
-  refreshUser: () => Promise<void>;
-}
+  refresh: () => Promise<void>;
+  logout: () => Promise<void>;
+};
 
-const AuthContext = createContext<AuthContextType | undefined>(undefined);
+const AuthContext = createContext<AuthContextValue | undefined>(undefined);
 
-export function AuthProvider({ children }: { children: ReactNode }) {
+export function AuthProvider({ children }: { children: React.ReactNode }) {
   const [user, setUser] = useState<User | null>(null);
   const [loading, setLoading] = useState(true);
 
-  const refreshUser = async () => {
+  const refresh = async () => {
     setLoading(true);
-    const currentUser = await fetchCurrentUser();
-    setUser(currentUser);
+    const me = await fetchCurrentUser();
+    setUser(me);
     setLoading(false);
   };
 
+  const logout = async () => {
+    setLoading(true);
+    try {
+      await apiLogout();
+    } finally {
+      setUser(null);
+      setLoading(false);
+    }
+  };
+
   useEffect(() => {
-    refreshUser();
-
-    // Listen for cookie changes (e.g., from other tabs)
-    const handleStorageChange = () => {
-      refreshUser();
-    };
-
-    window.addEventListener('storage', handleStorageChange);
-    return () => window.removeEventListener('storage', handleStorageChange);
+    void refresh();
   }, []);
 
-  return (
-    <AuthContext.Provider value={{ user, loading, refreshUser }}>
-      {children}
-    </AuthContext.Provider>
-  );
+  const value = useMemo(() => ({ user, loading, refresh, logout }), [user, loading]);
+
+  return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;
 }
 
 export function useAuth() {
-  const context = useContext(AuthContext);
-  if (context === undefined) {
-    throw new Error("useAuth must be used within an AuthProvider");
-  }
-  return context;
+  const ctx = useContext(AuthContext);
+  if (!ctx) throw new Error('useAuth must be used within AuthProvider');
+  return ctx;
 }
