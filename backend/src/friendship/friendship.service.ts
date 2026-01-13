@@ -286,6 +286,30 @@ export class FriendshipService {
     return { ok: true };
   }
 
+  async friendsList(myId: string) {
+    const rows = await this.prisma.friendship.findMany({
+    where: {
+      status: FriendStatus.ACCEPTED,
+      OR: [{ userAId: myId }, { userBId: myId }],
+    },
+    select: {
+      id: true,
+      updatedAt: true,
+      userA: { select: { id: true, username: true } },
+      userB: { select: { id: true, username: true } },
+    },
+    orderBy: { updatedAt: 'desc' },
+   });
+    return rows.map((r) => {
+        const other = r.userA.id === myId? r.userB : r.userA;
+        return {
+            friendshipId: r.id,
+            since: r.updatedAt,
+            friend: other,
+        };
+    });
+  }
+
   // Select includes "me vs other" convenience
   private selectRow(myId: string) {
     return {
