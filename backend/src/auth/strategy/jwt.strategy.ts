@@ -6,6 +6,7 @@ import { PrismaService } from 'src/prisma/prisma.service';
 import { Request } from 'express';
 
 const cookieExtractor = (req: Request): string | null => {
+  console.log('Cookies received:', req.cookies);
   return req?.cookies?.access_token ?? null;
 };
 @Injectable()

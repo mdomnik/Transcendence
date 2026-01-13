@@ -39,8 +39,14 @@ model User {
   // relations
   seenQuestions UserQuestion[]
   stats         UserStats?
-  friendshipsSent     Friendship[] @relation("FriendshipsSent")
-  friendshipsReceived Friendship[] @relation("FriendshipsReceived")
+
+  friendshipsA Friendship[] @relation("FriendshipUserA")
+  friendshipsB Friendship[] @relation("FriendshipUserB")
+
+  // Optional: convenient relations
+  requestsSent     Friendship[] @relation("FriendshipRequester")
+  blocksInitiated  Friendship[] @relation("FriendshipBlocker")
+
   games         GameResult[]
 }
 
@@ -78,16 +84,24 @@ model Friendship {
   updatedAt DateTime @updatedAt
   status   FriendStatus @default(PENDING)
 
-  userId   String
-  friendId String
+  userAId     String
+  userBId     String
 
-  requester User @relation("FriendshipsSent",     fields: [userId],   references: [id])
-  addressee User @relation("FriendshipsReceived", fields: [friendId], references: [id])
+  userA       User @relation("FriendshipUserA", fields: [userAId], references: [id])
+  userB       User @relation("FriendshipUserB", fields: [userBId], references: [id])
 
-  @@unique([userId, friendId])
-  
-  @@index([friendId, status])
-  @@index([userId, status])
+  // Who initiated (for pending/rejected history if you keep it)
+  requesterId String?
+  requester   User? @relation("FriendshipRequester", fields: [requesterId], references: [id])
+
+  // Who blocked (required to enforce unblock permissions)
+  blockerId   String?
+  blocker     User? @relation("FriendshipBlocker", fields: [blockerId], references: [id])
+
+  @@unique([userAId, userBId], name: "userAId_userBId")
+  @@index([userAId, status])
+  @@index([userBId, status])
+  @@index([status, blockerId])
 }
 
 model GameResult {

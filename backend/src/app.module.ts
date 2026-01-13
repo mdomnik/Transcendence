@@ -16,6 +16,7 @@ import { LobbyModule } from './lobby/lobby.module';
 import { GameModule } from './game/game.module';
 import { WebsocketModule } from './websocket/websocket.module';
 import { DashboardModule } from './dashboard/dashboard.module';
+import { FriendshipModule } from './friendship/friendship.module';
 
 @Module({
   imports: [
@@ -40,6 +41,7 @@ import { DashboardModule } from './dashboard/dashboard.module';
     GameModule,
     WebsocketModule,
     DashboardModule,
+    FriendshipModule,
   ],
   controllers: [AppController, UserController],
   providers: [
