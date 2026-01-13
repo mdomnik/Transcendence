@@ -1,7 +1,7 @@
 "use client";
 
 import { createContext, useContext, useEffect, useState, ReactNode } from "react";
-import { User, fetchCurrentUser, hasAuthCookie } from "../lib/auth";
+import { User, fetchCurrentUser } from "../lib/auth";
 
 interface AuthContextType {
   user: User | null;
@@ -17,14 +17,6 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
   const refreshUser = async () => {
     setLoading(true);
-    
-    // Quick check for cookie existence before making API call
-    if (!hasAuthCookie()) {
-      setUser(null);
-      setLoading(false);
-      return;
-    }
-
     const currentUser = await fetchCurrentUser();
     setUser(currentUser);
     setLoading(false);

@@ -4,6 +4,7 @@ interface ButtonProps {
   onClick?: () => void;           // Click handler (optional)
   type?: "button" | "submit";     // Button type
   fullWidth?: boolean;            // Take full width?
+  disabled?: boolean;             // Disabled state
 }
 
 export default function Button({
@@ -12,6 +13,7 @@ export default function Button({
   onClick,
   type = "button",
   fullWidth = false,
+  disabled = false,
 }: ButtonProps) {
   // Base styles (shared by all buttons)
   const baseStyles =
@@ -29,12 +31,16 @@ export default function Button({
 
   // Width style
   const widthStyle = fullWidth ? "w-full" : "";
+  
+  // Disabled style
+  const disabledStyle = disabled ? "opacity-50 cursor-not-allowed hover:scale-100" : "";
 
   return (
     <button
       type={type}
       onClick={onClick}
-      className={`${baseStyles} ${variants[variant]} ${widthStyle}`}
+      disabled={disabled}
+      className={`${baseStyles} ${variants[variant]} ${widthStyle} ${disabledStyle}`}
     >
       {children}
     </button>

@@ -20,7 +20,7 @@ export default function Dashboard() {
   }, [user, loading, router]);
 
   const handleLogout = async () => {
-    await logout(); // Now properly clears cookies and calls backend
+    await logout();
   };
 
   // Show loading state while checking auth
@@ -37,7 +37,7 @@ export default function Dashboard() {
     return null;
   }
 
-  const userName = user.email?.split('@')[0] || "Player";
+  const userName = user.username || user.email?.split('@')[0] || "Player";
 
   return (
     <main className="relative min-h-screen bg-[#0A192F] overflow-hidden">
@@ -62,8 +62,9 @@ export default function Dashboard() {
             userName={userName}
             userEmail={user.email || ""}
             items={[
-              { label: "Profile", onClick: () => window.location.href = "/profile" },
-              { label: "Settings", onClick: () => window.location.href = "/settings" },
+              { label: "Profile", onClick: () => router.push("/profile") },
+              { label: "Friends", onClick: () => router.push("/friends") },
+              { label: "Settings", onClick: () => router.push("/settings") },
               { label: "Logout", onClick: handleLogout },
             ]}
           />
@@ -71,13 +72,16 @@ export default function Dashboard() {
       </header>
 
       {/* Main Content */}
-      <div className="relative z-10 flex flex-col items-center justify-center px-6 py-12">
-        
-        {/* Welcome Card */}
-        <div className="max-w-4xl w-full rounded-3xl bg-[#112240] backdrop-blur-xl shadow-2xl border border-[#64FFDA]/30 p-10 space-y-8">
+      <div className="relative z-10 px-6 py-16">
+        <div className="max-w-7xl w-full mx-auto grid grid-cols-1 lg:grid-cols-3 gap-8 items-start">
+          
+          {/* Main Game Section */}
+          <div className="lg:col-span-2">
+            {/* Welcome Card */}
+            <div className="rounded-3xl bg-[#112240] backdrop-blur-xl shadow-2xl border border-[#64FFDA]/30 p-10 space-y-8">
           
           <div className="text-center space-y-4">
-            <h2 className="text-4xl font-extrabold text-[#CCD6F6]">
+            <h2 className="text-4xl md:text-5xl font-extrabold text-[#CCD6F6]">
               Ready to Play?
             </h2>
             <p className="text-lg text-[#8892B0]">
@@ -86,60 +90,101 @@ export default function Dashboard() {
           </div>
 
           {/* Game Options */}
-          <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
             
-            {/* Quick Play */}
-            <div className="p-6 rounded-2xl bg-[#0A192F] border border-[#64FFDA]/20 hover:border-[#64FFDA]/50 transition-all hover:scale-105 cursor-pointer">
-              <div className="text-4xl mb-4">🎮</div>
-              <h3 className="text-xl font-bold text-[#CCD6F6] mb-2">Quick Play</h3>
-              <p className="text-[#8892B0] text-sm">Jump into a random quiz instantly</p>
+            {/* Create Game */}
+            <div 
+              onClick={() => router.push("/lobby")}
+              className="p-6 rounded-2xl bg-[#0A192F] border border-[#64FFDA]/20 hover:border-[#64FFDA]/50 transition-all hover:scale-105 cursor-pointer">
+              <div className="text-5xl mb-4">➕</div>
+              <h3 className="text-xl font-bold text-[#CCD6F6] mb-2">Create Game</h3>
+              <p className="text-[#8892B0] text-sm">Host a new match to challenge friends</p>
             </div>
 
-            {/* Multiplayer */}
-            <div className="p-6 rounded-2xl bg-[#0A192F] border border-[#64FFDA]/20 hover:border-[#64FFDA]/50 transition-all hover:scale-105 cursor-pointer">
-              <div className="text-4xl mb-4">👥</div>
-              <h3 className="text-xl font-bold text-[#CCD6F6] mb-2">Multiplayer</h3>
-              <p className="text-[#8892B0] text-sm">Challenge friends in real-time</p>
-            </div>
-
-            {/* Leaderboard */}
-            <div className="p-6 rounded-2xl bg-[#0A192F] border border-[#64FFDA]/20 hover:border-[#64FFDA]/50 transition-all hover:scale-105 cursor-pointer">
-              <div className="text-4xl mb-4">🏆</div>
-              <h3 className="text-xl font-bold text-[#CCD6F6] mb-2">Leaderboard</h3>
-              <p className="text-[#8892B0] text-sm">See top players worldwide</p>
+            {/* Join Game */}
+            <div 
+              onClick={() => router.push("/lobby")}
+              className="p-6 rounded-2xl bg-[#0A192F] border border-[#64FFDA]/20 hover:border-[#64FFDA]/50 transition-all hover:scale-105 cursor-pointer">
+              <div className="text-5xl mb-4">🔍</div>
+              <h3 className="text-xl font-bold text-[#CCD6F6] mb-2">Join Game</h3>
+              <p className="text-[#8892B0] text-sm">Find a match or enter a game code</p>
             </div>
 
           </div>
 
           {/* Play Button */}
           <div className="flex justify-center pt-4">
-            <Button variant="Play">
+            <Button 
+              variant="Play"
+              onClick={() => router.push("/lobby")}
+            >
               Start New Game
             </Button>
           </div>
 
-        </div>
+            </div>
+          </div>
 
-        {/* Stats Section */}
-        <div className="max-w-4xl w-full mt-8 grid grid-cols-2 md:grid-cols-4 gap-4">
-          <div className="p-4 rounded-xl bg-[#112240] border border-[#64FFDA]/20 text-center">
-            <div className="text-3xl font-bold text-[#64FFDA]">0</div>
-            <div className="text-sm text-[#8892B0]">Games Played</div>
-          </div>
-          <div className="p-4 rounded-xl bg-[#112240] border border-[#64FFDA]/20 text-center">
-            <div className="text-3xl font-bold text-[#64FFDA]">0%</div>
-            <div className="text-sm text-[#8892B0]">Win Rate</div>
-          </div>
-          <div className="p-4 rounded-xl bg-[#112240] border border-[#64FFDA]/20 text-center">
-            <div className="text-3xl font-bold text-[#64FFDA]">0</div>
-            <div className="text-sm text-[#8892B0]">Total Points</div>
-          </div>
-          <div className="p-4 rounded-xl bg-[#112240] border border-[#64FFDA]/20 text-center">
-            <div className="text-3xl font-bold text-[#64FFDA]">#-</div>
-            <div className="text-sm text-[#8892B0]">Global Rank</div>
-          </div>
-        </div>
+          {/* Friends Widget Sidebar */}
+          <div className="lg:col-span-1 space-y-6">
+            
+            {/* Quick Friends Access */}
+            <div className="rounded-2xl bg-[#112240] border border-[#64FFDA]/20 p-6">
+              <div className="flex items-center justify-between mb-4">
+                <h3 className="text-lg font-bold text-[#64FFDA] flex items-center gap-2">
+                  <span>👥</span> Friends
+                </h3>
+                <button
+                  onClick={() => router.push("/friends")}
+                  className="text-xs text-[#64FFDA] hover:text-[#5EEAD4] transition-colors"
+                >
+                  View All →
+                </button>
+              </div>
+              
+              <div className="space-y-3">
+                <p className="text-sm text-[#8892B0] text-center py-8">
+                  Connect with friends to challenge them!
+                </p>
+                <button
+                  onClick={() => router.push("/friends")}
+                  className="w-full py-2 bg-[#64FFDA]/10 hover:bg-[#64FFDA]/20 text-[#64FFDA] rounded-lg transition-colors text-sm font-medium"
+                >
+                  Add Friends
+                </button>
+              </div>
+            </div>
 
+            {/* Leaderboard */}
+            <div className="rounded-2xl bg-[#112240] border border-[#64FFDA]/20 p-6">
+              <div className="flex items-center justify-between mb-4">
+                <h3 className="text-lg font-bold text-[#64FFDA] flex items-center gap-2">
+                  <span>🏆</span> Leaderboard
+                </h3>
+                <button
+                  onClick={() => router.push("/leaderboard")}
+                  className="text-xs text-[#64FFDA] hover:text-[#5EEAD4] transition-colors"
+                >
+                  View All →
+                </button>
+              </div>
+              
+              <div className="space-y-3">
+                <p className="text-sm text-[#8892B0] text-center py-8">
+                  Compete and see where you rank!
+                </p>
+                <button
+                  onClick={() => router.push("/leaderboard")}
+                  className="w-full py-2 bg-[#64FFDA]/10 hover:bg-[#64FFDA]/20 text-[#64FFDA] rounded-lg transition-colors text-sm font-medium"
+                >
+                  View Rankings
+                </button>
+              </div>
+            </div>
+
+          </div>
+
+        </div>
       </div>
     </main>
   );

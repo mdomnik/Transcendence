@@ -46,7 +46,7 @@ export class AuthController {
       httpOnly: true,
       sameSite: 'lax',
       secure: true,
-      path: '/api',
+      path: '/',
     });
     return res.status(200).json({ message: 'Logged out successfully' });
   }
@@ -68,7 +68,7 @@ export class AuthController {
       httpOnly: true,
       sameSite: 'lax',
       secure: true, // true in production
-      path: '/api',
+      path: '/',
       maxAge: 15 * 60 * 1000,
     });
     console.log('access token: ', accessToken);

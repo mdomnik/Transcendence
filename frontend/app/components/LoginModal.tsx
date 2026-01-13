@@ -27,7 +27,7 @@ export default function LoginModal({ isOpen, onClose, onSwitchToSignUp, onLoginS
 
     try {
       // Send credentials to backend
-      const response = await fetch('https://localhost/api/auth/signin', {
+      const response = await fetch('/api/auth/signin', {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
@@ -41,12 +41,9 @@ export default function LoginModal({ isOpen, onClose, onSwitchToSignUp, onLoginS
         throw new Error(errorData.message || 'Login failed');
       }
 
-      // Backend returns JWT token as httpOnly cookie
-      // No need to manually store it - browser handles it automatically
-      const data = await response.json();
-      
-      // On success, trigger 2FA or redirect
-      onLoginSuccess();
+      // Login successful - redirect to dashboard
+      onClose();
+      window.location.href = '/dashboard';
     } catch (err: any) {
       setError(err.message || "Invalid email or password");
     } finally {
