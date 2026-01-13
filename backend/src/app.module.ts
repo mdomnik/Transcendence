@@ -14,6 +14,7 @@ import { UserModule } from './user/user.module';
 import { RedisModule } from './redis/redis.module';
 import { LobbyModule } from './lobby/lobby.module';
 import { GameModule } from './game/game.module';
+import { FriendshipModule } from './friendship/friendship.module';
 
 @Module({
   imports: [
@@ -36,6 +37,7 @@ import { GameModule } from './game/game.module';
     LobbyModule,
     RedisModule,
     GameModule,
+    FriendshipModule,
   ],
   controllers: [AppController, UserController],
   providers: [
