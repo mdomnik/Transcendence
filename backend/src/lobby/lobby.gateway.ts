@@ -8,86 +8,34 @@ import {
   MessageBody,
   WebSocketServer,
   OnGatewayInit,
-  OnGatewayConnection,
 } from '@nestjs/websockets';
 import { Server, Socket } from 'socket.io';
-import { JwtService } from '@nestjs/jwt';
 import { LobbyService } from 'src/lobby/lobby.service';
 import { LobbyDto, LobbyKickDto } from './dto';
-import { initWsAuth } from 'src/websocket/websocket.init';
 
 @WebSocketGateway({
   namespace: '/quiz',
-  cors: {
-    origin: 'https://localhost',
-    credentials: true,
-  },
 })
-export class LobbyGateway
-  implements OnGatewayInit, OnGatewayConnection
-{
+export class LobbyGateway {
   @WebSocketServer()
   private server: Server;
 
   constructor(
-    private readonly lobbyService: LobbyService,
-    private readonly jwtService: JwtService,
-  ) {}
-
-  afterInit(server: Server) {
-    console.log('Lobby WebSocket Gateway initialized');
-    // Middleware is already initialized in ConnectionGateway
-    // No need to add it again here to avoid conflicts
-  }
-
-  handleConnection(client: Socket) {
-    const userId = client.data.userId;
-    console.log(`[LobbyGateway] Client connected: ${client.id}, userId: ${userId}`);
-    
-    // Log every event for debugging
-    client.onAny((event, ...args) => {
-      console.log(`[LobbyGateway] Incoming event: ${event}`, args);
-    });
-  }
+    private readonly lobbyService: LobbyService) {}
 
   @SubscribeMessage('lobby:create')
-  async onLobbyCreate(
-    @ConnectedSocket() client: Socket,
-    @MessageBody() data: any,
-  ) {
-    console.log(`[LobbyGateway] onLobbyCreate triggered. Data:`, data);
-    try {
-      const userId = client.data.userId;
-      if (!userId) {
-        console.error('[LobbyGateway] No userId in socket data');
-        return { ok: false, error: 'Unauthorized' };
-      }
+  async onLobbyCreate(@ConnectedSocket() client: Socket) {
+    const userId = client.data.userId;
 
-      console.log(`[LobbyGateway] onLobbyCreate: user ${userId}`);
+    const lobby = await this.lobbyService.createLobby(userId);
 
-      const lobby = await this.lobbyService.createLobby(userId);
-      console.log(`[LobbyGateway] Lobby created in service: ${lobby.lobbyId}`);
+    client.join(lobby.lobbyId);
 
-      client.join(lobby.lobbyId);
-      this.server.to(lobby.lobbyId).emit('lobby:update', lobby);
+    this.server.to(lobby.lobbyId).emit('lobby:update', lobby);
 
-      return { ok: true, lobby };
-    } catch (error) {
-      console.error(`[LobbyGateway] onLobbyCreate ERROR: ${error.message}`);
-      
-      if (error.status === 403 || error.message?.includes('already in a lobby')) {
-        const userId = client.data.userId;
-        const existingId = await this.lobbyService.getLobbyIdForUser(userId);
-        if (existingId) {
-          console.log(`[LobbyGateway] Returning existing lobby ${existingId} for user ${userId}`);
-          const lobby = await this.lobbyService.getLobby(existingId);
-          client.join(existingId);
-          return { ok: true, lobby };
-        }
-      }
+    console.log(`lobby created for user: ${userId}, lobby id: ${lobby.lobbyId}`);
 
-      return { ok: false, error: error.message || 'Failed to create lobby' };
-    }
+    return { ok: true }; 
   }
 
   @SubscribeMessage('lobby:join')
@@ -103,7 +51,7 @@ export class LobbyGateway
 
     this.server.to(lobby.lobbyId).emit('lobby:update', lobby);
 
-    return { ok: true, lobby };
+    return { ok: true };
   }
 
   @SubscribeMessage('lobby:leave')
@@ -132,10 +80,8 @@ export class LobbyGateway
     @MessageBody() dto: LobbyDto,
   ) {
     const userId = client.data.userId;
-    console.log(`[LobbyGateway] user ${userId} ready in lobby ${dto.lobbyId}`);
 
     const lobby = await this.lobbyService.setReady(dto.lobbyId, userId, true);
-    console.log(`[LobbyGateway] Lobby state after ready: ${lobby.state}`);
 
     this.server.to(lobby.lobbyId).emit('lobby:update', lobby);
 
@@ -148,10 +94,8 @@ export class LobbyGateway
     @MessageBody() dto: LobbyDto,
   ) {
     const userId = client.data.userId;
-    console.log(`[LobbyGateway] user ${userId} unready in lobby ${dto.lobbyId}`);
 
     const lobby = await this.lobbyService.setReady(dto.lobbyId, userId, false);
-    console.log(`[LobbyGateway] Lobby state after unready: ${lobby.state}`);
 
     this.server.to(lobby.lobbyId).emit('lobby:update', lobby);
 
@@ -197,60 +141,27 @@ export class LobbyGateway
     @MessageBody() dto: LobbyDto,
   ) {
     const userId = client.data.userId;
-    console.log(`[LobbyGateway] onLobbyStart: user ${userId} starting lobby ${dto.lobbyId}`);
 
-    try {
-      const lobby = await this.lobbyService.startSetup(dto.lobbyId, userId);
-      console.log(`[LobbyGateway] Lobby ${dto.lobbyId} state set to SETUP`);
+    const lobby = await this.lobbyService.startSetup(dto.lobbyId, userId);
 
-      // Notify everyone including the sender
-      this.server.to(lobby.lobbyId).emit('lobby:update', lobby);
-      this.server.to(lobby.lobbyId).emit('lobby:started', { 
-        lobbyId: lobby.lobbyId,
-        state: lobby.state 
-      });
+    this.server.to(lobby.lobbyId).emit('lobby:update', lobby);
 
-      return { ok: true };
-    } catch (error) {
-      console.error(`[LobbyGateway] onLobbyStart ERROR: ${error.message}`);
-      return { ok: false, error: error.message || 'Failed to start game' };
-    }
+    return { ok: true };
   }
 
   @SubscribeMessage('lobby:sync')
   async onLobbySync(@ConnectedSocket() client: Socket) {
-    try {
-      const userId = client.data.userId;
-      if (!userId) {
-        console.error('[LobbyGateway] No userId in socket data during sync');
-        return { ok: false, error: 'Unauthorized' };
-      }
+    const userId = client.data.userId;
 
-      console.log(`[LobbyGateway] Sync requested by user: ${userId}`);
+    const lobbyId = await this.lobbyService.getLobbyIdForUser(userId);
 
-      const lobbyId = await this.lobbyService.getLobbyIdForUser(userId);
-      if (!lobbyId) {
-        console.log(`[LobbyGateway] No lobbyId found for user: ${userId}`);
-        return { ok: false, error: 'User not in a lobby' };
-      }
+    if (!lobbyId) return { ok: false };
 
-      const lobby = await this.lobbyService.getLobby(lobbyId);
-      console.log(`[LobbyGateway] Found lobby for sync: ${lobbyId}`);
+    const lobby = await this.lobbyService.getLobby(lobbyId);
 
-      client.join(lobbyId);
+    client.join(lobbyId);
+    client.emit('lobby:update', lobby);
 
-      return {
-        ok: true,
-        lobby: {
-          lobbyId: lobby.lobbyId,
-          ownerId: lobby.ownerId,
-          state: lobby.state,
-          members: lobby.members,
-        },
-      };
-    } catch (e) {
-      console.error(`[LobbyGateway] Sync error: ${e.message}`);
-      return { ok: false, error: 'Internal server error' };
-    }
+    return { ok: true };
   }
 }
