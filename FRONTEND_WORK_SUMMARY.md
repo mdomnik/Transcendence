@@ -361,7 +361,7 @@ The `20260106153140_init` migration started at 2026-01-11 14:53:00.461501 UTC fa
 ## 9. Technical Achievements
 
 ✅ Implemented real-time multiplayer architecture
-✅ Used Singleton pattern for connection management
+✅ Used  pattern for connection management
 ✅ Built event-driven UI with React hooks
 ✅ Created reusable WebSocket utility
 ✅ Proper cleanup to prevent memory leaks

@@ -16,9 +16,12 @@ export default function LobbyPage() {
   const router = useRouter();
   const { user } = useAuth();
   const [players, setPlayers] = useState<Player[]>([]);
-  const [isReady, setIsReady] = useState(false);
+  const [ownerId, setOwnerId] = useState<string | null>(null);
   const [roomId, setRoomId] = useState<string | null>(null);
   const [connectionStatus, setConnectionStatus] = useState<'connecting' | 'connected' | 'disconnected'>('connecting');
+
+  // Derive isReady from players list for the current user
+  const isReady = players.find(p => p.id === user?.id)?.isReady || false;
 
   useEffect(() => {
     const socket = getSocket();
@@ -27,13 +30,13 @@ export default function LobbyPage() {
     socket.on('connect', () => {
       console.log('Connected to lobby');
       setConnectionStatus('connected');
-      
-      // Join lobby when connected
-      socket.emit('join-lobby', { 
-        userId: user?.id, 
-        username: user?.username 
-      });
+      socket.emit('lobby:sync');
     });
+
+    if (socket.connected) {
+      setConnectionStatus('connected');
+      socket.emit('lobby:sync');
+    }
 
     socket.on('disconnect', () => {
       console.log('Disconnected from lobby');
@@ -46,32 +49,23 @@ export default function LobbyPage() {
     });
 
     // Lobby events
-    socket.on('room:created', ({ roomId }) => {
-      console.log('Room created:', roomId);
-      setRoomId(roomId);
+    socket.on('lobby:update', (data: { players: Player[], roomId: string, ownerId: string }) => {
+      console.log('Lobby update received:', data);
+      setPlayers(data.players);
+      setRoomId(data.roomId);
+      setOwnerId(data.ownerId);
     });
 
-    socket.on('player-joined', (player: Player) => {
-      console.log('Player joined:', player);
-      setPlayers((prev) => [...prev, player]);
+    socket.on('lobby:deleted', () => {
+      console.log('Lobby deleted');
+      alert('The lobby has been disbanded.');
+      router.push('/dashboard');
     });
 
-    socket.on('player-left', ({ userId }: { userId: string }) => {
-      console.log('Player left:', userId);
-      setPlayers((prev) => prev.filter((p) => p.id !== userId));
-    });
-
-    socket.on('player-ready', ({ userId, isReady }: { userId: string; isReady: boolean }) => {
-      console.log('Player ready status changed:', userId, isReady);
-      setPlayers((prev) =>
-        prev.map((p) => (p.id === userId ? { ...p, isReady } : p))
-      );
-    });
-
-    socket.on('lobby-state', ({ players, roomId }: { players: Player[]; roomId: string }) => {
-      console.log('Lobby state received:', players, roomId);
-      setPlayers(players);
-      setRoomId(roomId);
+    socket.on('lobby:kicked', () => {
+      console.log('Kicked from lobby');
+      alert('You have been kicked from the lobby.');
+      router.push('/dashboard');
     });
 
     socket.on('game-starting', () => {
@@ -79,7 +73,7 @@ export default function LobbyPage() {
       router.push('/quiz');
     });
 
-    socket.on('room:error', (error) => {
+    socket.on('room:error', (error: any) => {
       console.error('Lobby error:', error);
       alert(error.message || 'An error occurred');
     });
@@ -90,29 +84,41 @@ export default function LobbyPage() {
       socket.off('connect');
       socket.off('disconnect');
       socket.off('connect_error');
-      socket.off('room:created');
-      socket.off('player-joined');
-      socket.off('player-left');
-      socket.off('player-ready');
-      socket.off('lobby-state');
+      socket.off('lobby:update');
+      socket.off('lobby:deleted');
+      socket.off('lobby:kicked');
       socket.off('game-starting');
       socket.off('room:error');
     };
   }, [user, router]);
 
   const handleToggleReady = () => {
+    if (!roomId) return;
     const socket = getSocket();
-    const newReadyState = !isReady;
-    setIsReady(newReadyState);
-    socket.emit('mark-ready', { 
-      userId: user?.id, 
-      isReady: newReadyState 
+    const event = isReady ? 'lobby:unready' : 'lobby:ready';
+    
+    socket.emit(event, { lobbyId: roomId }, (response: any) => {
+        if (!response?.ok) {
+            console.error('Failed to update ready state');
+        }
     });
   };
 
   const handleStartGame = () => {
+    if (!roomId) return;
     const socket = getSocket();
-    socket.emit('start-game', { userId: user?.id });
+    socket.emit('lobby:start', { lobbyId: roomId });
+  };
+
+  const handleLeaveLobby = () => {
+    if (roomId) {
+      const socket = getSocket();
+      socket.emit('lobby:leave', { lobbyId: roomId }, () => {
+         router.push('/dashboard');
+      });
+    } else {
+      router.push('/dashboard');
+    }
   };
 
   return (
@@ -180,8 +186,8 @@ export default function LobbyPage() {
             {isReady ? '✓ Ready' : 'Mark as Ready'}
           </Button>
           
-          {/* Only show start button if you're the host (first player) */}
-          {players.length > 0 && players[0]?.id === user?.id && (
+          {/* Only show start button if you're the host */}
+          {players.length > 0 && (ownerId ? ownerId === user?.id : players[0]?.id === user?.id) && (
             <Button
               onClick={handleStartGame}
               variant="primary"
@@ -192,7 +198,7 @@ export default function LobbyPage() {
           )}
 
           <Button
-            onClick={() => router.push('/dashboard')}
+            onClick={handleLeaveLobby}
             variant="outline"
           >
             Leave Lobby
@@ -200,7 +206,7 @@ export default function LobbyPage() {
         </div>
 
         {/* Info */}
-        {players.length > 0 && players[0]?.id === user?.id && (
+        {players.length > 0 && (ownerId ? ownerId === user?.id : players[0]?.id === user?.id) && (
           <p className="text-white/50 text-sm mt-4">
             💡 You are the host. You can start the game when all players are ready.
           </p>

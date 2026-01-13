@@ -151,7 +151,7 @@ export default function ProfilePage() {
         {/* Match History Section */}
         <div className="space-y-6">
           <h3 className="text-2xl font-bold text-[#CCD6F6] flex items-center gap-2">
-            <span>📜</span> Match History
+            <span>📜</span> Game History
           </h3>
 
           <div className="bg-[#112240] rounded-2xl border border-[#64FFDA]/10 overflow-hidden">
@@ -160,9 +160,8 @@ export default function ProfilePage() {
                 <thead className="bg-[#0A192F] text-[#8892B0] text-sm uppercase tracking-wider">
                   <tr>
                     <th className="p-4 font-medium">Result</th>
-                    <th className="p-4 font-medium">Opponent</th>
+                    <th className="p-4 font-medium">Topic</th>
                     <th className="p-4 font-medium">Score</th>
-                    <th className="p-4 font-medium">Type</th>
                     <th className="p-4 font-medium text-right">Date</th>
                   </tr>
                 </thead>
@@ -171,15 +170,16 @@ export default function ProfilePage() {
                     <tr key={match.id} className="hover:bg-[#64FFDA]/5 transition-colors text-[#CCD6F6]">
                       <td className="p-4">
                         <span className={`inline-block px-2 py-1 rounded text-xs font-bold uppercase ${
-                          match.result === 'win' ? 'text-green-400 bg-green-400/10' : 'text-red-400 bg-red-400/10'
+                          match.won ? 'text-green-400 bg-green-400/10' : 'text-red-400 bg-red-400/10'
                         }`}>
-                          {match.result}
+                          {match.won ? 'WIN' : 'LOSS'}
                         </span>
                       </td>
-                      <td className="p-4 font-medium">{match.opponent}</td>
-                      <td className="p-4 font-mono">{match.score}</td>
-                      <td className="p-4 text-[#8892B0] text-sm">{match.type}</td>
-                      <td className="p-4 text-[#8892B0] text-sm text-right">{match.date}</td>
+                      <td className="p-4 font-medium">{match.topic}</td>
+                      <td className="p-4 font-mono text-[#64FFDA]">{match.score}</td>
+                      <td className="p-4 text-[#8892B0] text-sm text-right">
+                        {new Date(match.playedAt).toLocaleDateString()}
+                      </td>
                     </tr>
                   ))}
                 </tbody>

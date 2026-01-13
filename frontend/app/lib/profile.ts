@@ -1,10 +1,9 @@
 export interface MatchHistory {
-  id: number;
-  opponent: string;
-  result: 'win' | 'loss';
-  score: string;
-  date: string;
-  type: 'Ladder' | 'Custom';
+  id: string;
+  topic: string;
+  score: number;
+  won: boolean;
+  playedAt: string;
 }
 
 export interface UserStats {
@@ -41,9 +40,9 @@ export const mockUserProfile: UserProfile = {
     matchesPlayed: 57,
   },
   matchHistory: [
-    { id: 1, opponent: 'SpeedDemon', result: 'win', score: '5 - 3', date: '2023-11-15', type: 'Ladder' },
-    { id: 2, opponent: 'PongMaster', result: 'loss', score: '2 - 5', date: '2023-11-14', type: 'Ladder' },
-    { id: 3, opponent: 'TheRookie', result: 'win', score: '5 - 0', date: '2023-11-13', type: 'Custom' },
+    { id: '1', topic: 'JavaScript Basics', score: 850, won: true, playedAt: '2023-11-15T14:30:00Z' },
+    { id: '2', topic: 'React Hooks', score: 620, won: false, playedAt: '2023-11-14T10:15:00Z' },
+    { id: '3', topic: 'TypeScript Advanced', score: 1000, won: true, playedAt: '2023-11-13T16:45:00Z' },
   ]
 };
 
