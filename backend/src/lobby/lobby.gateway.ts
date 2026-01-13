@@ -13,6 +13,9 @@ import { Server, Socket } from 'socket.io';
 import { LobbyService } from 'src/lobby/lobby.service';
 import { LobbyDto, LobbyKickDto } from './dto';
 
+@WebSocketGateway({
+  namespace: '/quiz',
+})
 export class LobbyGateway {
   @WebSocketServer()
   private server: Server;
@@ -29,6 +32,8 @@ export class LobbyGateway {
     client.join(lobby.lobbyId);
 
     this.server.to(lobby.lobbyId).emit('lobby:update', lobby);
+
+    console.log(`lobby created for user: ${userId}, lobby id: ${lobby.lobbyId}`);
 
     return { ok: true }; 
   }

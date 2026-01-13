@@ -7,7 +7,6 @@ export function getSocket(): Socket {
     socket = io('/quiz', {
       transports: ['websocket'],
       withCredentials: true,
-      upgrade: false,
       autoConnect: false,
     });
   }
