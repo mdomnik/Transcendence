@@ -6,7 +6,7 @@ import Button from "../components/Button";
 import Dropdown from "../components/DropDown";
 import FloatingShapes from "../components/FloatingShapes";
 import { useAuth } from "../context/AuthContext";
-import { logout } from "../lib/auth";
+import { getSocket } from "../lib/socket";
 
 export default function Dashboard() {
   const router = useRouter();
@@ -19,9 +19,30 @@ export default function Dashboard() {
     }
   }, [user, loading, router]);
 
+  useEffect(() => {
+    if (!loading && user) {
+      const socket = getSocket();
+
+      if (!socket.connected) {
+        socket.connect();
+
+        socket.on("connect", () => {
+          console.log("WebSocket connected:", socket.id);
+          socket.emit("dashboard:connect");
+        });
+
+        socket.on("disconnect", () => {
+          console.log("WebSocket disconnected");
+        });
+      }
+    }
+  }, [loading, user]);
+
   const handleLogout = async () => {
-   await logout();
-   router.push('/');
+    const socket = getSocket();
+    socket.disconnect();
+    await logout();
+    router.push("/");
   };
 
   // Show loading state while checking auth
@@ -38,7 +59,7 @@ export default function Dashboard() {
     return null;
   }
 
-  const userName = user.username || user.email?.split('@')[0] || "Player";
+  const userName = user.username || user.email?.split("@")[0] || "Player";
 
   return (
     <main className="relative min-h-screen bg-[#0A192F] overflow-hidden">
@@ -53,7 +74,7 @@ export default function Dashboard() {
 
         <div className="flex items-center gap-4">
           <span className="text-[#CCD6F6]">Welcome, {userName}!</span>
-          
+
           <Dropdown
             trigger={
               <div className="w-10 h-10 rounded-full bg-gradient-to-r from-[#64FFDA] to-[#5EEAD4] flex items-center justify-center text-[#0A192F] font-bold cursor-pointer hover:scale-105 transition-transform">
@@ -75,60 +96,61 @@ export default function Dashboard() {
       {/* Main Content */}
       <div className="relative z-10 px-6 py-16">
         <div className="max-w-7xl w-full mx-auto grid grid-cols-1 lg:grid-cols-3 gap-8 items-start">
-          
           {/* Main Game Section */}
           <div className="lg:col-span-2">
             {/* Welcome Card */}
             <div className="rounded-3xl bg-[#112240] backdrop-blur-xl shadow-2xl border border-[#64FFDA]/30 p-10 space-y-8">
-          
-          <div className="text-center space-y-4">
-            <h2 className="text-4xl md:text-5xl font-extrabold text-[#CCD6F6]">
-              Ready to Play?
-            </h2>
-            <p className="text-lg text-[#8892B0]">
-              Challenge your knowledge with AI-generated quizzes!
-            </p>
-          </div>
+              <div className="text-center space-y-4">
+                <h2 className="text-4xl md:text-5xl font-extrabold text-[#CCD6F6]">
+                  Ready to Play?
+                </h2>
+                <p className="text-lg text-[#8892B0]">
+                  Challenge your knowledge with AI-generated quizzes!
+                </p>
+              </div>
 
-          {/* Game Options */}
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-            
-            {/* Create Game */}
-            <div 
-              onClick={() => router.push("/lobby")}
-              className="p-6 rounded-2xl bg-[#0A192F] border border-[#64FFDA]/20 hover:border-[#64FFDA]/50 transition-all hover:scale-105 cursor-pointer">
-              <div className="text-5xl mb-4">➕</div>
-              <h3 className="text-xl font-bold text-[#CCD6F6] mb-2">Create Game</h3>
-              <p className="text-[#8892B0] text-sm">Host a new match to challenge friends</p>
-            </div>
+              {/* Game Options */}
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                {/* Create Game */}
+                <div
+                  onClick={() => router.push("/lobby")}
+                  className="p-6 rounded-2xl bg-[#0A192F] border border-[#64FFDA]/20 hover:border-[#64FFDA]/50 transition-all hover:scale-105 cursor-pointer"
+                >
+                  <div className="text-5xl mb-4">➕</div>
+                  <h3 className="text-xl font-bold text-[#CCD6F6] mb-2">
+                    Create Game
+                  </h3>
+                  <p className="text-[#8892B0] text-sm">
+                    Host a new match to challenge friends
+                  </p>
+                </div>
 
-            {/* Join Game */}
-            <div 
-              onClick={() => router.push("/lobby")}
-              className="p-6 rounded-2xl bg-[#0A192F] border border-[#64FFDA]/20 hover:border-[#64FFDA]/50 transition-all hover:scale-105 cursor-pointer">
-              <div className="text-5xl mb-4">🔍</div>
-              <h3 className="text-xl font-bold text-[#CCD6F6] mb-2">Join Game</h3>
-              <p className="text-[#8892B0] text-sm">Find a match or enter a game code</p>
-            </div>
+                {/* Join Game */}
+                <div
+                  onClick={() => router.push("/lobby")}
+                  className="p-6 rounded-2xl bg-[#0A192F] border border-[#64FFDA]/20 hover:border-[#64FFDA]/50 transition-all hover:scale-105 cursor-pointer"
+                >
+                  <div className="text-5xl mb-4">🔍</div>
+                  <h3 className="text-xl font-bold text-[#CCD6F6] mb-2">
+                    Join Game
+                  </h3>
+                  <p className="text-[#8892B0] text-sm">
+                    Find a match or enter a game code
+                  </p>
+                </div>
+              </div>
 
-          </div>
-
-          {/* Play Button */}
-          <div className="flex justify-center pt-4">
-            <Button 
-              variant="Play"
-              onClick={() => router.push("/lobby")}
-            >
-              Start New Game
-            </Button>
-          </div>
-
+              {/* Play Button */}
+              <div className="flex justify-center pt-4">
+                <Button variant="Play" onClick={() => router.push("/lobby")}>
+                  Start New Game
+                </Button>
+              </div>
             </div>
           </div>
 
           {/* Friends Widget Sidebar */}
           <div className="lg:col-span-1 space-y-6">
-            
             {/* Quick Friends Access */}
             <div className="rounded-2xl bg-[#112240] border border-[#64FFDA]/20 p-6">
               <div className="flex items-center justify-between mb-4">
@@ -142,7 +164,7 @@ export default function Dashboard() {
                   View All →
                 </button>
               </div>
-              
+
               <div className="space-y-3">
                 <p className="text-sm text-[#8892B0] text-center py-8">
                   Connect with friends to challenge them!
@@ -169,7 +191,7 @@ export default function Dashboard() {
                   View All →
                 </button>
               </div>
-              
+
               <div className="space-y-3">
                 <p className="text-sm text-[#8892B0] text-center py-8">
                   Compete and see where you rank!
@@ -182,9 +204,7 @@ export default function Dashboard() {
                 </button>
               </div>
             </div>
-
           </div>
-
         </div>
       </div>
     </main>
