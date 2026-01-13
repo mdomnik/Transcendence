@@ -7,9 +7,9 @@ import { useAuth } from '../context/AuthContext';
 import Button from '../components/Button';
 
 interface Player {
-  id: string;
+  userId: string;
   username: string;
-  isReady: boolean;
+  ready: boolean;
 }
 
 export default function LobbyPage() {
@@ -17,25 +17,55 @@ export default function LobbyPage() {
   const { user } = useAuth();
   const [players, setPlayers] = useState<Player[]>([]);
   const [ownerId, setOwnerId] = useState<string | null>(null);
-  const [roomId, setRoomId] = useState<string | null>(null);
+  const [lobbyId, setLobbyId] = useState<string | null>(null);
   const [connectionStatus, setConnectionStatus] = useState<'connecting' | 'connected' | 'disconnected'>('connecting');
 
   // Derive isReady from players list for the current user
-  const isReady = players.find(p => p.id === user?.id)?.isReady || false;
+  const isReady = players?.find(p => p.userId === user?.id)?.ready || false;
 
   useEffect(() => {
     const socket = getSocket();
+
+    const handleSync = () => {
+      console.log('Emitting lobby:sync...');
+      socket.emit('lobby:sync', (response: any) => {
+        console.log('lobby:sync raw response:', response);
+        if (response && typeof response === 'object' && response.ok && response.lobby) {
+          console.log('Lobby sync successful:', response.lobby);
+          setPlayers(response.lobby.members || []);
+          setLobbyId(response.lobby.lobbyId);
+          setOwnerId(response.lobby.ownerId);
+        } else {
+          console.error('Failed to sync lobby. Response:', JSON.stringify(response));
+          // If we fail to sync, maybe wait a bit and retry once or redirect
+          setTimeout(() => {
+             console.log('Retrying sync...');
+             socket.emit('lobby:sync', (secondResp: any) => {
+                if (secondResp?.ok) {
+                    setPlayers(secondResp.lobby.members || []);
+                    setLobbyId(secondResp.lobby.lobbyId);
+                    setOwnerId(secondResp.lobby.ownerId);
+                } else {
+                    router.push('/dashboard');
+                }
+             });
+          }, 1000);
+        }
+      });
+    };
 
     // Connection events
     socket.on('connect', () => {
       console.log('Connected to lobby');
       setConnectionStatus('connected');
-      socket.emit('lobby:sync');
+      handleSync();
     });
 
     if (socket.connected) {
       setConnectionStatus('connected');
-      socket.emit('lobby:sync');
+      handleSync();
+    } else {
+      socket.connect();
     }
 
     socket.on('disconnect', () => {
@@ -49,11 +79,23 @@ export default function LobbyPage() {
     });
 
     // Lobby events
-    socket.on('lobby:update', (data: { players: Player[], roomId: string, ownerId: string }) => {
+    socket.on('lobby:update', (data: any) => {
       console.log('Lobby update received:', data);
-      setPlayers(data.players);
-      setRoomId(data.roomId);
-      setOwnerId(data.ownerId);
+      if (data.members) setPlayers(data.members);
+      if (data.lobbyId) setLobbyId(data.lobbyId);
+      if (data.ownerId) setOwnerId(data.ownerId);
+
+      // We only redirect on state update if the game is already in progress (e.g. re-joining)
+      // Otherwise we wait for the explicit 'lobby:started' event
+      if (data.state === 'IN_GAME') {
+         console.log('Game already in progress! Redirecting...');
+         router.push('/quiz');
+      }
+    });
+
+    socket.on('lobby:started', (data: any) => {
+      console.log('Lobby explicitly started!', data);
+      router.push('/quiz');
     });
 
     socket.on('lobby:deleted', () => {
@@ -68,11 +110,6 @@ export default function LobbyPage() {
       router.push('/dashboard');
     });
 
-    socket.on('game-starting', () => {
-      console.log('Game starting! Redirecting to quiz...');
-      router.push('/quiz');
-    });
-
     socket.on('room:error', (error: any) => {
       console.error('Lobby error:', error);
       alert(error.message || 'An error occurred');
@@ -80,24 +117,26 @@ export default function LobbyPage() {
 
     // Cleanup on unmount
     return () => {
-      socket.emit('leave-lobby', { userId: user?.id });
+      if (lobbyId) {
+        socket.emit('lobby:leave', { lobbyId });
+      }
       socket.off('connect');
       socket.off('disconnect');
       socket.off('connect_error');
       socket.off('lobby:update');
+      socket.off('lobby:started');
       socket.off('lobby:deleted');
       socket.off('lobby:kicked');
-      socket.off('game-starting');
       socket.off('room:error');
     };
-  }, [user, router]);
+  }, [user, router, lobbyId]);
 
   const handleToggleReady = () => {
-    if (!roomId) return;
+    if (!lobbyId) return;
     const socket = getSocket();
     const event = isReady ? 'lobby:unready' : 'lobby:ready';
     
-    socket.emit(event, { lobbyId: roomId }, (response: any) => {
+    socket.emit(event, { lobbyId }, (response: any) => {
         if (!response?.ok) {
             console.error('Failed to update ready state');
         }
@@ -105,20 +144,24 @@ export default function LobbyPage() {
   };
 
   const handleStartGame = () => {
-    if (!roomId) return;
+    if (!lobbyId) return;
     const socket = getSocket();
-    socket.emit('lobby:start', { lobbyId: roomId });
+    console.log('Requesting lobby:start...');
+    socket.emit('lobby:start', { lobbyId }, (response: any) => {
+        console.log('lobby:start response:', response);
+        if (!response?.ok) {
+            alert(response?.error || 'Failed to start game. Are all players ready?');
+        }
+    });
   };
 
   const handleLeaveLobby = () => {
-    if (roomId) {
-      const socket = getSocket();
-      socket.emit('lobby:leave', { lobbyId: roomId }, () => {
-         router.push('/dashboard');
-      });
-    } else {
-      router.push('/dashboard');
+    console.log('Leaving lobby...');
+    const socket = getSocket();
+    if (lobbyId) {
+      socket.emit('lobby:leave', { lobbyId });
     }
+    router.push('/dashboard');
   };
 
   return (
@@ -127,8 +170,8 @@ export default function LobbyPage() {
         {/* Header */}
         <div className="mb-8">
           <h1 className="text-4xl font-bold text-white mb-2">Game Lobby</h1>
-          {roomId && (
-            <p className="text-[#64FFDA]">Room ID: {roomId}</p>
+          {lobbyId && (
+            <p className="text-[#64FFDA]">Room ID: {lobbyId}</p>
           )}
           <div className="flex items-center gap-2 mt-2">
             <div className={`w-3 h-3 rounded-full ${
@@ -143,15 +186,15 @@ export default function LobbyPage() {
         {/* Players List */}
         <div className="mb-8">
           <h2 className="text-2xl font-semibold text-white mb-4">
-            Players ({players.length})
+            Players ({players?.length || 0})
           </h2>
           <div className="space-y-3">
-            {players.length === 0 ? (
+            {!players || players.length === 0 ? (
               <p className="text-white/50 text-center py-8">Waiting for players to join...</p>
             ) : (
               players.map((player) => (
                 <div
-                  key={player.id}
+                  key={player.userId}
                   className="flex items-center justify-between bg-white/5 backdrop-blur-sm rounded-lg p-4 border border-white/10"
                 >
                   <div className="flex items-center gap-3">
@@ -159,12 +202,12 @@ export default function LobbyPage() {
                       {player.username.charAt(0).toUpperCase()}
                     </div>
                     <span className="text-white font-medium">{player.username}</span>
-                    {player.id === user?.id && (
+                    {player.userId === user?.id && (
                       <span className="text-[#64FFDA] text-sm">(You)</span>
                     )}
                   </div>
                   <div className="flex items-center gap-2">
-                    {player.isReady ? (
+                    {player.ready ? (
                       <span className="text-green-400 font-semibold">✓ Ready</span>
                     ) : (
                       <span className="text-white/50">Not Ready</span>
@@ -187,11 +230,11 @@ export default function LobbyPage() {
           </Button>
           
           {/* Only show start button if you're the host */}
-          {players.length > 0 && (ownerId ? ownerId === user?.id : players[0]?.id === user?.id) && (
+          {players && players.length > 0 && (ownerId ? ownerId === user?.id : players[0]?.userId === user?.id) && (
             <Button
               onClick={handleStartGame}
               variant="primary"
-              disabled={!players.every((p) => p.isReady) || players.length < 2}
+              disabled={!players || !players.every((p) => p.ready) || players.length < 1}
             >
               Start Game
             </Button>
@@ -206,7 +249,7 @@ export default function LobbyPage() {
         </div>
 
         {/* Info */}
-        {players.length > 0 && (ownerId ? ownerId === user?.id : players[0]?.id === user?.id) && (
+        {players && players.length > 0 && (ownerId ? ownerId === user?.id : players[0]?.userId === user?.id) && (
           <p className="text-white/50 text-sm mt-4">
             💡 You are the host. You can start the game when all players are ready.
           </p>

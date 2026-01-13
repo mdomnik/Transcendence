@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect } from "react";
+import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import Button from "../components/Button";
 import Dropdown from "../components/DropDown";
@@ -11,17 +11,18 @@ import { logout } from "../lib/auth";
 
 export default function Dashboard() {
   const router = useRouter();
-  const { user, loading, logout } = useAuth();
+  const { user, loading: authLoading, logout } = useAuth();
+  const [isCreating, setIsCreating] = useState(false);
 
   // Redirect to login if not authenticated
   useEffect(() => {
-    if (!loading && !user) {
+    if (!authLoading && !user) {
       router.push("/");
     }
-  }, [user, loading, router]);
+  }, [user, authLoading, router]);
 
   useEffect(() => {
-    if (!loading && user) {
+    if (!authLoading && user) {
       const socket = getSocket();
 
       if (!socket.connected) {
@@ -35,9 +36,13 @@ export default function Dashboard() {
         socket.on("disconnect", () => {
           console.log("WebSocket disconnected");
         });
+
+        socket.on("connect_error", (err) => {
+          console.error("Socket connect_error:", err.message);
+        });
       }
     }
-  }, [loading, user]);
+  }, [authLoading, user]);
 
   const handleLogout = async () => {
     const socket = getSocket();
@@ -47,30 +52,64 @@ export default function Dashboard() {
   };
 
   const handleCreateGame = () => {
-    console.log("Create Game button clicked");
+    if (isCreating) return;
+    
     const socket = getSocket();
+    console.log("Create Game button clicked. Socket connected:", socket.connected);
+    setIsCreating(true);
     
+    const emitCreate = () => {
+      console.log("Preparing to emit lobby:create...");
+      
+      // Set a timeout to clear the creating state if server doesn't respond
+      const timeout = setTimeout(() => {
+        console.error("lobby:create request timed out after 10s");
+        setIsCreating(false);
+        alert("Server request timed out. Please try again.");
+      }, 10000);
+
+      socket.emit('lobby:create', {}, (response: any) => {
+        clearTimeout(timeout);
+        console.log("lobby:create response received:", response);
+        setIsCreating(false);
+        if (response?.ok) {
+          console.log('Lobby creation/join successful, redirecting to /lobby');
+          router.push('/lobby');
+        } else {
+          console.error('Failed to create lobby:', response);
+          alert(response?.error || 'Failed to create lobby. Please try again.');
+        }
+      });
+    };
+
     if (!socket.connected) {
-      console.log("Socket not connected, connecting...");
+      console.log("Socket not connected, calling socket.connect()...");
+      
+      const onConnect = () => {
+        console.log("Socket connect event received in handleCreateGame");
+        socket.off("connect_error", onConnectError);
+        emitCreate();
+      };
+
+      const onConnectError = (error: any) => {
+        console.error("Socket connect_error event received in handleCreateGame:", error);
+        socket.off("connect", onConnect);
+        setIsCreating(false);
+        alert("Failed to connect to game server: " + (error.message || "Unknown error"));
+      };
+
+      socket.once("connect", onConnect);
+      socket.once("connect_error", onConnectError);
+      
       socket.connect();
+    } else {
+      console.log("Socket already connected, emitting immediately");
+      emitCreate();
     }
-    
-    console.log("Emitting lobby:create...");
-    // Emit lobby:create event
-    socket.emit('lobby:create', (response: { ok: boolean }) => {
-      console.log("lobby:create response:", response);
-      if (response?.ok) {
-        console.log('Lobby created successfully');
-        router.push('/lobby');
-      } else {
-        console.error('Failed to create lobby');
-        alert('Failed to create lobby. Please try again.');
-      }
-    });
   };
 
   // Show loading state while checking auth
-  if (loading) {
+  if (authLoading) {
     return (
       <main className="relative min-h-screen bg-[#0A192F] flex items-center justify-center">
         <div className="text-[#64FFDA] text-xl">Loading...</div>
@@ -91,7 +130,7 @@ export default function Dashboard() {
       <FloatingShapes />
 
       {/* Header */}
-      <header className="relative z-20 flex items-center justify-between px-6 py-4 border-b border-[#64FFDA]/20">
+      <header className="relative z-50 flex items-center justify-between px-6 py-4 border-b border-[#64FFDA]/20">
         <h1 className="text-2xl font-bold bg-gradient-to-r from-[#64FFDA] to-[#38BDF8] bg-clip-text text-transparent">
           AI Quiz Master
         </h1>
@@ -134,21 +173,23 @@ export default function Dashboard() {
               </div>
 
           {/* Game Options */}
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-6 relative z-40">
             
             {/* Create Game */}
             <div 
               onClick={handleCreateGame}
-              className="p-6 rounded-2xl bg-[#0A192F] border border-[#64FFDA]/20 hover:border-[#64FFDA]/50 transition-all hover:scale-105 cursor-pointer">
-              <div className="text-5xl mb-4">➕</div>
-              <h3 className="text-xl font-bold text-[#CCD6F6] mb-2">Create Game</h3>
+              className={`p-6 rounded-2xl bg-[#0A192F] border border-[#64FFDA]/20 hover:border-[#64FFDA]/50 transition-all hover:scale-105 cursor-pointer pointer-events-auto ${isCreating ? 'opacity-50 cursor-wait' : ''}`}>
+              <div className="text-5xl mb-4">{isCreating ? '⏳' : '➕'}</div>
+              <h3 className="text-xl font-bold text-[#CCD6F6] mb-2">
+                {isCreating ? 'Creating...' : 'Create Game'}
+              </h3>
               <p className="text-[#8892B0] text-sm">Host a new match to challenge friends</p>
             </div>
 
             {/* Join Game */}
             <div 
               onClick={() => router.push("/lobby")}
-              className="p-6 rounded-2xl bg-[#0A192F] border border-[#64FFDA]/20 hover:border-[#64FFDA]/50 transition-all hover:scale-105 cursor-pointer">
+              className="p-6 rounded-2xl bg-[#0A192F] border border-[#64FFDA]/20 hover:border-[#64FFDA]/50 transition-all hover:scale-105 cursor-pointer pointer-events-auto">
               <div className="text-5xl mb-4">🔍</div>
               <h3 className="text-xl font-bold text-[#CCD6F6] mb-2">Join Game</h3>
               <p className="text-[#8892B0] text-sm">Find a match or enter a game code</p>
@@ -161,8 +202,9 @@ export default function Dashboard() {
             <Button 
               variant="Play"
               onClick={handleCreateGame}
+              disabled={isCreating}
             >
-              Start New Game
+              {isCreating ? 'Connecting...' : 'Start New Game'}
             </Button>
           </div>
             </div>

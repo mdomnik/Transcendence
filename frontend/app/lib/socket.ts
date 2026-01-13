@@ -6,10 +6,9 @@ export function getSocket(): Socket {
   if (!socket) {
     // Backend LobbyGateway listens on '/quiz' namespace
     socket = io('https://localhost/quiz', {
-      transports: ['websocket'],
+      transports: ['polling', 'websocket'],
       withCredentials: true,
       autoConnect: false,
-      upgrade: false,
     });
   }
   return socket;

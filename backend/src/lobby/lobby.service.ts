@@ -33,6 +33,7 @@ export class LobbyService {
   
   async getLobby(lobbyId: string): Promise<LobbyView> {
     const meta = await this.redis.client.hgetall(LobbyKeys.meta(lobbyId));
+    console.log(`[LobbyService] Meta check:`, meta);
     if (!meta?.ownerId) throw new NotFoundException('Lobby not Found');
 
     const memberIds = await this.redis.client.smembers(
@@ -53,12 +54,14 @@ export class LobbyService {
     }))
     .sort((a, b) => (a.userId == meta.ownerId ? -1 : 1));
 
-    return {
+    const lobby = {
       lobbyId,
       ownerId: meta.ownerId,
       state: meta.state as LobbyState,
       members,
     };
+    console.log(`[LobbyService] Returning lobby: ${lobbyId}`);
+    return lobby;
   }
   
   async createLobby(ownerId: string): Promise <LobbyView> {
@@ -237,8 +240,14 @@ export class LobbyService {
     if (!meta?.ownerId) throw new NotFoundException('Lobby not Found');
     if (meta.ownerId !== userId)
       throw new ForbiddenException('Only lobby owner can start the game');
+    
+    // If already in SETUP or IN_GAME, just return the current lobby
+    if (meta.state === 'SETUP' || meta.state === 'IN_GAME') {
+      return this.getLobby(lobbyId);
+    }
+
     if (meta.state !== 'WAITING')
-      throw new ForbiddenException('Cannot start game from this game state');
+      throw new ForbiddenException(`Cannot start game from state: ${meta.state}`);
 
     //ensure everyone is ready
     const members = await this.redis.client.smembers(
