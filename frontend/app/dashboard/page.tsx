@@ -13,6 +13,8 @@ export default function Dashboard() {
   const router = useRouter();
   const { user, loading: authLoading, logout } = useAuth();
   const [isCreating, setIsCreating] = useState(false);
+  const [isJoining, setIsJoining] = useState(false);
+  const [lobbyCode, setLobbyCode] = useState('');
 
   // Redirect to login if not authenticated
   useEffect(() => {
@@ -50,6 +52,63 @@ export default function Dashboard() {
     await logout();
     router.push("/");
   };
+
+  const handleJoinGame = (e: React.FormEvent) => {
+    e.preventDefault();
+    if (isJoining) return;
+    if (!lobbyCode.trim()) return;
+
+    const socket = getSocket();
+    console.log("Create Game button clicked. Socket connected:", socket.connected);
+    setIsJoining(true);
+
+    const emitJoin = () => {
+        console.log("Preparing to emit lobby:join...");
+
+        const timeout = setTimeout(() => {
+            console.error("lobby:join request timed out after 10s");
+            setIsJoining(false);
+            alert("Server request timed out. Please try again.")
+        }, 10000);
+
+        socket.emit('lobby:join', {lobbyCode: lobbyCode.trim(),}, (response: any) => {
+            clearTimeout(timeout);
+            console.log("lobby:join response received:", response);
+            setIsCreating(false);
+            if (response?.ok) {
+            console.log('Lobby join successful, redirecting to /lobby');
+            router.push('/lobby');
+            } else {
+            console.error('Failed to join lobby:', response);
+            alert(response?.error || 'Failed to join lobby. Please try again.');
+            }
+        })
+    }
+    if (!socket.connected) {
+      console.log("Socket not connected, calling socket.connect()...");
+      
+      const onConnect = () => {
+        console.log("Socket connect event received in handleJoinGame");
+        socket.off("connect_error", onConnectError);
+        emitJoin();
+      };
+
+      const onConnectError = (error: any) => {
+        console.error("Socket connect_error event received in handleJoinGame:", error);
+        socket.off("connect", onConnect);
+        setIsCreating(false);
+        alert("Failed to connect to game server: " + (error.message || "Unknown error"));
+      };
+
+      socket.once("connect", onConnect);
+      socket.once("connect_error", onConnectError);
+      
+      socket.connect();
+    } else {
+      console.log("Socket already connected, emitting immediately");
+      emitJoin();
+    }
+  }
 
   const handleCreateGame = () => {
     if (isCreating) return;
@@ -176,7 +235,7 @@ export default function Dashboard() {
           <div className="grid grid-cols-1 md:grid-cols-2 gap-6 relative z-40">
             
             {/* Create Game */}
-            <div 
+            <div
               onClick={handleCreateGame}
               className={`p-6 rounded-2xl bg-[#0A192F] border border-[#64FFDA]/20 hover:border-[#64FFDA]/50 transition-all hover:scale-105 cursor-pointer pointer-events-auto ${isCreating ? 'opacity-50 cursor-wait' : ''}`}>
               <div className="text-5xl mb-4">{isCreating ? '⏳' : '➕'}</div>
@@ -187,8 +246,18 @@ export default function Dashboard() {
             </div>
 
             {/* Join Game */}
-            <div 
-              onClick={() => router.push("/lobby")}
+            <div className="space-y-4">
+            <input
+                type="text"
+                value={lobbyCode}
+                onChange={e => setLobbyCode(e.target.value)}
+                placeholder="Enter lobby code"
+                maxLength={36}
+                className="w-full px-4 py-3 rounded-xl bg-[#0A192F] border border-[#64FFDA]/20 text-[#CCD6F6] outline-none"
+            />
+            </div>
+            <div
+              onClick={handleJoinGame}
               className="p-6 rounded-2xl bg-[#0A192F] border border-[#64FFDA]/20 hover:border-[#64FFDA]/50 transition-all hover:scale-105 cursor-pointer pointer-events-auto">
               <div className="text-5xl mb-4">🔍</div>
               <h3 className="text-xl font-bold text-[#CCD6F6] mb-2">Join Game</h3>

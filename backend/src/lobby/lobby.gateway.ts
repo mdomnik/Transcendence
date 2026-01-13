@@ -99,12 +99,12 @@ export class LobbyGateway
     const userId = client.data.userId;
     if (!userId) return { ok: false, error: 'Unauthorized' };
 
+    console.log(dto.lobbyId);
     const lobby = await this.lobbyService.joinLobby(dto.lobbyId, userId);
 
     client.join(lobby.lobbyId);
 
     this.server.to(lobby.lobbyId).emit('lobby:update', lobby);
-
     return { ok: true };
   }
 
