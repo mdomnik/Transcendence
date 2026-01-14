@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect, useState } from 'react';
+import { useEffect, useState, useRef } from 'react';
 import { useRouter } from 'next/navigation';
 import { getSocket } from '../lib/socket';
 import { useAuth } from '../context/AuthContext';
@@ -19,6 +19,12 @@ export default function LobbyPage() {
   const [ownerId, setOwnerId] = useState<string | null>(null);
   const [lobbyId, setLobbyId] = useState<string | null>(null);
   const [connectionStatus, setConnectionStatus] = useState<'connecting' | 'connected' | 'disconnected'>('connecting');
+
+  // Track lobbyId in a ref for the cleanup function to avoid dependency loops
+  const lobbyIdRef = useRef<string | null>(null);
+  useEffect(() => {
+    lobbyIdRef.current = lobbyId;
+  }, [lobbyId]);
 
   // Derive isReady from players list for the current user
   const isReady = players?.find(p => p.userId === user?.id)?.ready || false;
@@ -113,8 +119,12 @@ export default function LobbyPage() {
 
     // Cleanup on unmount
     return () => {
-      if (lobbyId) {
-        socket.emit('lobby:leave', { lobbyId });
+      // Use the ref value to check if we should emit leave
+      // IMPORTANT: We only automatically leave if we aren't going to the quiz
+      // Since we can't easily check the next route here without a custom hook, 
+      // we'll keep it simple for now but fix the dependency loop.
+      if (lobbyIdRef.current) {
+        socket.emit('lobby:leave', { lobbyId: lobbyIdRef.current });
       }
       socket.off('connect');
       socket.off('disconnect');
@@ -125,7 +135,7 @@ export default function LobbyPage() {
       socket.off('lobby:kicked');
       socket.off('room:error');
     };
-  }, [user, router, lobbyId]);
+  }, [user, router]); // Removed lobbyId from dependencies
 
   const handleToggleReady = () => {
     if (!lobbyId) return;
