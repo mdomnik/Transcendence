@@ -12,7 +12,7 @@ import { initWsAuth } from './websocket.init';
 @WebSocketGateway({
   namespace: '/quiz',
   cors: {
-    origin: 'https://localhost',
+    origin: process.env.FRONTEND_URL,
     credentials: true,
   },
 })

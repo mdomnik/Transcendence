@@ -1,6 +1,7 @@
 "use client";
 
 import { useState } from "react";
+import { useRouter } from 'next/navigation';
 
 interface LoginModalProps {
   isOpen: boolean;
@@ -25,24 +26,26 @@ export default function LoginModal({ isOpen, onClose, onSwitchToSignUp, onLoginS
     setError("");
     setIsLoading(true);
 
+    
     try {
-      // Send credentials to backend
-      const response = await fetch('/api/auth/signin', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        credentials: 'include',
-        body: JSON.stringify({ identifier, password }),
-      });
-
-
-      if (!response.ok) {
-        const errorData = await response.json();
-        throw new Error(errorData.message || 'Login failed');
-      }
-
-      // Login successful - redirect to dashboard
-      onClose();
-      window.location.href = '/dashboard';
+        // Send credentials to backend
+        const response = await fetch('/api/auth/signin', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            credentials: 'include',
+            body: JSON.stringify({ identifier, password }),
+        });
+        
+        
+        if (!response.ok) {
+            const errorData = await response.json();
+            throw new Error(errorData.message || 'Login failed');
+        }
+        
+        // Login successful - redirect to dashboard
+        onClose();
+        const router = useRouter();
+      router.push('/dashboard');
     } catch (err: any) {
       setError(err.message || "Invalid email or password");
     } finally {

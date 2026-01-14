@@ -5,7 +5,7 @@ let socket: Socket | null = null;
 export function getSocket(): Socket {
   if (!socket) {
     // Backend LobbyGateway listens on '/quiz' namespace
-    socket = io('https://localhost/quiz', {
+    socket = io(`${process.env.FRONTEND_URL}/quiz`, {
       transports: ['polling', 'websocket'],
       withCredentials: true,
       autoConnect: false,

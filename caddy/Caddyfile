@@ -1,11 +1,24 @@
-https://localhost {
-	tls internal
+:80 {
+    handle_path /api/* {
+        reverse_proxy backend_nestjs:8080 {
+            header_up X-Forwarded-Host {host}
+            header_up X-Forwarded-Proto {scheme}
+            header_up X-Forwarded-For {remote}
+        }
+    }
 
-    # Backend (NestJS) under /api/*
-    reverse_proxy /api/* backend_nestjs:8080
-    reverse_proxy /socket.io/* backend_nestjs:8080
+    handle_path /socket.io/* {
+        reverse_proxy backend_nestjs:8080 {
+            header_up X-Forwarded-Host {host}
+            header_up X-Forwarded-Proto {scheme}
+            header_up X-Forwarded-For {remote}
+        }
+    }
 
-    # Frontend (Next.js) as root
-    reverse_proxy frontend_nextjs:3000
+    reverse_proxy frontend_nextjs:3000 {
+        header_up Host {host}
+        header_up X-Forwarded-Host {host}
+        header_up X-Forwarded-Proto {scheme}
+        header_up X-Forwarded-For {remote}
+    }
 }
-

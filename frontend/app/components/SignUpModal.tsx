@@ -1,6 +1,7 @@
 "use client";
 
 import { useState } from "react";
+import { useRouter } from 'next/navigation';
 
 interface SignUpModalProps {
 	isOpen: boolean;
@@ -44,7 +45,8 @@ export default function SignUpModal({ isOpen, onClose, onSwitchToLogin } : SignU
 
 			// Signup successful - redirect to dashboard
 			onClose();
-			window.location.href = '/dashboard';
+			const router = useRouter();
+router.push('/dashboard');
 		} catch (err: any) {
 			setError(err.message || "Signup failed. Please try again.");
 		} finally {
