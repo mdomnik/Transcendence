@@ -1,20 +1,14 @@
-/* eslint-disable @typescript-eslint/no-unsafe-call */
-/* eslint-disable @typescript-eslint/no-unsafe-argument */
-import { Body, UseGuards } from '@nestjs/common';
 import {
   WebSocketGateway,
   SubscribeMessage,
   ConnectedSocket,
   MessageBody,
   WebSocketServer,
-  OnGatewayInit,
-  OnGatewayConnection,
 } from '@nestjs/websockets';
 import { Server, Socket } from 'socket.io';
-import { JwtService } from '@nestjs/jwt';
-import { LobbyService } from 'src/lobby/lobby.service';
-import { LobbyDto, LobbyJoinDto, LobbyKickDto } from './dto';
-import { initWsAuth } from 'src/websocket/websocket.init';
+import { LobbyDto, LobbyJoinDto, LobbyKickDto, LobbyConfigDto } from './dto';
+import { LobbyService } from './lobby.service';
+import { dot } from 'node:test/reporters';
 
 @WebSocketGateway({
   namespace: '/quiz',
@@ -23,60 +17,37 @@ import { initWsAuth } from 'src/websocket/websocket.init';
     credentials: true,
   },
 })
-export class LobbyGateway
-  implements OnGatewayInit, OnGatewayConnection
-{
+export class LobbyGateway {
   @WebSocketServer()
   private server: Server;
 
-  constructor(
-    private readonly lobbyService: LobbyService,
-    private readonly jwtService: JwtService,
-  ) {}
-
-  afterInit(server: Server) {
-    console.log('Lobby WebSocket Gateway initialized');
-    // Initialize Auth middleware
-    initWsAuth(server, this.jwtService);
-  }
-
-  handleConnection(client: Socket) {
-    const userId = client.data.userId;
-    console.log('[LobbyGateway] Client connected: ' + client.id + ', userId: ' + userId);
-    
-    // Log every event for debugging
-    client.onAny((event, ...args) => {
-      console.log('[LobbyGateway] Incoming event: ' + event, args);
-    });
-  }
+  constructor(private readonly lobbyService: LobbyService) {}
 
   @SubscribeMessage('lobby:create')
-  async onLobbyCreate(
-    @ConnectedSocket() client: Socket,
-    @MessageBody() data: any,
-  ) {
-    try {
-      const userId = client.data.userId;
-      if (!userId) return { ok: false, error: 'Unauthorized' };
+  async onLobbyCreate(@ConnectedSocket() client: Socket) {
+    const userId = client.data.userId;
 
-      const lobby = await this.lobbyService.createLobby(userId);
-      client.join(lobby.lobbyId);
-      this.server.to(lobby.lobbyId).emit('lobby:update', lobby);
+    const lobby = await this.lobbyService.createLobby(userId);
 
-      return { ok: true };
-    } catch (error) {
-      if (error.status === 403 || error.message?.includes('already in a lobby')) {
-        const userId = client.data.userId;
-        const existingId = await this.lobbyService.getLobbyIdForUser(userId);
-        if (existingId) {
-          const lobby = await this.lobbyService.getLobby(existingId);
-          client.join(existingId);
-          client.emit('lobby:update', lobby);
-          return { ok: true };
-        }
-      }
-      return { ok: false, error: error.message || 'Failed to create lobby' };
+    if (!lobby) {
+      return {
+        ok: false,
+        error: 'LOBBY_CREATION_FAILED',
+      };
     }
+
+    client.join(lobby.lobbyId);
+
+    this.server.to(lobby.lobbyId).emit('lobby:update', lobby);
+
+    console.log(
+      `lobby created for user: ${userId}, lobby id: ${lobby.lobbyId}`,
+    );
+
+    return {
+      ok: true,
+      data: lobby,
+    };
   }
 
   @SubscribeMessage('lobby:join')
@@ -84,29 +55,35 @@ export class LobbyGateway
     @ConnectedSocket() client: Socket,
     @MessageBody() dto: LobbyJoinDto,
   ) {
-    try {
-      const userId = client.data.userId;
-      if (!userId) return { ok: false, error: 'Unauthorized' };
+    const userId = client.data.userId;
 
-      let lobbyId = dto.lobbyId;
-      
-      if (dto.lobbyCode) {
-          const foundId = await this.lobbyService.findLobbyIdFromLobbyCode(dto.lobbyCode);
-          if (!foundId) return { ok: false, error: 'Invalid lobby code' };
-          lobbyId = foundId;
-      }
+    const lobbyId = await this.lobbyService.findLobbyIdFromLobbyCode(
+      dto.lobbyCode,
+    );
 
-      if (!lobbyId) return { ok: false, error: 'Lobby ID or code required' };
-
-      const lobby = await this.lobbyService.joinLobby(lobbyId, userId);
-
-      client.join(lobby.lobbyId);
-      this.server.to(lobby.lobbyId).emit('lobby:update', lobby);
-
-      return { ok: true };
-    } catch (error) {
-      return { ok: false, error: error.message || 'Failed to join lobby' };
+    if (!lobbyId) {
+      return {
+        ok: false,
+        error: 'INVALID_LOBBY_CODE',
+      };
     }
+
+    const lobby = await this.lobbyService.joinLobby(lobbyId, userId);
+
+    if (!lobby) {
+      return {
+        ok: false,
+        error: 'UNABLE_TO_JOIN_LOBBY',
+      };
+    }
+
+    client.join(lobby.lobbyId);
+
+    this.server.to(lobby.lobbyId).emit('lobby:update', lobby);
+    return {
+      ok: true,
+      data: lobby,
+    };
   }
 
   @SubscribeMessage('lobby:leave')
@@ -115,21 +92,24 @@ export class LobbyGateway
     @MessageBody() dto: LobbyDto,
   ) {
     const userId = client.data.userId;
-    if (!userId) return { ok: false, error: 'Unauthorized' };
 
-    try {
-      const lobby = await this.lobbyService.leaveLobby(dto.lobbyId, userId);
+    const lobby = await this.lobbyService.leaveLobby(dto.lobbyId, userId);
+
+    if (!lobby) {
+      this.server.to(dto.lobbyId).emit('lobby:deleted');
       client.leave(dto.lobbyId);
-
-      if (!lobby) {
-        this.server.to(dto.lobbyId).emit('lobby:deleted');
-      } else {
-        this.server.to(lobby.lobbyId).emit('lobby:update', lobby);
-      }
-      return { ok: true };
-    } catch (error) {
-      return { ok: false, error: error.message || 'Failed to leave lobby' };
+      return {
+        ok: true,
+        data: null,
+      };
     }
+
+    client.leave(dto.lobbyId);
+    this.server.to(lobby.lobbyId).emit('lobby:update', lobby);
+    return {
+      ok: true,
+      data: lobby,
+    };
   }
 
   @SubscribeMessage('lobby:ready')
@@ -138,9 +118,22 @@ export class LobbyGateway
     @MessageBody() dto: LobbyDto,
   ) {
     const userId = client.data.userId;
+
     const lobby = await this.lobbyService.setReady(dto.lobbyId, userId, true);
+
+    if (!lobby) {
+      return {
+        ok: false,
+        error: 'SET_READY_FAILED',
+      };
+    }
+
     this.server.to(lobby.lobbyId).emit('lobby:update', lobby);
-    return { ok: true };
+
+    return {
+      ok: true,
+      data: lobby,
+    };
   }
 
   @SubscribeMessage('lobby:unready')
@@ -149,9 +142,22 @@ export class LobbyGateway
     @MessageBody() dto: LobbyDto,
   ) {
     const userId = client.data.userId;
+
     const lobby = await this.lobbyService.setReady(dto.lobbyId, userId, false);
+
+    if (!lobby) {
+      return {
+        ok: false,
+        error: 'SET_READY_FAILED',
+      };
+    }
+
     this.server.to(lobby.lobbyId).emit('lobby:update', lobby);
-    return { ok: true };
+
+    return {
+      ok: true,
+      data: lobby,
+    };
   }
 
   @SubscribeMessage('lobby:kick')
@@ -169,9 +175,10 @@ export class LobbyGateway
     );
 
     if (!lobby) {
-      this.server.to(dto.lobbyId).emit('lobby:deleted');
-    } else {
-      this.server.to(dto.lobbyId).emit('lobby:update', lobby);
+      return {
+        ok: false,
+        error: 'UNABLE_TO_KICK_PLAYER',
+      };
     }
 
     const sockets = await this.server.in(dto.lobbyId).fetchSockets();
@@ -183,7 +190,11 @@ export class LobbyGateway
     }
 
     this.server.to(dto.lobbyId).emit('lobby:update', lobby);
-    return { ok: true };
+
+    return {
+      ok: true,
+      data: lobby,
+    };
   }
 
   @SubscribeMessage('lobby:start')
@@ -192,34 +203,102 @@ export class LobbyGateway
     @MessageBody() dto: LobbyDto,
   ) {
     const userId = client.data.userId;
-    try {
-      const lobby = await this.lobbyService.startSetup(dto.lobbyId, userId);
-      this.server.to(lobby.lobbyId).emit('lobby:update', lobby);
-      this.server.to(lobby.lobbyId).emit('lobby:started', { 
-        lobbyId: lobby.lobbyId,
-        state: lobby.state 
-      });
-      return { ok: true };
-    } catch (error) {
-      return { ok: false, error: error.message || 'Failed to start game' };
+
+    const lobby = await this.lobbyService.startSetup(dto.lobbyId, userId);
+
+    if (!lobby) {
+      return {
+        ok: false,
+        error: 'UNABLE_TO_START_LOBBY',
+      };
     }
+
+    this.server.to(lobby.lobbyId).emit('lobby:update', lobby);
+
+    return {
+      ok: true,
+      data: lobby,
+    };
   }
 
   @SubscribeMessage('lobby:sync')
   async onLobbySync(@ConnectedSocket() client: Socket) {
-    try {
-      const userId = client.data.userId;
-      if (!userId) return { ok: false, error: 'Unauthorized' };
+    const userId = client.data.userId;
 
-      const lobbyId = await this.lobbyService.getLobbyIdForUser(userId);
-      if (!lobbyId) return { ok: false, error: 'User not in a lobby' };
+    const lobbyId = await this.lobbyService.getLobbyIdForUser(userId);
 
-      const lobby = await this.lobbyService.getLobby(lobbyId);
-      client.join(lobbyId);
-      client.emit('lobby:update', lobby);
-      return { ok: true };
-    } catch (e) {
-      return { ok: false, error: 'Internal server error' };
+    if (!lobbyId) {
+      return {
+        ok: false,
+        error: 'NOT_IN_LOBBY',
+      };
     }
+
+    const lobby = await this.lobbyService.getLobby(lobbyId);
+
+    if (!lobby) {
+      return {
+        ok: false,
+        error: 'LOBBY_NOT_FOUND',
+      };
+    }
+
+    client.join(lobbyId);
+    client.emit('lobby:update', lobby);
+
+    return {
+      ok: true,
+      data: lobby,
+    };
+  }
+
+  @SubscribeMessage('lobby:config')
+  async OnLobbyUpdateConfig(
+    @ConnectedSocket() client: Socket,
+    @MessageBody() dto: LobbyConfigDto,
+  ) {
+    const userId = client.data.userId;
+
+    const lobby = await this.lobbyService.updateMatchConfig(
+      dto.lobbyId,
+      userId,
+      dto.key,
+      dto.delta,
+    );
+
+    if (!lobby) {
+      return {
+        ok: false,
+        error: 'UNABLE_TO_UPDATE_SETTINGS',
+      };
+    }
+
+    this.server.to(lobby.lobbyId).emit('lobby:update', lobby);
+
+    return {
+      ok: true,
+      data: lobby,
+    };
+  }
+
+  @SubscribeMessage('lobby:preview')
+  async onLobbyPreview(@MessageBody() dto: LobbyJoinDto) {
+    const lobbyId = await this.lobbyService.findLobbyIdFromLobbyCode(
+      dto.lobbyCode,
+    );
+
+    if (!lobbyId) {
+      return { ok: false };
+    }
+
+    const meta = await this.lobbyService.getLobby(lobbyId);
+
+    return {
+      ok: true,
+      data: {
+        memberCount: meta.members.length,
+        maxPlayers: meta.maxPlayers,
+      },
+    };
   }
 }

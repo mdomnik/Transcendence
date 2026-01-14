@@ -10,11 +10,28 @@ import { LobbyKeys } from './lobby.keys';
 
 type LobbyState = 'WAITING' | 'SETUP' | 'IN_GAME' | 'FINISHED';
 
+const DEFAULT_MATCH_CONFIG: MatchConfig = {
+  roundsTotal: 3,
+  timePerQuestion: 30,
+  questionsPerRound: 5,
+};
+const DEFAULT_MIN_PLAYERS = 2;
+const DEFAULT_MAX_PLAYERS = 24;
+
+interface MatchConfig {
+  roundsTotal: number;
+  timePerQuestion: number;
+  questionsPerRound: number;
+}
+
 export interface LobbyView {
   lobbyId: string;
   lobbyCode: string;
   ownerId: string;
   state: LobbyState;
+  config: MatchConfig;
+  minPlayers: number;
+  maxPlayers: number;
   members: Array<{
     userId: string;
     username: string;
@@ -51,11 +68,20 @@ export class LobbyService {
       }))
       .sort((a, b) => (a.userId == meta.ownerId ? -1 : 1));
 
+    const config: MatchConfig = {
+      roundsTotal: Number(meta.roundsTotal),
+      timePerQuestion: Number(meta.timePerQuestion),
+      questionsPerRound: Number(meta.questionsPerRound),
+    };
+
     const lobby = {
       lobbyId,
       lobbyCode: meta.lobbyCode,
       ownerId: meta.ownerId,
       state: meta.state as LobbyState,
+      config,
+      minPlayers: Number(meta.minPlayers ?? DEFAULT_MIN_PLAYERS),
+      maxPlayers: Number(meta.maxPlayers ?? DEFAULT_MAX_PLAYERS),
       members,
     };
     return lobby;
@@ -86,6 +112,11 @@ export class LobbyService {
       lobbyCode,
       state: 'WAITING',
       createdAt: Date.now(),
+      roundsTotal: DEFAULT_MATCH_CONFIG.roundsTotal.toString(),
+      timePerQuestion: DEFAULT_MATCH_CONFIG.timePerQuestion.toString(),
+      questionsPerRound: DEFAULT_MATCH_CONFIG.questionsPerRound.toString(),
+      minPlayers: DEFAULT_MIN_PLAYERS.toString(),
+      maxPlayers: DEFAULT_MAX_PLAYERS.toString(),
     });
 
     await this.redis.client.set(LobbyKeys.lobbyCode(lobbyCode), lobbyId);
@@ -106,6 +137,16 @@ export class LobbyService {
 
     if (meta.state !== 'WAITING')
       throw new ForbiddenException('Lobby is not joinable');
+
+    const memberCount = await this.redis.client.scard(
+      LobbyKeys.members(lobbyId),
+    );
+
+    const maxPlayers = Number(meta.maxPlayers ?? DEFAULT_MAX_PLAYERS);
+
+    if (memberCount >= maxPlayers) {
+      throw new ForbiddenException('LOBBY_FULL');
+    }
 
     const user = await this.prisma.user.findUnique({
       where: { id: userId },
@@ -269,6 +310,13 @@ export class LobbyService {
     const members = await this.redis.client.smembers(
       LobbyKeys.members(lobbyId),
     );
+
+    const minPlayers = Number(meta.minPlayers ?? DEFAULT_MIN_PLAYERS);
+
+    if (members.length < minPlayers) {
+      throw new ForbiddenException('NOT_ENOUGH_PLAYERS');
+    }
+
     const readyMap = await this.redis.client.hgetall(LobbyKeys.ready(lobbyId));
     const allReady = members.every((id) => readyMap[id] === '1');
 
@@ -285,17 +333,13 @@ export class LobbyService {
     const ttl = 3600;
 
     const meta = await this.redis.client.hgetall(LobbyKeys.meta(lobbyId));
-    if (!meta?.lobbyCode)
-        return;
+    if (!meta?.lobbyCode) return;
 
     await this.redis.client.expire(LobbyKeys.meta(lobbyId), ttl);
     await this.redis.client.expire(LobbyKeys.members(lobbyId), ttl);
     await this.redis.client.expire(LobbyKeys.ready(lobbyId), ttl);
 
-    await this.redis.client.expire(
-        LobbyKeys.lobbyCode(meta.lobbyCode),
-        ttl,
-    );
+    await this.redis.client.expire(LobbyKeys.lobbyCode(meta.lobbyCode), ttl);
 
     const members = await this.redis.client.smembers(
       LobbyKeys.members(lobbyId),
@@ -318,7 +362,7 @@ export class LobbyService {
     if (!meta?.ownerId) throw new NotFoundException('Lobby not Found');
 
     if (meta?.lobbyCode) {
-        await this.redis.client.del(LobbyKeys.lobbyCode(meta.lobbyCode));
+      await this.redis.client.del(LobbyKeys.lobbyCode(meta.lobbyCode));
     }
 
     const members = await this.redis.client.smembers(
@@ -357,10 +401,50 @@ export class LobbyService {
   }
 
   async findLobbyIdFromLobbyCode(lobbyCode: string) {
-    const lobbyId = await this.redis.client.get(
-        LobbyKeys.lobbyCode(lobbyCode),
-    );
+    const lobbyId = await this.redis.client.get(LobbyKeys.lobbyCode(lobbyCode));
 
     return lobbyId ?? null;
+  }
+
+  async updateMatchConfig(
+    lobbyId: string,
+    userId: string,
+    key: keyof MatchConfig,
+    delta: number,
+  ): Promise<LobbyView> {
+    const meta = await this.redis.client.hgetall(LobbyKeys.meta(lobbyId));
+
+    if (!meta?.ownerId) throw new NotFoundException('Lobby not found');
+
+    if (meta.ownerId !== userId)
+      throw new ForbiddenException('Only owner can change config');
+
+    if (meta.state !== 'WAITING')
+      throw new ForbiddenException('Cannot change config after game start');
+
+    const current = Number(meta[key]);
+
+    let next = current + delta;
+
+    switch (key) {
+      case 'roundsTotal':
+        next = Math.min(15, Math.max(1, next));
+        break;
+      case 'questionsPerRound':
+        next = Math.min(5, Math.max(1, next));
+        break;
+      case 'timePerQuestion':
+        next = Math.min(60, Math.max(10, next));
+        break;
+    }
+
+    if (next === current) return this.getLobby(lobbyId);
+
+    await this.redis.client.hset(LobbyKeys.meta(lobbyId), {
+      [key]: next.toString(),
+    });
+
+    await this.refreshTTL(lobbyId);
+    return this.getLobby(lobbyId);
   }
 }

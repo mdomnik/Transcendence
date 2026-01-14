@@ -3,8 +3,11 @@
 import { useEffect, useState, useRef } from 'react';
 import { useRouter } from 'next/navigation';
 import { getSocket } from '../lib/socket';
+import { emitWithAck } from '../lib/socketEmit';
 import { useAuth } from '../context/AuthContext';
 import Button from '../components/Button';
+
+/* ---------------- Types ---------------- */
 
 interface Player {
   userId: string;
@@ -12,254 +15,394 @@ interface Player {
   ready: boolean;
 }
 
+interface GameSettings {
+  roundsTotal: number;
+  questionsPerRound: number;
+  timePerQuestion: number;
+}
+
+interface LobbyState {
+  lobbyId: string;
+  lobbyCode: string;
+  ownerId: string;
+
+  maxPlayers: number; // ✅ synced from backend
+
+  members: Player[];
+  config: GameSettings;
+  state: 'WAITING' | 'SETUP' | 'IN_GAME';
+}
+
+/* ---------------- Page ---------------- */
+
 export default function LobbyPage() {
   const router = useRouter();
-  const { user } = useAuth();
-  const [players, setPlayers] = useState<Player[]>([]);
-  const [ownerId, setOwnerId] = useState<string | null>(null);
-  const [lobbyId, setLobbyId] = useState<string | null>(null);
-  const [connectionStatus, setConnectionStatus] = useState<'connecting' | 'connected' | 'disconnected'>('connecting');
+  const { user, loading: authLoading } = useAuth();
 
-  // Track lobbyId in a ref for the cleanup function to avoid dependency loops
-  const lobbyIdRef = useRef<string | null>(null);
+  const [lobby, setLobby] = useState<LobbyState | null>(null);
+  const [copied, setCopied] = useState(false);
+
+  const codeRef = useRef<HTMLSpanElement | null>(null);
+
+  const isHost = lobby?.ownerId === user?.id;
+  const allReady = lobby?.members.every((p) => p.ready) ?? false;
+  const playerCount = lobby?.members.length ?? 0;
+
+  const canEditLimits =
+    isHost &&
+    lobby?.state === 'WAITING' &&
+    !allReady;
+
+  /* ---------------- Sync ---------------- */
+
   useEffect(() => {
-    lobbyIdRef.current = lobbyId;
-  }, [lobbyId]);
+    if (authLoading || !user) return;
 
-  // Derive isReady from players list for the current user
-  const isReady = players?.find(p => p.userId === user?.id)?.ready || false;
-
-  useEffect(() => {
     const socket = getSocket();
 
-    const handleSync = () => {
-      console.log('Emitting lobby:sync...');
-      socket.emit('lobby:sync', (response: any) => {
-        console.log('lobby:sync response ack:', response);
-        if (response && response.ok) {
-           console.log('Lobby sync requested successfully, waiting for lobby:update event...');
-           // We don't set state here anymore, as recommended by @mdomnik.
-           // The backend will push a 'lobby:update' event to our listener below.
-        } else {
-          console.error('Failed to sync lobby. Response:', JSON.stringify(response));
-          // If the user isn't in a lobby according to the server, return to dashboard
-          if (response?.error === 'User not in a lobby') {
-            router.push('/dashboard');
-          } else {
-            // Retry once after 2 seconds for transient errors
-            setTimeout(() => {
-               console.log('Retrying sync...');
-               socket.emit('lobby:sync');
-            }, 2000);
-          }
-        }
-      });
+    const sync = async () => {
+      try {
+        await emitWithAck(socket, 'lobby:sync');
+      } catch {
+        router.push('/dashboard');
+      }
     };
 
-    // Connection events
-    socket.on('connect', () => {
-      console.log('Connected to lobby');
-      setConnectionStatus('connected');
-      handleSync();
-    });
+    socket.on('connect', sync);
+    socket.on('lobby:update', setLobby);
+    socket.on('lobby:deleted', () => router.push('/dashboard'));
+    socket.on('lobby:kicked', () => router.push('/dashboard'));
 
-    if (socket.connected) {
-      setConnectionStatus('connected');
-      handleSync();
-    } else {
-      socket.connect();
-    }
+    if (!socket.connected) socket.connect();
+    else sync();
 
-    socket.on('disconnect', () => {
-      console.log('Disconnected from lobby');
-      setConnectionStatus('disconnected');
-    });
-
-    socket.on('connect_error', (error) => {
-      console.error('Connection error:', error);
-      setConnectionStatus('disconnected');
-    });
-
-    // Lobby events
-    socket.on('lobby:update', (data: any) => {
-      console.log('Lobby update received:', data);
-      if (data.members) setPlayers(data.members);
-      if (data.lobbyId) setLobbyId(data.lobbyId);
-      if (data.ownerId) setOwnerId(data.ownerId);
-
-      // We only redirect on state update if the game is already in progress (e.g. re-joining)
-      // Otherwise we wait for the explicit 'lobby:started' event
-      if (data.state === 'IN_GAME') {
-         console.log('Game already in progress! Redirecting...');
-         router.push('/quiz');
-      }
-    });
-
-    socket.on('lobby:started', (data: any) => {
-      console.log('Lobby explicitly started!', data);
-      router.push('/quiz');
-    });
-
-    socket.on('lobby:deleted', () => {
-      console.log('Lobby deleted');
-      alert('The lobby has been disbanded.');
-      router.push('/dashboard');
-    });
-
-    socket.on('lobby:kicked', () => {
-      console.log('Kicked from lobby');
-      alert('You have been kicked from the lobby.');
-      router.push('/dashboard');
-    });
-
-    socket.on('room:error', (error: any) => {
-      console.error('Lobby error:', error);
-      alert(error.message || 'An error occurred');
-    });
-
-    // Cleanup on unmount
     return () => {
-      // Use the ref value to check if we should emit leave
-      // IMPORTANT: We only automatically leave if we aren't going to the quiz
-      // Since we can't easily check the next route here without a custom hook, 
-      // we'll keep it simple for now but fix the dependency loop.
-      if (lobbyIdRef.current) {
-        socket.emit('lobby:leave', { lobbyId: lobbyIdRef.current });
-      }
-      socket.off('connect');
-      socket.off('disconnect');
-      socket.off('connect_error');
-      socket.off('lobby:update');
-      socket.off('lobby:started');
+      socket.off('connect', sync);
+      socket.off('lobby:update', setLobby);
       socket.off('lobby:deleted');
       socket.off('lobby:kicked');
-      socket.off('room:error');
     };
-  }, [user, router]); // Removed lobbyId from dependencies
+  }, [authLoading, user, router]);
 
-  const handleToggleReady = () => {
-    if (!lobbyId) return;
-    const socket = getSocket();
-    const event = isReady ? 'lobby:unready' : 'lobby:ready';
-    
-    socket.emit(event, { lobbyId }, (response: any) => {
-        if (!response?.ok) {
-            console.error('Failed to update ready state');
-        }
+  /* ---------------- Actions ---------------- */
+
+  const toggleReady = async () => {
+    if (!lobby) return;
+
+    const isReady = lobby.members.find(
+      (p) => p.userId === user?.id,
+    )?.ready;
+
+    await emitWithAck(
+      getSocket(),
+      isReady ? 'lobby:unready' : 'lobby:ready',
+      { lobbyId: lobby.lobbyId },
+    );
+  };
+
+  const startGame = async () => {
+    if (!lobby) return;
+    await emitWithAck(getSocket(), 'lobby:start', {
+      lobbyId: lobby.lobbyId,
     });
   };
 
-  const handleStartGame = () => {
-    if (!lobbyId) return;
-    const socket = getSocket();
-    console.log('Requesting lobby:start...');
-    socket.emit('lobby:start', { lobbyId }, (response: any) => {
-        console.log('lobby:start response:', response);
-        if (!response?.ok) {
-            alert(response?.error || 'Failed to start game. Are all players ready?');
-        }
+  const kickPlayer = async (targetId: string) => {
+    if (!lobby) return;
+    await emitWithAck(getSocket(), 'lobby:kick', {
+      lobbyId: lobby.lobbyId,
+      targetId,
     });
   };
 
-  const handleLeaveLobby = () => {
-    console.log('Leaving lobby...');
-    const socket = getSocket();
-    if (lobbyId) {
-      socket.emit('lobby:leave', { lobbyId });
-    }
+  const leaveLobby = async () => {
+    if (!lobby) return;
+    await emitWithAck(getSocket(), 'lobby:leave', {
+      lobbyId: lobby.lobbyId,
+    });
     router.push('/dashboard');
   };
 
+  /* ---------------- CONFIG (reuse existing pattern) ---------------- */
+
+  const updateSetting = (
+    key: keyof GameSettings | 'maxPlayers',
+    delta: number,
+  ) => {
+    if (!lobby || !isHost || allReady) return;
+
+    emitWithAck(getSocket(), 'lobby:config', {
+      lobbyId: lobby.lobbyId,
+      key,
+      delta,
+    });
+  };
+
+  /* ---------------- Clipboard ---------------- */
+
+  const copyCode = async () => {
+    if (!lobby) return;
+    await navigator.clipboard.writeText(lobby.lobbyCode);
+    setCopied(true);
+    setTimeout(() => setCopied(false), 2000);
+  };
+
+  const selectCode = () => {
+    if (!codeRef.current) return;
+    const range = document.createRange();
+    range.selectNodeContents(codeRef.current);
+    const sel = window.getSelection();
+    sel?.removeAllRanges();
+    sel?.addRange(range);
+  };
+
+  if (authLoading || !user || !lobby) return null;
+
+  const settings = lobby.config;
+
+  /* ---------------- UI ---------------- */
+
   return (
     <div className="min-h-screen bg-gradient-to-br from-[#0A0E27] via-[#16213E] to-[#0F3460] flex items-center justify-center p-8">
-      <div className="max-w-4xl w-full bg-white/5 backdrop-blur-lg rounded-2xl border border-white/10 p-8">
-        {/* Header */}
-        <div className="mb-8">
-          <h1 className="text-4xl font-bold text-white mb-2">Game Lobby</h1>
-          {lobbyId && (
-            <p className="text-[#64FFDA]">Room ID: {lobbyId}</p>
-          )}
-          <div className="flex items-center gap-2 mt-2">
-            <div className={`w-3 h-3 rounded-full ${
-              connectionStatus === 'connected' ? 'bg-green-500' : 
-              connectionStatus === 'connecting' ? 'bg-yellow-500 animate-pulse' : 
-              'bg-red-500'
-            }`} />
-            <span className="text-white/70 text-sm capitalize">{connectionStatus}</span>
-          </div>
-        </div>
+      <div className="max-w-4xl w-full space-y-6">
 
-        {/* Players List */}
-        <div className="mb-8">
-          <h2 className="text-2xl font-semibold text-white mb-4">
-            Players ({players?.length || 0})
-          </h2>
-          <div className="space-y-3">
-            {!players || players.length === 0 ? (
-              <p className="text-white/50 text-center py-8">Waiting for players to join...</p>
-            ) : (
-              players.map((player) => (
-                <div
-                  key={player.userId}
-                  className="flex items-center justify-between bg-white/5 backdrop-blur-sm rounded-lg p-4 border border-white/10"
-                >
-                  <div className="flex items-center gap-3">
-                    <div className="w-10 h-10 rounded-full bg-gradient-to-br from-[#64FFDA] to-[#38BDF8] flex items-center justify-center text-[#0A0E27] font-bold">
-                      {player.username.charAt(0).toUpperCase()}
-                    </div>
-                    <span className="text-white font-medium">{player.username}</span>
-                    {player.userId === user?.id && (
-                      <span className="text-[#64FFDA] text-sm">(You)</span>
-                    )}
-                  </div>
-                  <div className="flex items-center gap-2">
-                    {player.ready ? (
-                      <span className="text-green-400 font-semibold">✓ Ready</span>
-                    ) : (
-                      <span className="text-white/50">Not Ready</span>
-                    )}
-                  </div>
+        {/* MAIN LOBBY */}
+        <div className="bg-white/5 backdrop-blur-lg rounded-2xl border border-white/10 p-8">
+
+          {/* Header */}
+          <div className="mb-8 flex justify-between items-start">
+            <div>
+              <h1 className="text-4xl font-bold text-white">Game Lobby</h1>
+              <p className="mt-1 text-sm text-[#64FFDA] font-mono">
+                Lobby ID: {lobby.lobbyId}
+              </p>
+            </div>
+
+            <div className="flex flex-col items-end">
+              <div className="px-6 py-4 rounded-2xl bg-white/10 border border-white/20">
+                <div className="flex items-center gap-4">
+                  <span className="text-[#64FFDA] font-semibold">
+                    Lobby Code
+                  </span>
+                  <span
+                    ref={codeRef}
+                    onClick={selectCode}
+                    className="font-mono text-[#64FFDA] cursor-pointer"
+                  >
+                    {lobby.lobbyCode}
+                  </span>
+                  <button
+                    onClick={copyCode}
+                    className="border border-[#64FFDA]/40 px-3 py-1 rounded-md hover:bg-[#64FFDA]/10"
+                  >
+                    📋 {copied ? 'Copied' : 'Copy'}
+                  </button>
                 </div>
-              ))
+              </div>
+            </div>
+          </div>
+
+          {/* Players */}
+          <div className="mb-8">
+            <div className="flex items-center gap-3 mb-4">
+              <h2 className="text-2xl font-semibold text-white">
+                Players ({playerCount}/{lobby.maxPlayers})
+              </h2>
+
+              {isHost && (
+                <div className="flex items-center gap-1">
+                  <button
+                    onClick={() => updateSetting('maxPlayers', -1)}
+                    disabled={
+                      !canEditLimits ||
+                      lobby.maxPlayers <= playerCount
+                    }
+                    className="w-6 h-6 rounded border border-white/20 text-white text-sm hover:bg-white/10 disabled:opacity-40"
+                  >
+                    −
+                  </button>
+                  <button
+                    onClick={() => updateSetting('maxPlayers', +1)}
+                    disabled={!canEditLimits}
+                    className="w-6 h-6 rounded border border-white/20 text-white text-sm hover:bg-white/10 disabled:opacity-40"
+                  >
+                    +
+                  </button>
+                </div>
+              )}
+            </div>
+
+            <div className="space-y-3">
+              {lobby.members.map((p) => {
+                const isOwner = p.userId === lobby.ownerId;
+                const isSelf = p.userId === user.id;
+                const showKick = isHost && !isOwner && !isSelf;
+
+                return (
+                  <div
+                    key={p.userId}
+                    className="flex items-center justify-between bg-white/5 p-4 rounded-lg border border-white/10"
+                  >
+                    <div className="flex items-center gap-3">
+                      <div className="w-10 h-10 rounded-full bg-gradient-to-br from-[#64FFDA] to-[#38BDF8] flex items-center justify-center text-[#0A0E27] font-bold">
+                        {p.username.charAt(0).toUpperCase()}
+                      </div>
+                      <span className="text-white font-medium">
+                        {p.username}
+                      </span>
+                      {isSelf && (
+                        <span className="text-[#64FFDA] text-sm">(You)</span>
+                      )}
+                    </div>
+
+                    <div className="flex items-center gap-3">
+                      {isOwner && <span>👑</span>}
+                      {showKick && (
+                        <button
+                          onClick={() => kickPlayer(p.userId)}
+                          className="hover:opacity-80"
+                        >
+                          ❌
+                        </button>
+                      )}
+
+                      <div className="w-24 text-center px-3 py-1.5 rounded-md border border-white/10">
+                        <span
+                          className={
+                            p.ready ? 'text-green-400' : 'text-white/50'
+                          }
+                        >
+                          {p.ready ? 'Ready' : 'Waiting'}
+                        </span>
+                      </div>
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
+          </div>
+
+          {/* Actions */}
+          <div className="flex justify-between items-center">
+            <div className="flex gap-4">
+              <Button onClick={toggleReady}>Ready</Button>
+              <Button variant="outline" onClick={leaveLobby}>
+                Leave Lobby
+              </Button>
+            </div>
+
+            {isHost && (
+              <Button onClick={startGame} disabled={!allReady}>
+                Start Game
+              </Button>
             )}
           </div>
         </div>
 
-        {/* Actions */}
-        <div className="flex gap-4">
-          <Button
-            onClick={handleToggleReady}
-            variant={isReady ? 'outline' : 'primary'}
-            disabled={connectionStatus !== 'connected'}
-          >
-            {isReady ? '✓ Ready' : 'Mark as Ready'}
-          </Button>
-          
-          {/* Only show start button if you're the host */}
-          {players && players.length > 0 && (ownerId ? ownerId === user?.id : players[0]?.userId === user?.id) && (
-            <Button
-              onClick={handleStartGame}
-              variant="primary"
-              disabled={!players || !players.every((p) => p.ready) || players.length < 1}
-            >
-              Start Game
-            </Button>
-          )}
+        {/* GAME SETTINGS */}
+        <div className="bg-white/5 backdrop-blur-lg rounded-2xl border border-white/10 p-8">
+          <div className="flex items-center justify-between mb-6">
+            <h2 className="text-3xl font-semibold text-white">
+              Game Settings
+            </h2>
+            {allReady && (
+              <span className="text-[#64FFDA] text-sm font-medium">
+                🔒 Locked in
+              </span>
+            )}
+          </div>
 
-          <Button
-            onClick={handleLeaveLobby}
-            variant="outline"
-          >
-            Leave Lobby
-          </Button>
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-8">
+            <Setting
+              label="Rounds"
+              value={settings.roundsTotal}
+              min={1}
+              max={15}
+              disabled={!isHost || allReady}
+              onIncrement={() => updateSetting('roundsTotal', +1)}
+              onDecrement={() => updateSetting('roundsTotal', -1)}
+            />
+
+            <Setting
+              label="Questions"
+              value={settings.questionsPerRound}
+              min={1}
+              max={5}
+              disabled={!isHost || allReady}
+              onIncrement={() => updateSetting('questionsPerRound', +1)}
+              onDecrement={() => updateSetting('questionsPerRound', -1)}
+            />
+
+            <Setting
+              label="Time"
+              value={settings.timePerQuestion}
+              min={10}
+              max={60}
+              step={5}
+              disabled={!isHost || allReady}
+              onIncrement={() => updateSetting('timePerQuestion', +5)}
+              onDecrement={() => updateSetting('timePerQuestion', -5)}
+            />
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+/* ---------------- Setting Component ---------------- */
+
+function Setting({
+  label,
+  value,
+  min,
+  max,
+  step = 1,
+  disabled,
+  onIncrement,
+  onDecrement,
+}: {
+  label: string;
+  value: number;
+  min: number;
+  max: number;
+  step?: number;
+  disabled: boolean;
+  onIncrement: () => void;
+  onDecrement: () => void;
+}) {
+  return (
+    <div
+      className={`rounded-xl p-6 border transition ${
+        disabled
+          ? 'border-white/5 opacity-60'
+          : 'border-white/15 hover:border-[#64FFDA]/40'
+      }`}
+    >
+      <div className="mb-4 text-lg font-semibold text-white">
+        {label}
+      </div>
+
+      <div className="flex items-center justify-center gap-6">
+        <button
+          onClick={onDecrement}
+          disabled={disabled || value <= min}
+          className="w-10 h-10 rounded-full border border-white/20 text-white text-xl font-bold hover:bg-white/10 disabled:opacity-40"
+        >
+          −
+        </button>
+
+        <div className="px-6 py-2 rounded-full bg-[#64FFDA]/15 text-[#64FFDA] font-semibold text-xl min-w-[64px] text-center">
+          {value}
         </div>
 
-        {/* Info */}
-        {players && players.length > 0 && (ownerId ? ownerId === user?.id : players[0]?.userId === user?.id) && (
-          <p className="text-white/50 text-sm mt-4">
-            💡 You are the host. You can start the game when all players are ready.
-          </p>
-        )}
+        <button
+          onClick={onIncrement}
+          disabled={disabled || value >= max}
+          className="w-10 h-10 rounded-full border border-white/20 text-white text-xl font-bold hover:bg-white/10 disabled:opacity-40"
+        >
+          +
+        </button>
       </div>
     </div>
   );
