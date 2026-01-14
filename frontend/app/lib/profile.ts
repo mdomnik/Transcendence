@@ -46,28 +46,62 @@ export const mockUserProfile: UserProfile = {
   ]
 };
 
-// API Functions (Mocks for now)
+// API Functions
 export const getUserProfile = async (userId?: string): Promise<UserProfile> => {
-  // Simulate API delay
-  await new Promise(resolve => setTimeout(resolve, 500));
-  return mockUserProfile;
+  const url = userId ? `/api/users/${userId}` : '/api/users/me';
+  
+  const response = await fetch(url, {
+    credentials: 'include'
+  });
+  if (!response.ok) {
+    throw new Error('Failed to fetch profile');
+  }
+  
+  const data = await response.json();
+  
+  // Map backend data to frontend UserProfile interface
+  return {
+    id: data.id,
+    username: data.username,
+    email: data.email || '',
+    avatarUrl: data.avatarUrl,
+    status: 'online', // Placeholder
+    stats: {
+      rank: 0, // Not in backend yet
+      tier: 'Bronze', // Not in backend yet
+      wins: data.stats?.gamesWon || 0,
+      losses: data.stats?.gamesLost || 0,
+      winRate: Math.round((data.derived?.winRate || 0) * 100),
+      matchesPlayed: data.stats?.gamesPlayed || 0,
+    },
+    matchHistory: [] // To be implemented
+  };
 };
 
 export const updateUserProfile = async (username: string, avatar?: File): Promise<Partial<UserProfile>> => {
-  // In the real implementation, you would make a PATCH/PUT request to your backend
-  // Example:
-  // const formData = new FormData();
-  // formData.append('username', username);
-  // if (avatar) formData.append('avatar', avatar);
-  // const res = await fetch('/api/users/me', { method: 'PATCH', body: formData });
-  // return res.json();
-
-  console.log("Saving to Backend...", { username, avatar });
-  await new Promise(resolve => setTimeout(resolve, 800)); // Simulate network delay
+  const body: any = { username };
   
-  // Return the updated fields
+  // Note: For real images, you'd use FormData. For now, we'll keep it simple
+  // and prioritize the username persistence fix.
+  
+  const response = await fetch('/api/users/me', {
+    method: 'PATCH',
+    headers: {
+      'Content-Type': 'application/json',
+    },
+    credentials: 'include',
+    body: JSON.stringify(body),
+  });
+
+  if (!response.ok) {
+    const error = await response.json();
+    throw new Error(error.message || 'Failed to update profile');
+  }
+
+  const updatedUser = await response.json();
+  
   return {
-    username,
-    avatarUrl: avatar ? URL.createObjectURL(avatar) : undefined
+    username: updatedUser.username,
+    avatarUrl: updatedUser.avatarUrl
   };
 };

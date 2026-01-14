@@ -9,7 +9,7 @@ import EditProfileModal from "../components/EditProfileModal";
 
 export default function ProfilePage() {
   const router = useRouter();
-  const { user, loading: authLoading } = useAuth();
+  const { user, loading: authLoading, refresh: refreshAuth } = useAuth();
   const [profile, setProfile] = useState<UserProfile | null>(null);
   const [loading, setLoading] = useState(true);
   const [isEditModalOpen, setIsEditModalOpen] = useState(false);
@@ -25,10 +25,6 @@ export default function ProfilePage() {
     const fetchProfile = async () => {
       try {
         const data = await getUserProfile();
-        // Override mock name with real user name if available
-        if (user?.username) {
-            data.username = user.username;
-        }
         setProfile(data);
       } catch (error) {
         console.error("Failed to fetch profile", error);
@@ -45,15 +41,23 @@ export default function ProfilePage() {
   const handleSaveProfile = async (newUsername: string, newAvatar?: File) => {
     if (!profile) return;
     
-    // Call the API function to save to backend
-    const updatedFields = await updateUserProfile(newUsername, newAvatar);
-    
-    // Update local state to reflect changes immediately
-    setProfile({
-      ...profile,
-      username: updatedFields.username || profile.username,
-      avatarUrl: updatedFields.avatarUrl || profile.avatarUrl
-    });
+    try {
+      // Call the API function to save to backend
+      const updatedFields = await updateUserProfile(newUsername, newAvatar);
+      
+      // Update local state to reflect changes immediately
+      setProfile({
+        ...profile,
+        username: updatedFields.username || profile.username,
+        avatarUrl: updatedFields.avatarUrl || profile.avatarUrl
+      });
+
+      // Refresh global auth state so header/dashboard update too
+      await refreshAuth();
+    } catch (error: any) {
+      console.error("Failed to save profile:", error);
+      alert(error.message || "Failed to update profile. The username might be taken.");
+    }
   };
 
   if (authLoading || loading) {
