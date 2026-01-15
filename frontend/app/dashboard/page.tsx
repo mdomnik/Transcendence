@@ -210,7 +210,7 @@ export default function Dashboard() {
                     <input
                       type="text"
                       placeholder="Enter lobby code"
-                      maxLength={36}
+                      maxLength={8}
                       className="w-1/2 px-3 py-2 rounded-lg bg-[#112240] border border-[#64FFDA]/20 text-[#CCD6F6]"
                       value={lobbyCode}
                       onChange={(e) => setLobbyCode(e.target.value)}
