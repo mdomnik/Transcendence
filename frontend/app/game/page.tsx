@@ -48,6 +48,7 @@ const sampleQuestions: Question[] = [
 
 export default function GamePage() {
   const router = useRouter();
+  const [game, setGameState] = useState<GameState | null>(null);
   const [currentQuestionIndex, setCurrentQuestionIndex] = useState(0);
   const [selectedAnswer, setSelectedAnswer] = useState<number | null>(null);
   const [score, setScore] = useState(0);

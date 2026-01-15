@@ -1,3 +1,5 @@
+/* eslint-disable @typescript-eslint/no-unsafe-assignment */
+/* eslint-disable @typescript-eslint/no-unsafe-member-access */
 import {
   WebSocketGateway,
   SubscribeMessage,
@@ -22,6 +24,18 @@ export class LobbyGateway {
   private server: Server;
 
   constructor(private readonly lobbyService: LobbyService) {}
+
+  handleConnection(client: Socket) {
+    client.onAny((event, payload) => {
+      console.log(`[WS] event=${event} user=${client.data.userId}`, payload);
+    });
+    client.onAnyOutgoing((event, payload) => {
+      console.log(
+        `[WS] outgoing event=${event} user=${client.data.userId}`,
+        payload,
+      );
+    });
+  }
 
   @SubscribeMessage('lobby:create')
   async onLobbyCreate(@ConnectedSocket() client: Socket) {
@@ -204,21 +218,24 @@ export class LobbyGateway {
   ) {
     const userId = client.data.userId;
 
-    const lobby = await this.lobbyService.startSetup(dto.lobbyId, userId);
+    try {
+      const lobby = await this.lobbyService.startSetup(dto.lobbyId, userId);
+      if (!lobby) {
+        return {
+          ok: false,
+          error: 'UNABLE_TO_START_LOBBY',
+        };
+      }
+      this.server.to(lobby.lobbyId).emit('lobby:update', lobby);
+      this.server.to(lobby.lobbyId).emit('lobby:start', lobby);
 
-    if (!lobby) {
       return {
-        ok: false,
-        error: 'UNABLE_TO_START_LOBBY',
+        ok: true,
+        data: lobby,
       };
+    } catch (err) {
+      console.log(err);
     }
-
-    this.server.to(lobby.lobbyId).emit('lobby:update', lobby);
-
-    return {
-      ok: true,
-      data: lobby,
-    };
   }
 
   @SubscribeMessage('lobby:sync')

@@ -1,101 +1,131 @@
-import { WebSocketGateway, WebSocketServer, SubscribeMessage, ConnectedSocket, MessageBody } from '@nestjs/websockets'
-import { Server, Socket } from "socket.io";
-import { GameService } from "./game.service";
-import { ConfigGameDto, SubmitTopicDto, SubmitVoteDto, SubmitAnswerDto } from './dto';
+/* eslint-disable @typescript-eslint/no-unsafe-member-access */
+/* eslint-disable @typescript-eslint/no-unsafe-assignment */
+import {
+  WebSocketGateway,
+  WebSocketServer,
+  SubscribeMessage,
+  ConnectedSocket,
+  MessageBody,
+} from '@nestjs/websockets';
+import { Server, Socket } from 'socket.io';
+import { GameService } from './game.service';
+import {
+  ConfigGameDto,
+  SubmitTopicDto,
+  SubmitVoteDto,
+  SubmitAnswerDto,
+} from './dto';
 import { LobbyDto } from 'src/lobby/dto';
 
 @WebSocketGateway({
   namespace: '/quiz',
+  cors: {
+    origin: 'https://localhost',
+    credentials: true,
+  },
 })
 export class GameGateway {
-    @WebSocketServer()
-    server: Server;
+  @WebSocketServer()
+  server: Server;
 
-    constructor(private readonly gameService: GameService) {}
+  constructor(private readonly gameService: GameService) {}
 
-    @SubscribeMessage('game:set_config')
-    async handleSetConfig(
-        @ConnectedSocket() client: Socket,
-        @MessageBody() body: ConfigGameDto
-    ) {
-        const userId = client.data.userId;
+  /*   @SubscribeMessage('setup:begin')
+  async handleSetupStart(
+    @ConnectedSocket() client: Socket,
+    @MessageBody() body: ConfigGameDto,
+  ) {
+    // initialize setup state
+  }
+ */
+  @SubscribeMessage('setup:set-config')
+  async handleSetConfig(
+    @ConnectedSocket() client: Socket,
+    @MessageBody() body: ConfigGameDto,
+  ) {
+    const userId = client.data.userId;
 
-        const config = {
-            roundsTotal: body.config.roundTotal,
-            timePerQuestion: body.config.timePerQuestion,
-            questionsPerRound: body.config.questionsPerRound,
-        }
-        await this.gameService.setMatchConfig(
-            body.lobbyId,
-            userId,
-            config,
-        );
-
-        await this.emitGameState(body.lobbyId);
+    const config = {
+      roundsTotal: body.config.roundTotal,
+      timePerQuestion: body.config.timePerQuestion,
+      questionsPerRound: body.config.questionsPerRound,
+    };
+    console.log('hello?');
+    try {
+      await this.gameService.setMatchConfig(body.lobbyId, userId, config);
+    } catch (err) {
+      console.log(err);
     }
 
-    @SubscribeMessage('game:start_match')
-    async handleStartMatch(
-        @ConnectedSocket() client: Socket,
-        @MessageBody() body: LobbyDto
-    ) {
-        const userId = client.data.userId;
+    await this.emitGameState(body.lobbyId);
+  }
 
-        await this.gameService.startMatch(body.lobbyId, userId);
+  @SubscribeMessage('game:start-match')
+  async handleStartMatch(
+    @ConnectedSocket() client: Socket,
+    @MessageBody() body: LobbyDto,
+  ) {
+    const userId = client.data.userId;
 
-        await this.emitGameState(body.lobbyId);
-    }
+    await this.gameService.startMatch(body.lobbyId, userId);
 
-    @SubscribeMessage('game:submit_topic')
-    async handleSubmitTopic(
-        @ConnectedSocket() client: Socket,
-        @MessageBody() body: SubmitTopicDto
-    ) {
-        const userId = client.data.userId;
+    await this.emitGameState(body.lobbyId);
+  }
 
-        await this.gameService.submitTopic(body.lobbyId, userId, {
-            topicTitle: body.topicTitle,
-            difficulty: body.difficulty,
-        });
+  @SubscribeMessage('setup:submit-topic')
+  async handleSubmitTopic(
+    @ConnectedSocket() client: Socket,
+    @MessageBody() body: SubmitTopicDto,
+  ) {
+    const userId = client.data.userId;
 
-        await this.emitGameState(body.lobbyId);
-    }
+    await this.gameService.submitTopic(body.lobbyId, userId, {
+      topicTitle: body.topicTitle,
+      difficulty: body.difficulty,
+    });
 
-    @SubscribeMessage('game:submit_vote')
-    async handleSubmitVote(
-        @ConnectedSocket() client: Socket,
-        @MessageBody() body: SubmitVoteDto,
-    ) {
-        const userId = client.data.userId;
+    await this.emitGameState(body.lobbyId);
+  }
 
-        await this.gameService.submitVote(
-            body.lobbyId,
-            userId,
-            body.votedForUserId,
-        );
+  @SubscribeMessage('setup:submit-vote')
+  async handleSubmitVote(
+    @ConnectedSocket() client: Socket,
+    @MessageBody() body: SubmitVoteDto,
+  ) {
+    const userId = client.data.userId;
 
-        await this.emitGameState(body.lobbyId);
-    }
+    await this.gameService.submitVote(
+      body.lobbyId,
+      userId,
+      body.votedForUserId,
+    );
 
-    @SubscribeMessage('game:submit_answer')
-    async handleSubmitAnswer(
-        @ConnectedSocket() client: Socket,
-        @MessageBody() body: SubmitAnswerDto,
-    ) {
-        const userId = client.data.userId;
+    await this.emitGameState(body.lobbyId);
+  }
 
-        await this.gameService.submitAnswer(body.lobbyId, userId, {
-            questionId: body.questionId,
-            answerId: body.answerId,
-        });
+  @SubscribeMessage('game:submit-answer')
+  async handleSubmitAnswer(
+    @ConnectedSocket() client: Socket,
+    @MessageBody() body: SubmitAnswerDto,
+  ) {
+    const userId = client.data.userId;
 
-        await this.emitGameState(body.lobbyId);
-    }
+    await this.gameService.submitAnswer(body.lobbyId, userId, {
+      questionId: body.questionId,
+      answerId: body.answerId,
+    });
 
-    private async emitGameState(lobbyId: string) {
-        const view = await this.gameService.getGameView(lobbyId);
-        if (!view)
-            return;
-        this.server.to(lobbyId).emit('game:state', view);
-    }
+    await this.emitGameState(body.lobbyId);
+  }
+
+  private async emitGameState(lobbyId: string) {
+    const view = await this.gameService.getGameView(lobbyId);
+    if (!view) return;
+    else if (
+      view.roundData?.phase == 'VOTING' ||
+      view.roundData?.phase == 'TOPIC_INPUT'
+    )
+      this.server.to(lobbyId).emit('setup:state', view);
+    else this.server.to(lobbyId).emit('game:state', view);
+  }
 }

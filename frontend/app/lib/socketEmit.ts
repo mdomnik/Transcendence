@@ -4,9 +4,10 @@ export function emitWithAck<T>(
   socket: Socket,
   event: string,
   payload?: any,
-  timeoutMs = 8000
+  timeoutMs = 600000
 ): Promise<T> {
   return new Promise((resolve, reject) => {
+    console.log(payload);
     const timeout = setTimeout(() => {
       reject(new Error("TIMEOUT"));
     }, timeoutMs);

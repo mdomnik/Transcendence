@@ -1,3 +1,6 @@
+/* eslint-disable @typescript-eslint/no-unsafe-member-access */
+/* eslint-disable @typescript-eslint/no-unsafe-assignment */
+/* eslint-disable @typescript-eslint/no-unsafe-call */
 import {
   ForbiddenException,
   Injectable,
@@ -297,7 +300,7 @@ export class LobbyService {
       throw new ForbiddenException('Only lobby owner can start the game');
 
     // If already in SETUP or IN_GAME, just return the current lobby
-    if (meta.state === 'SETUP' || meta.state === 'IN_GAME') {
+    if (meta.state === 'IN_GAME') {
       return this.getLobby(lobbyId);
     }
 

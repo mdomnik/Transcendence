@@ -13,12 +13,13 @@ interface Player {
   userId: string;
   username: string;
   ready: boolean;
+  votes: number;
 }
 
 interface GameSettings {
   roundsTotal: number;
-  questionsPerRound: number;
   timePerQuestion: number;
+  questionsPerRound: number;
 }
 
 interface LobbyState {
@@ -30,7 +31,7 @@ interface LobbyState {
 
   members: Player[];
   config: GameSettings;
-  state: 'WAITING' | 'SETUP' | 'IN_GAME';
+  state: 'SETUP' | 'WAITING' | 'IN_GAME';
 }
 
 /* ---------------- Page ---------------- */
@@ -70,6 +71,7 @@ export default function LobbyPage() {
 
     socket.on('connect', sync);
     socket.on('lobby:update', setLobby);
+    socket.on('lobby:start', () => router.push('/game/setup'));
     socket.on('lobby:deleted', () => router.push('/dashboard'));
     socket.on('lobby:kicked', () => router.push('/dashboard'));
 
@@ -79,6 +81,7 @@ export default function LobbyPage() {
     return () => {
       socket.off('connect', sync);
       socket.off('lobby:update', setLobby);
+      socket.off('lobby:start')
       socket.off('lobby:deleted');
       socket.off('lobby:kicked');
     };
@@ -105,6 +108,9 @@ export default function LobbyPage() {
     await emitWithAck(getSocket(), 'lobby:start', {
       lobbyId: lobby.lobbyId,
     });
+    await emitWithAck(getSocket(), 'setup:set-config', {
+      lobbyId: lobby.lobbyId, config: lobby.config,
+    })
   };
 
   const kickPlayer = async (targetId: string) => {
