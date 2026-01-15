@@ -16,6 +16,7 @@ import {
   SubmitAnswerDto,
 } from './dto';
 import { LobbyDto } from 'src/lobby/dto';
+import { LobbyService } from 'src/lobby/lobby.service';
 
 @WebSocketGateway({
   namespace: '/quiz',
@@ -28,51 +29,12 @@ export class GameGateway {
   @WebSocketServer()
   server: Server;
 
-  constructor(private readonly gameService: GameService) {}
+  constructor(
+    private readonly gameService: GameService,
+    private readonly lobbyService: LobbyService,
+  ) {}
 
-  /*   @SubscribeMessage('setup:begin')
-  async handleSetupStart(
-    @ConnectedSocket() client: Socket,
-    @MessageBody() body: ConfigGameDto,
-  ) {
-    // initialize setup state
-  }
- */
-  @SubscribeMessage('setup:set-config')
-  async handleSetConfig(
-    @ConnectedSocket() client: Socket,
-    @MessageBody() body: ConfigGameDto,
-  ) {
-    const userId = client.data.userId;
-
-    const config = {
-      roundsTotal: body.config.roundTotal,
-      timePerQuestion: body.config.timePerQuestion,
-      questionsPerRound: body.config.questionsPerRound,
-    };
-    console.log('hello?');
-    try {
-      await this.gameService.setMatchConfig(body.lobbyId, userId, config);
-    } catch (err) {
-      console.log(err);
-    }
-
-    await this.emitGameState(body.lobbyId);
-  }
-
-  @SubscribeMessage('game:start-match')
-  async handleStartMatch(
-    @ConnectedSocket() client: Socket,
-    @MessageBody() body: LobbyDto,
-  ) {
-    const userId = client.data.userId;
-
-    await this.gameService.startMatch(body.lobbyId, userId);
-
-    await this.emitGameState(body.lobbyId);
-  }
-
-  @SubscribeMessage('setup:submit-topic')
+  @SubscribeMessage('game:submit-topic')
   async handleSubmitTopic(
     @ConnectedSocket() client: Socket,
     @MessageBody() body: SubmitTopicDto,
@@ -87,7 +49,7 @@ export class GameGateway {
     await this.emitGameState(body.lobbyId);
   }
 
-  @SubscribeMessage('setup:submit-vote')
+  @SubscribeMessage('game:submit-vote')
   async handleSubmitVote(
     @ConnectedSocket() client: Socket,
     @MessageBody() body: SubmitVoteDto,
@@ -118,14 +80,27 @@ export class GameGateway {
     await this.emitGameState(body.lobbyId);
   }
 
+  @SubscribeMessage('game:sync')
+  async onGameSync(@ConnectedSocket() client: Socket) {
+    const userId = client.data.userId;
+    const lobbyId = await this.lobbyService.getLobbyIdForUser(userId);
+
+    if (!lobbyId) return { ok: false };
+
+    client.join(lobbyId);
+
+    const view = await this.gameService.getGameView(lobbyId);
+    if (!view) return { ok: false };
+
+    client.emit('game:state', view);
+
+    return { ok: true };
+  }
+
   private async emitGameState(lobbyId: string) {
     const view = await this.gameService.getGameView(lobbyId);
     if (!view) return;
-    else if (
-      view.roundData?.phase == 'VOTING' ||
-      view.roundData?.phase == 'TOPIC_INPUT'
-    )
-      this.server.to(lobbyId).emit('setup:state', view);
-    else this.server.to(lobbyId).emit('game:state', view);
+
+    this.server.to(lobbyId).emit('game:state', view);
   }
 }

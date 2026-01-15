@@ -5,9 +5,10 @@ import { RedisModule } from 'src/redis/redis.module';
 import { PrismaService } from 'src/prisma/prisma.service';
 import { LobbyGateway } from './lobby.gateway';
 import { AuthModule } from 'src/auth/auth.module';
+import { GameModule } from 'src/game/game.module';
 
 @Module({
-  imports: [RedisModule, AuthModule],
+  imports: [RedisModule, AuthModule, GameModule],
   providers: [LobbyService, LobbyGateway, PrismaService],
   controllers: [LobbyController],
 })

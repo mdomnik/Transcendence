@@ -11,7 +11,7 @@ import { PrismaService } from 'src/prisma/prisma.service';
 import { RedisService } from 'src/redis/redis.service';
 import { LobbyKeys } from './lobby.keys';
 
-type LobbyState = 'WAITING' | 'SETUP' | 'IN_GAME' | 'FINISHED';
+type LobbyState = 'WAITING' | 'IN_GAME' | 'FINISHED';
 
 const DEFAULT_MATCH_CONFIG: MatchConfig = {
   roundsTotal: 3,
@@ -303,23 +303,21 @@ export class LobbyService {
     return this.getLobby(lobbyId);
   }
 
-  async startSetup(lobbyId: string, userId: string): Promise<LobbyView> {
+  async startGame(lobbyId: string, userId: string): Promise<LobbyView> {
+
     const meta = await this.redis.client.hgetall(LobbyKeys.meta(lobbyId));
-    if (!meta?.ownerId) throw new NotFoundException('Lobby not Found');
+
+    if (!meta?.ownerId)
+        throw new NotFoundException('Lobby not Found');
+
     if (meta.ownerId !== userId)
       throw new ForbiddenException('Only lobby owner can start the game');
 
-    // If already in SETUP or IN_GAME, just return the current lobby
-    if (meta.state === 'IN_GAME') {
-      return this.getLobby(lobbyId);
-    }
-
     if (meta.state !== 'WAITING')
       throw new ForbiddenException(
-        `Cannot start game from state: ${meta.state}`,
+        `Game already started`,
       );
 
-    //ensure everyone is ready
     const members = await this.redis.client.smembers(
       LobbyKeys.members(lobbyId),
     );
@@ -333,9 +331,12 @@ export class LobbyService {
     const readyMap = await this.redis.client.hgetall(LobbyKeys.ready(lobbyId));
     const allReady = members.every((id) => readyMap[id] === '1');
 
-    if (!allReady) throw new ForbiddenException('Not all players are ready');
+    if (!allReady)
+        throw new ForbiddenException('Not all players are ready');
 
-    await this.redis.client.hset(LobbyKeys.meta(lobbyId), { state: 'SETUP' });
+    await this.redis.client.hset(LobbyKeys.meta(lobbyId), {
+        state: 'IN_GAME',
+    });
 
     await this.refreshTTL(lobbyId);
 

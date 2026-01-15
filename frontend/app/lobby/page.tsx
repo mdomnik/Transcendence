@@ -61,11 +61,16 @@ export default function LobbyPage() {
       }
     };
 
-    socket.on('connect', sync);
-    socket.on('lobby:update', setLobby);
-    socket.on('lobby:start', () => router.push('/game/setup'));
-    socket.on('lobby:deleted', () => router.push('/dashboard'));
-    socket.on('lobby:kicked', () => router.push('/dashboard'));
+    socket.on("connect", sync);
+    socket.on("lobby:update", setLobby);
+    socket.on("game:state", (view) => {
+      if (view.match.state === "IN_PROGRESS") {
+        router.push("/game");
+      }
+    });
+
+    socket.on("lobby:deleted", () => router.push("/dashboard"));
+    socket.on("lobby:kicked", () => router.push("/dashboard"));
 
     socket.on(
       "lobby:removed",
@@ -80,28 +85,23 @@ export default function LobbyPage() {
     else sync();
 
     return () => {
-      socket.off('connect', sync);
-      socket.off('lobby:update', setLobby);
-      socket.off('lobby:start')
-      socket.off('lobby:deleted');
-      socket.off('lobby:kicked');
+      socket.off("connect", sync);
+      socket.off("lobby:update", setLobby);
+      socket.off("lobby:start");
+      socket.off("lobby:deleted");
+      socket.off("lobby:kicked");
       socket.off("lobby:removed");
     };
   }, [authLoading, user, router]);
 
-
   const toggleReady = async () => {
     if (!lobby) return;
 
-    const isReady = lobby.members.find(
-      (p) => p.userId === user?.id
-    )?.ready;
+    const isReady = lobby.members.find((p) => p.userId === user?.id)?.ready;
 
-    await emitWithAck(
-      getSocket(),
-      isReady ? "lobby:unready" : "lobby:ready",
-      { lobbyId: lobby.lobbyId }
-    );
+    await emitWithAck(getSocket(), isReady ? "lobby:unready" : "lobby:ready", {
+      lobbyId: lobby.lobbyId,
+    });
   };
 
   const startGame = async () => {
@@ -109,9 +109,10 @@ export default function LobbyPage() {
     await emitWithAck(getSocket(), "lobby:start", {
       lobbyId: lobby.lobbyId,
     });
-    await emitWithAck(getSocket(), 'setup:set-config', {
-      lobbyId: lobby.lobbyId, config: lobby.config,
-    })
+    await emitWithAck(getSocket(), "setup:set-config", {
+      lobbyId: lobby.lobbyId,
+      config: lobby.config,
+    });
   };
 
   const kickPlayer = async (targetId: string) => {
@@ -332,9 +333,7 @@ export default function LobbyPage() {
         {/* GAME SETTINGS */}
         <div className="bg-white/5 backdrop-blur-lg rounded-2xl border border-white/10 p-8">
           <div className="flex items-center justify-between mb-6">
-            <h2 className="text-3xl font-semibold text-white">
-              Game Settings
-            </h2>
+            <h2 className="text-3xl font-semibold text-white">Game Settings</h2>
             {allReady && (
               <span className="text-[#64FFDA] text-sm font-medium">
                 🔒 Locked in
@@ -359,12 +358,8 @@ export default function LobbyPage() {
               min={3}
               max={12}
               disabled={!isHost || allReady}
-              onIncrement={() =>
-                updateSetting("questionsPerRound", +1)
-              }
-              onDecrement={() =>
-                updateSetting("questionsPerRound", -1)
-              }
+              onIncrement={() => updateSetting("questionsPerRound", +1)}
+              onDecrement={() => updateSetting("questionsPerRound", -1)}
             />
 
             <Setting
@@ -374,12 +369,8 @@ export default function LobbyPage() {
               max={60}
               step={5}
               disabled={!isHost || allReady}
-              onIncrement={() =>
-                updateSetting("timePerQuestion", +5)
-              }
-              onDecrement={() =>
-                updateSetting("timePerQuestion", -5)
-              }
+              onIncrement={() => updateSetting("timePerQuestion", +5)}
+              onDecrement={() => updateSetting("timePerQuestion", -5)}
             />
           </div>
         </div>

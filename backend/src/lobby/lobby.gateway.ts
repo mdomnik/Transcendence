@@ -11,6 +11,7 @@ import { Server, Socket } from 'socket.io';
 import { LobbyDto, LobbyJoinDto, LobbyKickDto, LobbyConfigDto } from './dto';
 import { LobbyService } from './lobby.service';
 import { LobbyKeys } from './lobby.keys';
+import { GameService } from 'src/game/game.service';
 
 @WebSocketGateway({
   namespace: '/quiz',
@@ -23,7 +24,10 @@ export class LobbyGateway {
   @WebSocketServer()
   private server: Server;
 
-  constructor(private readonly lobbyService: LobbyService) {}
+  constructor(
+    private readonly lobbyService: LobbyService,
+    private readonly gameService: GameService,        
+  ) {}
 
   handleConnection(client: Socket) {
     client.onAny((event, payload) => {
@@ -95,7 +99,6 @@ export class LobbyGateway {
 
     const lobby = await this.lobbyService.leaveLobby(dto.lobbyId, userId);
 
-    // ✅ Explicit voluntary leave
     await this.emitRemovalAndLeaveRoom(dto.lobbyId, userId, 'LEFT');
 
     if (!lobby) {
@@ -183,19 +186,27 @@ export class LobbyGateway {
   }
 
 
-  @SubscribeMessage('lobby:start')
-  async onLobbyStart(
-    @ConnectedSocket() client: Socket,
-    @MessageBody() dto: LobbyDto,
-  ) {
-    const lobby = await this.lobbyService.startSetup(
-      dto.lobbyId,
-      client.data.userId,
-    );
+@SubscribeMessage('lobby:start')
+async onLobbyStart(
+  @ConnectedSocket() client: Socket,
+  @MessageBody() dto: LobbyDto,
+) {
+  const lobby = await this.lobbyService.startGame(
+    dto.lobbyId,
+    client.data.userId,
+  );
 
-    this.server.to(lobby.lobbyId).emit('lobby:update', lobby);
-    return { ok: true, data: lobby };
-  }
+  // 1️⃣ Create match
+  await this.gameService.createMatchFromLobby(lobby);
+
+  this.server.to(lobby.lobbyId).emit('lobby:update', lobby);
+
+  const gameView = await this.gameService.getGameView(lobby.lobbyId);
+  this.server.to(lobby.lobbyId).emit('game:state', gameView);
+
+  return { ok: true };
+}
+
 
 
   @SubscribeMessage('lobby:sync')

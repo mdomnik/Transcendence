@@ -19,33 +19,52 @@ export default function Dashboard() {
   const [toast, setToast] = useState<string | null>(null);
   const [checkingLobby, setCheckingLobby] = useState(true);
 
-
   useEffect(() => {
     if (!authLoading && !user) {
       router.replace("/");
     }
   }, [authLoading, user, router]);
 
-
   useEffect(() => {
     if (authLoading) return;
 
     const params = new URLSearchParams(window.location.search);
 
+    if (params.get("left")) {
+      setCheckingLobby(false);
+      router.replace("/dashboard");
+      return;
+    }
+
     if (params.get("kicked")) {
       setToast("You were removed from the lobby by the host.");
+      setCheckingLobby(false);
       router.replace("/dashboard");
+      return;
     }
 
     if (params.get("banned")) {
       setToast("You were banned from this lobby.");
+      setCheckingLobby(false);
       router.replace("/dashboard");
+      return;
     }
   }, [authLoading, router]);
 
-
   useEffect(() => {
     if (authLoading || !user) return;
+
+    const params = new URLSearchParams(window.location.search);
+
+    // Explicit exit → never restore
+    if (
+      params.get("left") ||
+      params.get("kicked") ||
+      params.get("banned")
+    ) {
+      setCheckingLobby(false);
+      return;
+    }
 
     const socket = getSocket();
 
@@ -58,9 +77,7 @@ export default function Dashboard() {
           });
         }
 
-        // Attempt lobby restore
         await emitWithAck(socket, "lobby:sync");
-
         router.replace("/lobby");
       } catch {
         setCheckingLobby(false);
@@ -83,6 +100,7 @@ export default function Dashboard() {
 
   if (!user) return null;
   const userName = user.username || "Player";
+
 
   const handleLogout = async () => {
     getSocket().disconnect();

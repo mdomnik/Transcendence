@@ -12,6 +12,7 @@ import { GameKeys } from './game.keys';
 import { PrismaService } from 'src/prisma/prisma.service';
 import { QuizService } from 'src/quiz/quiz.service';
 import { RepositoryService } from 'src/quiz/repository/repository.service';
+import { LobbyView } from 'src/lobby/lobby.service';
 
 const MAX_ROUNDS = 50;
 const MAX_TIME_PER_QUESTION = 120;
@@ -311,97 +312,6 @@ export class GameService {
       players,
       roundData,
     };
-  }
-
-  async setMatchConfig(
-    lobbyId: string,
-    ownerId: string,
-    config: MatchConfig,
-  ): Promise<void> {
-    const lobbyMeta = await this.redis.client.hgetall(LobbyKeys.meta(lobbyId));
-
-    if (!lobbyMeta?.ownerId) {
-      throw new NotFoundException('Lobby not found');
-    }
-
-    if (lobbyMeta.ownerId !== ownerId) {
-      throw new ForbiddenException('Only lobby owner can start the match');
-    }
-
-    if (lobbyMeta.state !== 'SETUP') {
-      throw new ForbiddenException(
-        'Match can only be started in the SETUP phase',
-      );
-    }
-
-    if (config.roundsTotal <= 0 || config.roundsTotal > MAX_ROUNDS)
-      throw new ForbiddenException('Invalid roundsTotal');
-
-    if (
-      config.timePerQuestion < 5 ||
-      config.timePerQuestion > MAX_TIME_PER_QUESTION
-    )
-      throw new ForbiddenException('Invalid timePerQuestion');
-
-    if (
-      config.questionsPerRound <= 0 ||
-      config.questionsPerRound > MAX_QUESTIONS_PER_ROUND
-    )
-      throw new ForbiddenException('Invalid questionsPerRound');
-
-    await this.redis.client.hset(GameKeys.matchConfig(lobbyId), {
-      roundsTotal: config.roundsTotal.toString(),
-      timePerQuestion: config.timePerQuestion.toString(),
-      questionsPerRound: config.questionsPerRound.toString(),
-    });
-
-    return;
-  }
-
-  async startMatch(lobbyId: string, ownerId: string): Promise<void> {
-    const lobbyMeta = await this.redis.client.hgetall(LobbyKeys.meta(lobbyId));
-
-    if (!lobbyMeta?.ownerId) {
-      throw new NotFoundException('Lobby not found');
-    }
-
-    if (lobbyMeta.ownerId !== ownerId) {
-      throw new ForbiddenException('Only lobby owner can start the match');
-    }
-
-    if (lobbyMeta.state !== 'SETUP') {
-      throw new ForbiddenException(
-        'Match can only be started in the SETUP phase',
-      );
-    }
-
-    const rawConfig = await this.redis.client.hgetall(
-      GameKeys.matchConfig(lobbyId),
-    );
-
-    if (
-      !rawConfig?.roundsTotal ||
-      !rawConfig?.timePerQuestion ||
-      !rawConfig?.questionsPerRound
-    ) {
-      throw new ForbiddenException('Match Configuration is not complete');
-    }
-
-    await this.redis.client.hset(GameKeys.matchMeta(lobbyId), {
-      state: 'IN_PROGRESS',
-      currentRound: '1',
-    });
-
-    await this.redis.client.hset(GameKeys.roundMeta(lobbyId, 1), {
-      phase: 'TOPIC_INPUT',
-      phaseStartedAt: Date.now().toString(),
-    });
-
-    await this.redis.client.hset(LobbyKeys.meta(lobbyId), {
-      state: 'IN_PROGRESS',
-    });
-
-    return;
   }
 
   async submitTopic(
@@ -1118,5 +1028,23 @@ export class GameService {
       default:
         return null;
     }
+  }
+
+  async createMatchFromLobby(lobby: LobbyView) {
+    await this.redis.client.hset(GameKeys.matchMeta(lobby.lobbyId), {
+        state: 'IN_PROGRESS',
+        currentRound: '1',
+    });
+
+    await this.redis.client.hset(GameKeys.matchConfig(lobby.lobbyId), {
+        roundsTotal: lobby.config.roundsTotal.toString(),
+        timePerQuestion: lobby.config.timePerQuestion.toString(),
+        questionsPerRound: lobby.config.questionsPerRound.toString(),
+    });
+
+    await this.redis.client.hset(GameKeys.roundMeta(lobby.lobbyId, 1), {
+        phase: 'TOPIC_INPUT',
+        phaseStartedAt: Date.now().toString(),
+    });
   }
 }
