@@ -12,6 +12,7 @@ import { LobbyDto, LobbyJoinDto, LobbyKickDto, LobbyConfigDto } from './dto';
 import { LobbyService } from './lobby.service';
 import { LobbyKeys } from './lobby.keys';
 import { GameService } from 'src/game/game.service';
+import { forwardRef, Inject } from '@nestjs/common';
 
 @WebSocketGateway({
   namespace: '/quiz',
@@ -26,6 +27,7 @@ export class LobbyGateway {
 
   constructor(
     private readonly lobbyService: LobbyService,
+    @Inject(forwardRef(() => GameService))
     private readonly gameService: GameService,        
   ) {}
 

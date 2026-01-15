@@ -1,133 +1,194 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
-import Button from "../components/Button";
 import { getSocket } from "../lib/socket";
-import { emitWithAck } from '../lib/socketEmit';
-import { useAuth } from '../context/AuthContext';
+import { emitWithAck } from "../lib/socketEmit";
+import { useAuth } from "../context/AuthContext";
 
-interface Player {
-  userId: string;
-  username: string;
-}
+type Difficulty = "EASY" | "MEDIUM" | "HARD";
 
-interface GameSettings {
-  roundsTotal: number;
-  questionsPerRound: number;
-  timePerQuestion: number;
-}
-
-interface SetupState {
-  lobbyId: string;
-  lobbyCode: string;
-  ownerId: string;
-
-  maxPlayers: number; // ✅ synced from backend
-
-  members: Player[];
-  config: GameSettings;
-  state: 'SUGGEST' | 'VOTING';
-}
-
-export default function GameSetupPage() {
+export default function GamePage() {
   const router = useRouter();
-  const socket = getSocket();
-  const [setup, setState] = useState<SetupState | null>(null);
-  const { user, loading: authLoading } = useAuth();
-  const roomId = setup?.lobbyId;
+  const { user, loading } = useAuth();
+  const [game, setGame] = useState<any>(null);
 
-  const [topicInput, setTopicInput] = useState("");
-  const [topics, setTopics] = useState<string[]>([]);
-  const [votes, setVotes] = useState<Record<string, number>>({});
+  const [topic, setTopic] = useState("");
+  const [difficulty, setDifficulty] = useState<Difficulty>("EASY");
+
+  // ✅ timer ticker
+  const [now, setNow] = useState(Date.now());
+  useEffect(() => {
+    const id = setInterval(() => setNow(Date.now()), 250);
+    return () => clearInterval(id);
+  }, []);
 
   useEffect(() => {
-    if (authLoading || !user) return;
+    if (loading || !user) return;
+
+    const socket = getSocket();
 
     const sync = async () => {
       try {
-        await emitWithAck(socket, 'setup:sync');
+        if (!socket.connected) socket.connect();
+        await emitWithAck(socket, "game:sync");
       } catch {
-        router.push('/dashboard');
+        router.replace("/dashboard");
       }
-    }
-    // socket.on("setup:start", (setup))\
+    };
 
-/*     socket.on("setup:submit-topic", (state) => {
-      setTopics(state.topics);
-    });
+    const onState = (view: any) => {
+      if (view.match.state === "FINISHED") {
+        router.replace("/dashboard");
+        return;
+      }
+      setGame(view);
+    };
 
-    socket.on("setup:submit-vote", (state) => {
-      setVotes(state.votes);
-    });
- */
-    socket.on('setup:state', (state) => {
-      console.log(state);
-      setTopics(state.proposals.topicTitle);
-      setVotes(state.votedBy.size());
+    socket.on("game:state", onState);
+    socket.on("game:quit-confirmed", () => {
+      router.replace("/dashboard?left=1");
     });
 
-    socket.on("setup:start-match", (topic: string) => {
-      router.push(`/game?topic=${encodeURIComponent(topic)}`);
-    });
+    sync();
 
     return () => {
-      socket.off("setup:topic-update");
-      socket.off("setup:state")
-      socket.off("setup:start-match");
+      socket.off("game:state", onState);
+      socket.off("game:quit-confirmed");
     };
-  }, []);
+  }, [loading, user, router]);
 
-  const addTopic = () => {
-    if (!topicInput.trim()) return;
-    socket.emit("setup:submit-topic", { roomId, topic: topicInput.trim() });
-    setTopicInput("");
+  if (!user) return null;
+
+  if (!game) {
+    return (
+      <div className="min-h-screen bg-[#0A192F] flex items-center justify-center text-[#64FFDA]">
+        Loading game…
+      </div>
+    );
+  }
+
+  const phase = game.phase.state;
+  const round = game.match.round;
+  const totalRounds = game.match.roundsTotal;
+
+  const timeLeft =
+    game.phase.endsAt != null
+      ? Math.max(0, Math.ceil((game.phase.endsAt - now) / 1000))
+      : null;
+
+  const isTopicPhase = phase === "TOPIC_INPUT";
+
+  const proposals =
+    isTopicPhase && game.roundData?.phase === "TOPIC_INPUT"
+      ? game.roundData.proposals
+      : [];
+
+  const mySubmitted =
+    isTopicPhase && game.roundData?.phase === "TOPIC_INPUT"
+      ? game.roundData.submittedBy.includes(user.id)
+      : false;
+
+  const submitTopic = async () => {
+    if (!topic.trim()) return;
+    await emitWithAck(getSocket(), "game:submit-topic", {
+      lobbyId: game.lobbyId,
+      topicTitle: topic.trim(),
+      difficulty,
+    });
+    setTopic(""); // optional
   };
 
-  const vote = (topic: string) => {
-    socket.emit("setup:submit-vote", { setup, topic });
-  };
-
-  const finalize = () => {
-    socket.emit("setup:finalize", { roomId });
+  const quitGame = async () => {
+    await emitWithAck(getSocket(), "game:quit");
   };
 
   return (
-    <main className="min-h-screen bg-[#0A192F] flex items-center justify-center px-6">
-      <div className="max-w-xl w-full rounded-3xl bg-[#112240] border border-[#64FFDA]/30 p-8 space-y-6">
+    <main className="min-h-screen bg-[#0A192F] flex flex-col">
+      {/* Top bar */}
+      <div className="flex items-center justify-between px-6 py-4 border-b border-white/10">
+        <button
+          onClick={quitGame}
+          className="rounded-lg border border-red-500/40 bg-red-500/10 px-4 py-2 text-sm text-red-400 hover:bg-red-500/20"
+        >
+          Quit Game
+        </button>
 
-        <h1 className="text-3xl font-bold text-[#CCD6F6] text-center">
-          Game Setup
-        </h1>
-
-        <div className="flex gap-2">
-          <input
-            value={topicInput}
-            onChange={(e) => setTopicInput(e.target.value)}
-            className="flex-1 rounded-xl bg-[#0A192F] border border-[#64FFDA]/30 px-4 py-3 text-[#CCD6F6]"
-            placeholder="Suggest a topic..."
-          />
-          <Button onClick={addTopic}>Add</Button>
+        <div className="text-center px-6 py-3 rounded-xl border border-[#64FFDA]/30 bg-[#112240]">
+          <div className="text-[#64FFDA] font-semibold">{phase.replace("_", " ")}</div>
+          {timeLeft !== null && (
+            <div className="text-sm text-[#8892B0]">Time left: {timeLeft}s</div>
+          )}
         </div>
 
-        <div className="space-y-3">
-          {topics.map((topic) => (
-            <button
-              key={topic}
-              onClick={() => vote(topic)}
-              className="w-full p-4 rounded-xl bg-[#0A192F] border border-[#64FFDA]/30 flex justify-between"
+        <div className="px-4 py-2 rounded-xl border border-white/10 bg-white/5 text-white">
+          Round {round}/{totalRounds}
+        </div>
+      </div>
+
+      {/* Center topics */}
+      <div className="flex-1 p-10">
+        <div className="h-full rounded-2xl border border-white/10 bg-white/5 p-8 flex flex-wrap gap-6 items-start">
+          {proposals.map((p: any) => (
+            <div
+              key={p.userId}
+              className="w-56 h-32 rounded-xl border border-[#64FFDA]/40 bg-[#64FFDA]/10 flex flex-col items-center justify-center"
             >
-              <span className="text-[#CCD6F6]">{topic}</span>
-              <span className="text-[#64FFDA] font-bold">
-                {votes[topic] ?? 0}
-              </span>
-            </button>
+              <div className="text-white text-lg font-semibold">{p.topicTitle}</div>
+              <div className="text-sm text-[#64FFDA] mt-1">{p.difficulty}</div>
+            </div>
           ))}
-        </div>
 
-        <Button variant="Play" onClick={finalize}>
-          Finalize Topic
-        </Button>
+          {proposals.length === 0 && (
+            <div className="text-[#8892B0]">Waiting for topics…</div>
+          )}
+        </div>
+      </div>
+
+      {/* Bottom submit */}
+      <div className="border-t border-white/10 p-6">
+        <div className="max-w-xl mx-auto rounded-2xl bg-[#112240] border border-[#64FFDA]/30 p-6 space-y-4">
+          <div className="text-center text-[#64FFDA] font-semibold">Submit Topic</div>
+
+          {mySubmitted ? (
+            <div className="text-center text-[#8892B0]">
+              Waiting for other players…
+            </div>
+          ) : (
+            <>
+              <input
+                value={topic}
+                onChange={(e) => setTopic(e.target.value)}
+                placeholder="Enter a topic"
+                maxLength={40}
+                className="w-full px-4 py-2 rounded-lg bg-[#0A192F] border border-white/10 text-white"
+              />
+
+              <div className="flex justify-center gap-2">
+                {(["EASY", "MEDIUM", "HARD"] as Difficulty[]).map((d) => (
+                  <button
+                    key={d}
+                    onClick={() => setDifficulty(d)}
+                    className={`px-3 py-1 rounded-md text-sm border ${
+                      difficulty === d
+                        ? "border-[#64FFDA] text-[#64FFDA]"
+                        : "border-white/10 text-white/60"
+                    }`}
+                  >
+                    {d}
+                  </button>
+                ))}
+              </div>
+
+              <button
+                onClick={submitTopic}
+                className="w-full py-2 rounded-lg bg-[#64FFDA]/20 text-[#64FFDA] hover:bg-[#64FFDA]/30"
+              >
+                Submit Topic
+              </button>
+            </>
+          )}
+        </div>
       </div>
     </main>
   );

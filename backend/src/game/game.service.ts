@@ -43,6 +43,11 @@ interface MatchConfig {
 interface TopicInputView {
   phase: 'TOPIC_INPUT';
   submittedBy: string[];
+  proposals: Array<{
+    userId: string;
+    topicTitle: string;
+    difficulty: 'EASY' | 'MEDIUM' | 'HARD';
+  }>;
 }
 
 interface VotingView {
@@ -196,6 +201,14 @@ export class GameService {
       roundData = {
         phase: 'TOPIC_INPUT',
         submittedBy: Object.keys(rawInputs),
+        proposals: Object.entries(rawInputs).map(([userId, raw]) => {
+            const parsed = JSON.parse(raw);
+            return {
+                userId,
+                topicTitle: parsed.topicTitle,
+                difficulty: parsed.difficulty,
+            };
+        }),
       };
     } else if (phase === 'VOTING') {
       const rawInputs = await this.redis.client.hgetall(
@@ -1032,19 +1045,67 @@ export class GameService {
 
   async createMatchFromLobby(lobby: LobbyView) {
     await this.redis.client.hset(GameKeys.matchMeta(lobby.lobbyId), {
-        state: 'IN_PROGRESS',
-        currentRound: '1',
+      state: 'IN_PROGRESS',
+      currentRound: '1',
     });
 
     await this.redis.client.hset(GameKeys.matchConfig(lobby.lobbyId), {
-        roundsTotal: lobby.config.roundsTotal.toString(),
-        timePerQuestion: lobby.config.timePerQuestion.toString(),
-        questionsPerRound: lobby.config.questionsPerRound.toString(),
+      roundsTotal: lobby.config.roundsTotal.toString(),
+      timePerQuestion: lobby.config.timePerQuestion.toString(),
+      questionsPerRound: lobby.config.questionsPerRound.toString(),
     });
 
     await this.redis.client.hset(GameKeys.roundMeta(lobby.lobbyId, 1), {
-        phase: 'TOPIC_INPUT',
-        phaseStartedAt: Date.now().toString(),
+      phase: 'TOPIC_INPUT',
+      phaseStartedAt: Date.now().toString(),
     });
+  }
+
+  async quitGame(lobbyId: string, userId: string) {
+    await this.redis.client.srem(LobbyKeys.members(lobbyId), userId);
+    await this.redis.client.del(LobbyKeys.userLobby(userId));
+
+    await this.redis.client.hdel(GameKeys.scores(lobbyId), userId);
+
+    const remaining = await this.redis.client.smembers(
+      LobbyKeys.members(lobbyId),
+    );
+
+    if (remaining.length <= 1) {
+      await this.redis.client.hset(GameKeys.matchMeta(lobbyId), {
+        state: 'FINISHED',
+      });
+
+      await this.redis.client.hset(LobbyKeys.meta(lobbyId), {
+        state: 'FINISHED',
+      });
+
+      await this.redis.client.hset(
+        GameKeys.roundMeta(
+          lobbyId,
+          Number(
+            (await this.redis.client.hgetall(GameKeys.matchMeta(lobbyId)))
+              .currentRound,
+          ),
+        ),
+        {
+          phase: 'MATCH_END',
+          phaseStartedAt: Date.now().toString(),
+        },
+      );
+
+      const view = await this.getGameView(lobbyId);
+      if (view) {
+        await this.redis.client.publish(
+          'game-events',
+          JSON.stringify({ lobbyId }),
+        );
+      }
+
+      return;
+    }
+
+    const view = await this.getGameView(lobbyId);
+    if (!view) return;
   }
 }

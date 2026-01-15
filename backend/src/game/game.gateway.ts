@@ -15,8 +15,8 @@ import {
   SubmitVoteDto,
   SubmitAnswerDto,
 } from './dto';
-import { LobbyDto } from 'src/lobby/dto';
 import { LobbyService } from 'src/lobby/lobby.service';
+import { forwardRef, Inject } from '@nestjs/common';
 
 @WebSocketGateway({
   namespace: '/quiz',
@@ -31,6 +31,7 @@ export class GameGateway {
 
   constructor(
     private readonly gameService: GameService,
+    @Inject(forwardRef(() => LobbyService))
     private readonly lobbyService: LobbyService,
   ) {}
 
@@ -82,6 +83,7 @@ export class GameGateway {
 
   @SubscribeMessage('game:sync')
   async onGameSync(@ConnectedSocket() client: Socket) {
+    console.log('🎮 syncing');
     const userId = client.data.userId;
     const lobbyId = await this.lobbyService.getLobbyIdForUser(userId);
 
@@ -90,9 +92,24 @@ export class GameGateway {
     client.join(lobbyId);
 
     const view = await this.gameService.getGameView(lobbyId);
-    if (!view) return { ok: false };
 
     client.emit('game:state', view);
+
+    return { ok: true };
+  }
+
+  @SubscribeMessage('game:quit')
+  async onGameQuit(@ConnectedSocket() client: Socket) {
+    const userId = client.data.userId;
+
+    const lobbyId = await this.lobbyService.getLobbyIdForUser(userId);
+    if (!lobbyId) return { ok: false };
+
+    await this.gameService.quitGame(lobbyId, userId);
+
+    // Remove socket from room and notify client
+    client.leave(lobbyId);
+    client.emit('game:quit-confirmed');
 
     return { ok: true };
   }
