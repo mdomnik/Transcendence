@@ -1,13 +1,11 @@
-'use client';
+"use client";
 
-import { useEffect, useState, useRef } from 'react';
-import { useRouter } from 'next/navigation';
-import { getSocket } from '../lib/socket';
-import { emitWithAck } from '../lib/socketEmit';
-import { useAuth } from '../context/AuthContext';
-import Button from '../components/Button';
-
-/* ---------------- Types ---------------- */
+import { useEffect, useState, useRef } from "react";
+import { useRouter } from "next/navigation";
+import { getSocket } from "../lib/socket";
+import { emitWithAck } from "../lib/socketEmit";
+import { useAuth } from "../context/AuthContext";
+import Button from "../components/Button";
 
 interface Player {
   userId: string;
@@ -26,15 +24,11 @@ interface LobbyState {
   lobbyId: string;
   lobbyCode: string;
   ownerId: string;
-
-  maxPlayers: number; // ✅ synced from backend
-
+  maxPlayers: number;
   members: Player[];
   config: GameSettings;
-  state: 'SETUP' | 'WAITING' | 'IN_GAME';
+  state: "WAITING" | "SETUP" | "IN_GAME";
 }
-
-/* ---------------- Page ---------------- */
 
 export default function LobbyPage() {
   const router = useRouter();
@@ -42,6 +36,7 @@ export default function LobbyPage() {
 
   const [lobby, setLobby] = useState<LobbyState | null>(null);
   const [copied, setCopied] = useState(false);
+  const [showCode, setShowCode] = useState(false);
 
   const codeRef = useRef<HTMLSpanElement | null>(null);
 
@@ -49,12 +44,9 @@ export default function LobbyPage() {
   const allReady = lobby?.members.every((p) => p.ready) ?? false;
   const playerCount = lobby?.members.length ?? 0;
 
-  const canEditLimits =
-    isHost &&
-    lobby?.state === 'WAITING' &&
-    !allReady;
+  const canEditLimits = isHost && lobby?.state === "WAITING" && !allReady;
 
-  /* ---------------- Sync ---------------- */
+  const displayedCode = showCode ? lobby?.lobbyCode : "********";
 
   useEffect(() => {
     if (authLoading || !user) return;
@@ -63,9 +55,9 @@ export default function LobbyPage() {
 
     const sync = async () => {
       try {
-        await emitWithAck(socket, 'lobby:sync');
+        await emitWithAck(socket, "lobby:sync");
       } catch {
-        router.push('/dashboard');
+        router.push("/dashboard");
       }
     };
 
@@ -74,6 +66,15 @@ export default function LobbyPage() {
     socket.on('lobby:start', () => router.push('/game/setup'));
     socket.on('lobby:deleted', () => router.push('/dashboard'));
     socket.on('lobby:kicked', () => router.push('/dashboard'));
+
+    socket.on(
+      "lobby:removed",
+      ({ reason }: { reason: "LEFT" | "KICKED" | "BANNED" }) => {
+        if (reason === "KICKED") router.push("/dashboard?kicked=1");
+        else if (reason === "BANNED") router.push("/dashboard?banned=1");
+        else router.push("/dashboard");
+      }
+    );
 
     if (!socket.connected) socket.connect();
     else sync();
@@ -84,28 +85,28 @@ export default function LobbyPage() {
       socket.off('lobby:start')
       socket.off('lobby:deleted');
       socket.off('lobby:kicked');
+      socket.off("lobby:removed");
     };
   }, [authLoading, user, router]);
 
-  /* ---------------- Actions ---------------- */
 
   const toggleReady = async () => {
     if (!lobby) return;
 
     const isReady = lobby.members.find(
-      (p) => p.userId === user?.id,
+      (p) => p.userId === user?.id
     )?.ready;
 
     await emitWithAck(
       getSocket(),
-      isReady ? 'lobby:unready' : 'lobby:ready',
-      { lobbyId: lobby.lobbyId },
+      isReady ? "lobby:unready" : "lobby:ready",
+      { lobbyId: lobby.lobbyId }
     );
   };
 
   const startGame = async () => {
     if (!lobby) return;
-    await emitWithAck(getSocket(), 'lobby:start', {
+    await emitWithAck(getSocket(), "lobby:start", {
       lobbyId: lobby.lobbyId,
     });
     await emitWithAck(getSocket(), 'setup:set-config', {
@@ -115,7 +116,21 @@ export default function LobbyPage() {
 
   const kickPlayer = async (targetId: string) => {
     if (!lobby) return;
-    await emitWithAck(getSocket(), 'lobby:kick', {
+    await emitWithAck(getSocket(), "lobby:kick", {
+      lobbyId: lobby.lobbyId,
+      targetId,
+    });
+  };
+
+  const banPlayer = async (targetId: string, username: string) => {
+    if (!lobby) return;
+
+    const confirmed = window.confirm(
+      `Are you sure you want to ban ${username}?`
+    );
+    if (!confirmed) return;
+
+    await emitWithAck(getSocket(), "lobby:ban", {
       lobbyId: lobby.lobbyId,
       targetId,
     });
@@ -123,28 +138,23 @@ export default function LobbyPage() {
 
   const leaveLobby = async () => {
     if (!lobby) return;
-    await emitWithAck(getSocket(), 'lobby:leave', {
+    await emitWithAck(getSocket(), "lobby:leave", {
       lobbyId: lobby.lobbyId,
     });
-    router.push('/dashboard');
   };
 
-  /* ---------------- CONFIG (reuse existing pattern) ---------------- */
-
   const updateSetting = (
-    key: keyof GameSettings | 'maxPlayers',
-    delta: number,
+    key: keyof GameSettings | "maxPlayers",
+    delta: number
   ) => {
     if (!lobby || !isHost || allReady) return;
 
-    emitWithAck(getSocket(), 'lobby:config', {
+    emitWithAck(getSocket(), "lobby:config", {
       lobbyId: lobby.lobbyId,
       key,
       delta,
     });
   };
-
-  /* ---------------- Clipboard ---------------- */
 
   const copyCode = async () => {
     if (!lobby) return;
@@ -166,15 +176,11 @@ export default function LobbyPage() {
 
   const settings = lobby.config;
 
-  /* ---------------- UI ---------------- */
-
   return (
     <div className="min-h-screen bg-gradient-to-br from-[#0A0E27] via-[#16213E] to-[#0F3460] flex items-center justify-center p-8">
       <div className="max-w-4xl w-full space-y-6">
-
         {/* MAIN LOBBY */}
         <div className="bg-white/5 backdrop-blur-lg rounded-2xl border border-white/10 p-8">
-
           {/* Header */}
           <div className="mb-8 flex justify-between items-start">
             <div>
@@ -190,18 +196,27 @@ export default function LobbyPage() {
                   <span className="text-[#64FFDA] font-semibold">
                     Lobby Code
                   </span>
+
                   <span
                     ref={codeRef}
                     onClick={selectCode}
-                    className="font-mono text-[#64FFDA] cursor-pointer"
+                    className="font-mono text-[#64FFDA] cursor-pointer select-none"
                   >
-                    {lobby.lobbyCode}
+                    {displayedCode}
                   </span>
+
                   <button
                     onClick={copyCode}
                     className="border border-[#64FFDA]/40 px-3 py-1 rounded-md hover:bg-[#64FFDA]/10"
                   >
-                    📋 {copied ? 'Copied' : 'Copy'}
+                    📋 {copied ? "Copied" : "Copy"}
+                  </button>
+
+                  <button
+                    onClick={() => setShowCode((v) => !v)}
+                    className="border border-[#64FFDA]/40 px-3 py-1 rounded-md hover:bg-[#64FFDA]/10"
+                  >
+                    {showCode ? "🙈 Hide" : "🐵 Show"}
                   </button>
                 </div>
               </div>
@@ -218,17 +233,14 @@ export default function LobbyPage() {
               {isHost && (
                 <div className="flex items-center gap-1">
                   <button
-                    onClick={() => updateSetting('maxPlayers', -1)}
-                    disabled={
-                      !canEditLimits ||
-                      lobby.maxPlayers <= playerCount
-                    }
+                    onClick={() => updateSetting("maxPlayers", -1)}
+                    disabled={!canEditLimits || lobby.maxPlayers <= playerCount}
                     className="w-6 h-6 rounded border border-white/20 text-white text-sm hover:bg-white/10 disabled:opacity-40"
                   >
                     −
                   </button>
                   <button
-                    onClick={() => updateSetting('maxPlayers', +1)}
+                    onClick={() => updateSetting("maxPlayers", +1)}
                     disabled={!canEditLimits}
                     className="w-6 h-6 rounded border border-white/20 text-white text-sm hover:bg-white/10 disabled:opacity-40"
                   >
@@ -263,22 +275,34 @@ export default function LobbyPage() {
 
                     <div className="flex items-center gap-3">
                       {isOwner && <span>👑</span>}
+
                       {showKick && (
-                        <button
-                          onClick={() => kickPlayer(p.userId)}
-                          className="hover:opacity-80"
-                        >
-                          ❌
-                        </button>
+                        <>
+                          <button
+                            onClick={() => kickPlayer(p.userId)}
+                            className="hover:opacity-80"
+                            title="Kick"
+                          >
+                            ❌
+                          </button>
+
+                          <button
+                            onClick={() => banPlayer(p.userId, p.username)}
+                            className="hover:opacity-80"
+                            title="Ban"
+                          >
+                            🚫
+                          </button>
+                        </>
                       )}
 
                       <div className="w-24 text-center px-3 py-1.5 rounded-md border border-white/10">
                         <span
                           className={
-                            p.ready ? 'text-green-400' : 'text-white/50'
+                            p.ready ? "text-green-400" : "text-white/50"
                           }
                         >
-                          {p.ready ? 'Ready' : 'Waiting'}
+                          {p.ready ? "Ready" : "Waiting"}
                         </span>
                       </div>
                     </div>
@@ -325,8 +349,8 @@ export default function LobbyPage() {
               min={1}
               max={15}
               disabled={!isHost || allReady}
-              onIncrement={() => updateSetting('roundsTotal', +1)}
-              onDecrement={() => updateSetting('roundsTotal', -1)}
+              onIncrement={() => updateSetting("roundsTotal", +1)}
+              onDecrement={() => updateSetting("roundsTotal", -1)}
             />
 
             <Setting
@@ -335,8 +359,12 @@ export default function LobbyPage() {
               min={1}
               max={5}
               disabled={!isHost || allReady}
-              onIncrement={() => updateSetting('questionsPerRound', +1)}
-              onDecrement={() => updateSetting('questionsPerRound', -1)}
+              onIncrement={() =>
+                updateSetting("questionsPerRound", +1)
+              }
+              onDecrement={() =>
+                updateSetting("questionsPerRound", -1)
+              }
             />
 
             <Setting
@@ -346,8 +374,12 @@ export default function LobbyPage() {
               max={60}
               step={5}
               disabled={!isHost || allReady}
-              onIncrement={() => updateSetting('timePerQuestion', +5)}
-              onDecrement={() => updateSetting('timePerQuestion', -5)}
+              onIncrement={() =>
+                updateSetting("timePerQuestion", +5)
+              }
+              onDecrement={() =>
+                updateSetting("timePerQuestion", -5)
+              }
             />
           </div>
         </div>
@@ -355,8 +387,6 @@ export default function LobbyPage() {
     </div>
   );
 }
-
-/* ---------------- Setting Component ---------------- */
 
 function Setting({
   label,
@@ -381,13 +411,11 @@ function Setting({
     <div
       className={`rounded-xl p-6 border transition ${
         disabled
-          ? 'border-white/5 opacity-60'
-          : 'border-white/15 hover:border-[#64FFDA]/40'
+          ? "border-white/5 opacity-60"
+          : "border-white/15 hover:border-[#64FFDA]/40"
       }`}
     >
-      <div className="mb-4 text-lg font-semibold text-white">
-        {label}
-      </div>
+      <div className="mb-4 text-lg font-semibold text-white">{label}</div>
 
       <div className="flex items-center justify-center gap-6">
         <button
