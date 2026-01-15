@@ -356,8 +356,8 @@ export default function LobbyPage() {
             <Setting
               label="Questions"
               value={settings.questionsPerRound}
-              min={1}
-              max={5}
+              min={3}
+              max={12}
               disabled={!isHost || allReady}
               onIncrement={() =>
                 updateSetting("questionsPerRound", +1)
