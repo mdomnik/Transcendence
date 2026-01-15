@@ -7,11 +7,28 @@ import { emitWithAck } from "../lib/socketEmit";
 import { useAuth } from "../context/AuthContext";
 import Button from "../components/Button";
 
+/**
+ * Basic styles for the scrolling marquee
+ */
+const marqueeStyles = `
+  @keyframes marquee {
+    0% { transform: translateX(0); }
+    100% { transform: translateX(-50%); }
+  }
+  .animate-marquee {
+    animation: marquee 30s linear infinite;
+  }
+`;
+
 interface Player {
   userId: string;
   username: string;
   ready: boolean;
-  votes: number;
+}
+
+interface Topic {
+  text: string;
+  votes: string[]; // userIds
 }
 
 interface GameSettings {
@@ -28,6 +45,7 @@ interface LobbyState {
   members: Player[];
   config: GameSettings;
   state: "WAITING" | "SETUP" | "IN_GAME";
+  topics: Topic[];
 }
 
 export default function LobbyPage() {
@@ -37,6 +55,7 @@ export default function LobbyPage() {
   const [lobby, setLobby] = useState<LobbyState | null>(null);
   const [copied, setCopied] = useState(false);
   const [showCode, setShowCode] = useState(false);
+  const [newTopic, setNewTopic] = useState("");
 
   const codeRef = useRef<HTMLSpanElement | null>(null);
 
@@ -63,7 +82,7 @@ export default function LobbyPage() {
 
     socket.on('connect', sync);
     socket.on('lobby:update', setLobby);
-    socket.on('lobby:start', () => router.push('/game/setup'));
+    socket.on('lobby:start', () => router.push('/game'));
     socket.on('lobby:deleted', () => router.push('/dashboard'));
     socket.on('lobby:kicked', () => router.push('/dashboard'));
 
@@ -106,12 +125,25 @@ export default function LobbyPage() {
 
   const startGame = async () => {
     if (!lobby) return;
-    await emitWithAck(getSocket(), "lobby:start", {
-      lobbyId: lobby.lobbyId,
-    });
-    await emitWithAck(getSocket(), 'setup:set-config', {
-      lobbyId: lobby.lobbyId, config: lobby.config,
-    })
+
+    // Find topic with most votes
+    const winner = [...lobby.topics].sort((a, b) => b.votes.length - a.votes.length)[0];
+    const topic = winner ? winner.text : "Random Knowledge";
+
+    try {
+      // 1. Mark lobby as started with the winning topic
+      await emitWithAck(getSocket(), "lobby:start", {
+        lobbyId: lobby.lobbyId,
+        topic,
+      });
+      
+      // 2. Start the game match
+      await emitWithAck(getSocket(), 'game:start-match', {
+        lobbyId: lobby.lobbyId,
+      });
+    } catch (err: any) {
+      alert(`Failed to start game: ${err.message}`);
+    }
   };
 
   const kickPlayer = async (targetId: string) => {
@@ -138,8 +170,43 @@ export default function LobbyPage() {
 
   const leaveLobby = async () => {
     if (!lobby) return;
-    await emitWithAck(getSocket(), "lobby:leave", {
+    try {
+      await emitWithAck(getSocket(), "lobby:leave", {
+        lobbyId: lobby.lobbyId,
+      });
+      router.replace("/dashboard");
+    } catch (err) {
+      // Even if emit fails, try to go back to dashboard
+      router.replace("/dashboard");
+    }
+  };
+
+  const selectQuickTopic = async (topic: string) => {
+    setNewTopic(topic);
+    if (!lobby) return;
+    // Immediate suggestion
+    await emitWithAck(getSocket(), "lobby:suggest-topic", {
       lobbyId: lobby.lobbyId,
+      topic: topic.trim(),
+    });
+    setNewTopic("");
+  };
+
+  const suggestTopic = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!lobby || !newTopic.trim()) return;
+    await emitWithAck(getSocket(), "lobby:suggest-topic", {
+      lobbyId: lobby.lobbyId,
+      topic: newTopic.trim(),
+    });
+    setNewTopic("");
+  };
+
+  const voteTopic = async (topic: string) => {
+    if (!lobby) return;
+    await emitWithAck(getSocket(), "lobby:vote-topic", {
+      lobbyId: lobby.lobbyId,
+      topic,
     });
   };
 
@@ -178,16 +245,23 @@ export default function LobbyPage() {
 
   return (
     <div className="min-h-screen bg-gradient-to-br from-[#0A0E27] via-[#16213E] to-[#0F3460] flex items-center justify-center p-8">
+      <style dangerouslySetInnerHTML={{ __html: marqueeStyles }} />
       <div className="max-w-4xl w-full space-y-6">
         {/* MAIN LOBBY */}
         <div className="bg-white/5 backdrop-blur-lg rounded-2xl border border-white/10 p-8">
           {/* Header */}
           <div className="mb-8 flex justify-between items-start">
-            <div>
-              <h1 className="text-4xl font-bold text-white">Game Lobby</h1>
-              <p className="mt-1 text-sm text-[#64FFDA] font-mono">
-                Lobby ID: {lobby.lobbyId}
-              </p>
+            <div className="flex items-center gap-4">
+              <button 
+                onClick={leaveLobby}
+                className="p-2 rounded-full hover:bg-white/10 text-white/50 hover:text-[#64FFDA] transition-all"
+                title="Back to Dashboard"
+              >
+                <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><line x1="19" y1="12" x2="5" y2="12"></line><polyline points="12 19 5 12 12 5"></polyline></svg>
+              </button>
+              <div>
+                <h1 className="text-4xl font-bold text-white">Game Lobby</h1>
+              </div>
             </div>
 
             <div className="flex flex-col items-end">
@@ -309,6 +383,100 @@ export default function LobbyPage() {
                   </div>
                 );
               })}
+            </div>
+          </div>
+
+          {/* Topic Selection */}
+          <div className="mb-10 p-8 rounded-3xl bg-[#0A192F]/50 border border-[#64FFDA]/20 shadow-2xl">
+            <h3 className="text-2xl font-black text-[#64FFDA] mb-6 flex items-center gap-3 italic tracking-tight uppercase">
+              <span>🎯</span> Suggest Quiz Topic
+            </h3>
+
+            <form onSubmit={suggestTopic} className="flex gap-2 mb-2">
+                <input 
+                    type="text"
+                    value={newTopic}
+                    onChange={(e) => setNewTopic(e.target.value)}
+                    placeholder="e.g. Greek Mythology, React Hooks, Space..."
+                    className="flex-1 bg-white/5 border border-white/10 rounded-xl px-4 py-2 text-white focus:border-[#64FFDA] outline-none"
+                    maxLength={50}
+                />
+                <button 
+                    type="submit"
+                    className="px-6 py-2 bg-[#64FFDA] text-[#0A192F] font-bold rounded-xl hover:bg-[#5EEAD4] transition-colors"
+                >
+                    Add
+                </button>
+            </form>
+
+            {/* Marquee Suggestions */}
+            <div className="relative overflow-hidden h-14 mb-6 group">
+                <div className="absolute flex whitespace-nowrap animate-marquee items-center gap-4 py-2">
+                    {[
+                        "World Capitals", "Exotic Birds", "European Cities", 
+                        "Ocean Animals", "Football Stars", "History of Space", 
+                        "Car Brands", "Food & Cuisine", "Movie Trivia",
+                        "Music Legends", "Ancient Rome", "Solar System"
+                    ].map((topic, i) => (
+                        <button 
+                            key={i} 
+                            onClick={() => selectQuickTopic(topic)}
+                            type="button"
+                            className="px-4 py-2 rounded-full border border-white/10 bg-white/5 text-white/50 text-xs font-bold hover:border-[#64FFDA]/50 hover:bg-[#64FFDA]/10 hover:text-[#64FFDA] transition-all whitespace-nowrap"
+                        >
+                            {topic}
+                        </button>
+                    ))}
+                    {/* Duplicate for seamless loop */}
+                    {[
+                        "World Capitals", "Exotic Birds", "European Cities", 
+                        "Ocean Animals", "Football Stars", "History of Space", 
+                        "Car Brands", "Food & Cuisine", "Movie Trivia",
+                        "Music Legends", "Ancient Rome", "Solar System"
+                    ].map((topic, i) => (
+                        <button 
+                            key={`dup-${i}`} 
+                            onClick={() => selectQuickTopic(topic)}
+                            type="button"
+                            className="px-4 py-2 rounded-full border border-white/10 bg-white/5 text-white/50 text-xs font-bold hover:border-[#64FFDA]/50 hover:bg-[#64FFDA]/10 hover:text-[#64FFDA] transition-all whitespace-nowrap"
+                        >
+                            {topic}
+                        </button>
+                    ))}
+                </div>
+                {/* Visual Fades */}
+                <div className="absolute inset-y-0 left-0 w-16 bg-gradient-to-r from-[#112240] to-transparent z-10 pointer-events-none" />
+                <div className="absolute inset-y-0 right-0 w-16 bg-gradient-to-l from-[#112240] to-transparent z-10 pointer-events-none" />
+            </div>
+
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                {lobby.topics.map((t) => {
+                    const hasVoted = t.votes.includes(user.id);
+                    return (
+                        <button
+                            key={t.text}
+                            onClick={() => voteTopic(hasVoted ? "" : t.text)}
+                            className={`flex items-center justify-between p-4 rounded-xl border-2 transition-all ${
+                                hasVoted 
+                                ? "bg-[#64FFDA]/10 border-[#64FFDA] text-white" 
+                                : "bg-white/5 border-white/10 text-white/70 hover:border-white/30"
+                            }`}
+                        >
+                            <span className="font-medium truncate">{t.text}</span>
+                            <div className="flex items-center gap-2">
+                                <span className="text-xs bg-white/10 px-2 py-1 rounded-md text-[#64FFDA]">
+                                    {t.votes.length} Votes
+                                </span>
+                            </div>
+                        </button>
+                    )
+                })}
+
+                {lobby.topics.length === 0 && (
+                    <div className="col-span-full py-8 text-center text-white/30 border border-white/5 border-dotted rounded-xl">
+                        No topics suggested yet. Be the first!
+                    </div>
+                )}
             </div>
           </div>
 

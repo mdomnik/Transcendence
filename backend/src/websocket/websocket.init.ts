@@ -7,7 +7,7 @@ export function initWsAuth(server: Server, jwtService: JwtService) {
   server.use((socket: Socket, next) => {
     try {
       const rawCookie = socket.handshake.headers.cookie;
-      console.log(`[initWsAuth] Handshake attempt. Cookie present: ${!!rawCookie}`);
+      console.log(`[initWsAuth] Handshake attempt. Cookie names: ${rawCookie ? Object.keys(cookie.parse(rawCookie)).join(', ') : 'none'}`);
       
       if (!rawCookie) {
         console.error('[initWsAuth] No cookie found in handshake');
@@ -18,7 +18,7 @@ export function initWsAuth(server: Server, jwtService: JwtService) {
       const token = parsed['access_token'];
       
       if (!token) {
-        console.error('[initWsAuth] access_token missing in cookie');
+        console.error('[initWsAuth] access_token missing in cookie. Found: ', Object.keys(parsed));
         throw new UnauthorizedException('No access token in cookie');
       }
 

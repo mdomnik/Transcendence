@@ -30,6 +30,21 @@ export class GameGateway {
 
   constructor(private readonly gameService: GameService) {}
 
+  @SubscribeMessage('game:sync')
+  async handleGameSync(@ConnectedSocket() client: Socket) {
+    const userId = client.data.userId;
+    const lobbyId = await this.gameService.getLobbyIdForUser(userId);
+    if (!lobbyId) return { ok: false, error: 'NOT_IN_GAME' };
+
+    client.join(lobbyId);
+    const view = await this.gameService.getGameView(lobbyId);
+
+    if (view) {
+      return { ok: true, state: view };
+    }
+    return { ok: false, error: 'NO_ACTIVE_MATCH' };
+  }
+
   /*   @SubscribeMessage('setup:begin')
   async handleSetupStart(
     @ConnectedSocket() client: Socket,
@@ -46,18 +61,18 @@ export class GameGateway {
     const userId = client.data.userId;
 
     const config = {
-      roundsTotal: body.config.roundTotal,
+      roundsTotal: body.config.roundsTotal,
       timePerQuestion: body.config.timePerQuestion,
       questionsPerRound: body.config.questionsPerRound,
     };
-    console.log('hello?');
     try {
       await this.gameService.setMatchConfig(body.lobbyId, userId, config);
-    } catch (err) {
+      await this.emitGameState(body.lobbyId);
+      return { ok: true };
+    } catch (err: any) {
       console.log(err);
+      return { ok: false, error: err.message };
     }
-
-    await this.emitGameState(body.lobbyId);
   }
 
   @SubscribeMessage('game:start-match')
@@ -66,10 +81,13 @@ export class GameGateway {
     @MessageBody() body: LobbyDto,
   ) {
     const userId = client.data.userId;
-
-    await this.gameService.startMatch(body.lobbyId, userId);
-
-    await this.emitGameState(body.lobbyId);
+    try {
+      await this.gameService.startMatch(body.lobbyId, userId);
+      await this.emitGameState(body.lobbyId);
+      return { ok: true };
+    } catch (err: any) {
+      return { ok: false, error: err.message };
+    }
   }
 
   @SubscribeMessage('setup:submit-topic')
@@ -78,13 +96,16 @@ export class GameGateway {
     @MessageBody() body: SubmitTopicDto,
   ) {
     const userId = client.data.userId;
-
-    await this.gameService.submitTopic(body.lobbyId, userId, {
-      topicTitle: body.topicTitle,
-      difficulty: body.difficulty,
-    });
-
-    await this.emitGameState(body.lobbyId);
+    try {
+      await this.gameService.submitTopic(body.lobbyId, userId, {
+        topicTitle: body.topicTitle,
+        difficulty: body.difficulty,
+      });
+      await this.emitGameState(body.lobbyId);
+      return { ok: true };
+    } catch (err: any) {
+      return { ok: false, error: err.message };
+    }
   }
 
   @SubscribeMessage('setup:submit-vote')
@@ -93,14 +114,17 @@ export class GameGateway {
     @MessageBody() body: SubmitVoteDto,
   ) {
     const userId = client.data.userId;
-
-    await this.gameService.submitVote(
-      body.lobbyId,
-      userId,
-      body.votedForUserId,
-    );
-
-    await this.emitGameState(body.lobbyId);
+    try {
+      await this.gameService.submitVote(
+        body.lobbyId,
+        userId,
+        body.votedForUserId,
+      );
+      await this.emitGameState(body.lobbyId);
+      return { ok: true };
+    } catch (err: any) {
+      return { ok: false, error: err.message };
+    }
   }
 
   @SubscribeMessage('game:submit-answer')
@@ -109,13 +133,16 @@ export class GameGateway {
     @MessageBody() body: SubmitAnswerDto,
   ) {
     const userId = client.data.userId;
-
-    await this.gameService.submitAnswer(body.lobbyId, userId, {
-      questionId: body.questionId,
-      answerId: body.answerId,
-    });
-
-    await this.emitGameState(body.lobbyId);
+    try {
+      await this.gameService.submitAnswer(body.lobbyId, userId, {
+        questionId: body.questionId,
+        answerId: body.answerId,
+      });
+      await this.emitGameState(body.lobbyId);
+      return { ok: true };
+    } catch (err: any) {
+      return { ok: false, error: err.message };
+    }
   }
 
   private async emitGameState(lobbyId: string) {

@@ -1,258 +1,242 @@
-'use client';
+"use client";
 
-import { useEffect, useState } from 'react';
-import { useRouter } from 'next/navigation';
-import { getSocket } from '../lib/socket';
-import { useAuth } from '../context/AuthContext';
-import Button from '../components/Button';
+import { useState, useEffect } from "react";
+import { useRouter } from "next/navigation";
+import Button from "../components/Button";
+import { useAuth } from "../context/AuthContext";
+
+type Difficulty = 1 | 2 | 3;
+
+interface Answer {
+  id: string;
+  text: string;
+  isCorrect: boolean;
+}
 
 interface Question {
   id: string;
-  question: string;
-  options: string[];
-  timeLimit: number;
+  text: string;
+  answers: Answer[];
+  difficulty: string;
 }
 
-interface PlayerScore {
-  userId: string;
-  username: string;
-  score: number;
-}
-
-export default function QuizPage() {
+export default function SoloQuizPage() {
   const router = useRouter();
   const { user } = useAuth();
-  
-  const [currentQuestion, setCurrentQuestion] = useState<Question | null>(null);
-  const [selectedAnswer, setSelectedAnswer] = useState<number | null>(null);
-  const [hasAnswered, setHasAnswered] = useState(false);
-  const [timeLeft, setTimeLeft] = useState(0);
-  const [scores, setScores] = useState<PlayerScore[]>([]);
-  const [isCorrect, setIsCorrect] = useState<boolean | null>(null);
-  const [gameOver, setGameOver] = useState(false);
-  const [finalScores, setFinalScores] = useState<PlayerScore[]>([]);
 
-  useEffect(() => {
-    const socket = getSocket();
+  // Setup State
+  const [topic, setTopic] = useState("");
+  const [difficulty, setDifficulty] = useState<Difficulty>(2);
+  const [qnum, setQnum] = useState(5);
+  const [isStarted, setIsStarted] = useState(false);
+  const [isLoading, setIsLoading] = useState(false);
+  const [error, setError] = useState<string | null>(null);
 
-    // Question events
-    socket.on('question-start', (data: { question: Question }) => {
-      console.log('New question:', data.question);
-      setCurrentQuestion(data.question);
-      setTimeLeft(data.question.timeLimit);
-      setSelectedAnswer(null);
-      setHasAnswered(false);
-      setIsCorrect(null);
-    });
+  // Quiz State
+  const [questions, setQuestions] = useState<Question[]>([]);
+  const [currentIndex, setCurrentIndex] = useState(0);
+  const [selectedAnswerId, setSelectedAnswerId] = useState<string | null>(null);
+  const [isAnswered, setIsAnswered] = useState(false);
+  const [score, setScore] = useState(0);
+  const [isFinished, setIsFinished] = useState(false);
 
-    socket.on('question-end', (data: { correctAnswer: number; scores: PlayerScore[] }) => {
-      console.log('Question ended. Correct answer:', data.correctAnswer);
-      setScores(data.scores);
-      
-      // Check if user's answer was correct
-      if (selectedAnswer !== null) {
-        setIsCorrect(selectedAnswer === data.correctAnswer);
-      }
-    });
+  const startQuiz = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!topic.trim()) return;
 
-    socket.on('scores-update', (data: { scores: PlayerScore[] }) => {
-      console.log('Scores updated:', data.scores);
-      setScores(data.scores);
-    });
+    setIsLoading(true);
+    setError(null);
 
-    socket.on('game-over', (data: { finalScores: PlayerScore[] }) => {
-      console.log('Game over! Final scores:', data.finalScores);
-      setGameOver(true);
-      setFinalScores(data.finalScores);
-      setCurrentQuestion(null);
-    });
-
-    socket.on('room:error', (error) => {
-      console.error('Quiz error:', error);
-      alert(error.message || 'An error occurred');
-    });
-
-    // Cleanup
-    return () => {
-      socket.off('question-start');
-      socket.off('question-end');
-      socket.off('scores-update');
-      socket.off('game-over');
-      socket.off('room:error');
-    };
-  }, [selectedAnswer]);
-
-  // Timer countdown
-  useEffect(() => {
-    if (!currentQuestion || hasAnswered) return;
-
-    const interval = setInterval(() => {
-      setTimeLeft((prev) => {
-        if (prev <= 1) {
-          clearInterval(interval);
-          return 0;
+    try {
+      const res = await fetch(
+        `/api/quiz/questions?topic=${encodeURIComponent(topic.trim())}&qnum=${qnum}&difficulty=${difficulty}`,
+        {
+          credentials: 'include',
+          headers: {
+            'Content-Type': 'application/json',
+          }
         }
-        return prev - 1;
-      });
-    }, 1000);
+      );
 
-    return () => clearInterval(interval);
-  }, [currentQuestion, hasAnswered]);
+      if (!res.ok) {
+        const errData = await res.json();
+        throw new Error(errData.message || "Failed to generate questions");
+      }
 
-  const handleAnswerSelect = (index: number) => {
-    if (hasAnswered || !currentQuestion) return;
+      const data = await res.json();
+      if (!data || data.length === 0) {
+        throw new Error("No questions returned for this topic.");
+      }
 
-    const socket = getSocket();
-    setSelectedAnswer(index);
-    setHasAnswered(true);
-
-    // Emit answer to backend
-    socket.emit('submit-answer', {
-      userId: user?.id,
-      questionId: currentQuestion.id,
-      answer: index,
-      timeRemaining: timeLeft,
-    });
+      setQuestions(data);
+      setIsStarted(true);
+    } catch (err: any) {
+      setError(err.message);
+    } finally {
+      setIsLoading(false);
+    }
   };
 
-  const handlePlayAgain = () => {
-    router.push('/lobby');
+  const handleAnswer = (answer: Answer) => {
+    if (isAnswered) return;
+    
+    setSelectedAnswerId(answer.id);
+    setIsAnswered(true);
+
+    if (answer.isCorrect) {
+      setScore(prev => prev + 1);
+    }
+
+    setTimeout(() => {
+        if (currentIndex < questions.length - 1) {
+            setCurrentIndex(prev => prev + 1);
+            setSelectedAnswerId(null);
+            setIsAnswered(false);
+        } else {
+            setIsFinished(true);
+        }
+    }, 1500);
   };
 
-  const handleBackToDashboard = () => {
-    router.push('/dashboard');
-  };
-
-  // Game Over Screen
-  if (gameOver) {
-    const sortedScores = [...finalScores].sort((a, b) => b.score - a.score);
-    const userRank = sortedScores.findIndex((s) => s.userId === user?.id) + 1;
-
+  if (isFinished) {
+    const accuracy = Math.round((score / questions.length) * 100);
     return (
-      <div className="min-h-screen bg-gradient-to-br from-[#0A0E27] via-[#16213E] to-[#0F3460] flex items-center justify-center p-8">
-        <div className="max-w-2xl w-full bg-white/5 backdrop-blur-lg rounded-2xl border border-white/10 p-8 text-center">
-          <h1 className="text-5xl font-bold text-white mb-4">🎉 Game Over!</h1>
-          <p className="text-2xl text-[#64FFDA] mb-8">
-            You ranked #{userRank} out of {sortedScores.length} players
-          </p>
+      <main className="min-h-screen bg-[#0A192F] flex items-center justify-center p-6 text-center">
+        <div className="max-w-md w-full bg-[#112240] p-10 rounded-3xl border border-[#64FFDA]/30 shadow-2xl space-y-8">
+            <div className="text-6xl">🎊</div>
+            <h2 className="text-3xl font-bold text-[#CCD6F6]">Quiz Complete!</h2>
+            
+            <div className="space-y-2">
+                <div className="text-5xl font-black text-[#64FFDA]">{score} / {questions.length}</div>
+                <p className="text-[#8892B0]">Correct Answers</p>
+            </div>
 
-          {/* Final Scoreboard */}
-          <div className="mb-8">
-            <h2 className="text-2xl font-semibold text-white mb-4">Final Scores</h2>
-            <div className="space-y-3">
-              {sortedScores.map((player, index) => (
-                <div
-                  key={player.userId}
-                  className={`flex items-center justify-between bg-white/5 backdrop-blur-sm rounded-lg p-4 border ${
-                    player.userId === user?.id ? 'border-[#64FFDA]' : 'border-white/10'
-                  }`}
-                >
-                  <div className="flex items-center gap-3">
-                    <span className="text-2xl font-bold text-white">#{index + 1}</span>
-                    <span className="text-white font-medium">{player.username}</span>
-                    {player.userId === user?.id && (
-                      <span className="text-[#64FFDA] text-sm">(You)</span>
-                    )}
+            <div className={`text-xl font-bold ${accuracy >= 80 ? 'text-green-400' : accuracy >= 50 ? 'text-yellow-400' : 'text-red-400'}`}>
+                {accuracy}% Accuracy
+            </div>
+
+            <div className="flex gap-4">
+                <Button variant="Play" className="flex-1" onClick={() => window.location.reload()}>TRY ANOTHER</Button>
+                <Button variant="outline" className="flex-1" onClick={() => router.push('/dashboard')}>DASHBOARD</Button>
+            </div>
+        </div>
+      </main>
+    );
+  }
+
+  if (isStarted) {
+    const currentQ = questions[currentIndex];
+    return (
+      <main className="min-h-screen bg-[#0A192F] flex flex-col items-center justify-center p-6 relative">
+          <div className="absolute top-8 left-8 right-8 flex justify-between items-center">
+              <div className="text-[#64FFDA] font-mono">QUESTION {currentIndex + 1} / {questions.length}</div>
+              <div className="text-[#8892B0] font-mono">SCORE: {score}</div>
+          </div>
+
+          <div className="max-w-2xl w-full space-y-8">
+              <div className="bg-[#112240] p-8 md:p-12 rounded-3xl border border-[#64FFDA]/20 shadow-2xl relative overflow-hidden">
+                  <div className="absolute top-0 left-0 w-full h-1 bg-white/5">
+                      <div className="h-full bg-[#64FFDA] transition-all duration-1000" style={{ width: `${((currentIndex + 1) / questions.length) * 100}%` }} />
                   </div>
-                  <span className="text-2xl font-bold text-[#64FFDA]">{player.score}</span>
-                </div>
-              ))}
-            </div>
-          </div>
 
-          <div className="flex gap-4 justify-center">
-            <Button onClick={handlePlayAgain} variant="primary">
-              Play Again
-            </Button>
-            <Button onClick={handleBackToDashboard} variant="outline">
-              Back to Dashboard
-            </Button>
+                  <h2 className="text-2xl md:text-3xl font-bold text-[#CCD6F6] text-center leading-tight mt-4">
+                    {currentQ.text}
+                  </h2>
+              </div>
+
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                {currentQ.answers.map((ans, idx) => (
+                  <button
+                    key={ans.id}
+                    disabled={isAnswered}
+                    onClick={() => handleAnswer(ans)}
+                    className={`p-6 rounded-2xl border-2 text-left transition-all ${
+                        isAnswered 
+                        ? (ans.isCorrect ? 'bg-green-500/20 border-green-500 text-green-400' : (selectedAnswerId === ans.id ? 'bg-red-500/20 border-red-500 text-red-400' : 'bg-white/5 border-white/5 opacity-40'))
+                        : 'bg-[#112240] border-[#64FFDA]/20 hover:border-[#64FFDA] hover:bg-[#64FFDA]/5 text-[#CCD6F6]'
+                    }`}
+                  >
+                    <span className="font-mono text-[#64FFDA] mr-4">{String.fromCharCode(65 + idx)}.</span>
+                    {ans.text}
+                  </button>
+                ))}
+              </div>
           </div>
-        </div>
-      </div>
+      </main>
     );
   }
 
-  // Waiting for Question
-  if (!currentQuestion) {
-    return (
-      <div className="min-h-screen bg-gradient-to-br from-[#0A0E27] via-[#16213E] to-[#0F3460] flex items-center justify-center p-8">
-        <div className="text-center">
-          <div className="animate-spin rounded-full h-16 w-16 border-t-2 border-b-2 border-[#64FFDA] mx-auto mb-4"></div>
-          <p className="text-white text-xl">Waiting for next question...</p>
-        </div>
-      </div>
-    );
-  }
-
-  // Quiz Question Screen
   return (
-    <div className="min-h-screen bg-gradient-to-br from-[#0A0E27] via-[#16213E] to-[#0F3460] flex items-center justify-center p-8">
-      <div className="max-w-4xl w-full">
-        {/* Timer and Scores */}
-        <div className="flex justify-between items-center mb-8">
-          <div className="bg-white/5 backdrop-blur-lg rounded-xl border border-white/10 px-6 py-3">
-            <span className="text-white/70 text-sm">Time Left</span>
-            <p className={`text-3xl font-bold ${timeLeft <= 5 ? 'text-red-400 animate-pulse' : 'text-[#64FFDA]'}`}>
-              {timeLeft}s
-            </p>
-          </div>
-
-          {/* Scoreboard */}
-          <div className="bg-white/5 backdrop-blur-lg rounded-xl border border-white/10 px-6 py-3">
-            <span className="text-white/70 text-sm">Scores</span>
-            <div className="flex gap-4 mt-1">
-              {scores.slice(0, 3).map((player) => (
-                <div key={player.userId} className="text-center">
-                  <p className="text-white text-sm">{player.username}</p>
-                  <p className="text-[#64FFDA] font-bold">{player.score}</p>
-                </div>
-              ))}
-            </div>
-          </div>
+    <main className="min-h-screen bg-[#0A192F] flex flex-col items-center justify-center p-6">
+      <div className="max-w-md w-full bg-[#112240] p-8 rounded-3xl border border-[#64FFDA]/30 shadow-2xl space-y-6">
+        <div className="text-center space-y-2">
+            <h1 className="text-3xl font-black text-[#CCD6F6] tracking-tight">AI QUIZZER</h1>
+            <p className="text-[#8892B0]">Generate a custom practice quiz instantly.</p>
         </div>
 
-        {/* Question Card */}
-        <div className="bg-white/5 backdrop-blur-lg rounded-2xl border border-white/10 p-8 mb-6">
-          <h2 className="text-3xl font-bold text-white mb-8">{currentQuestion.question}</h2>
-
-          {/* Answer Options */}
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-            {currentQuestion.options.map((option, index) => (
-              <button
-                key={index}
-                onClick={() => handleAnswerSelect(index)}
-                disabled={hasAnswered}
-                className={`p-6 rounded-xl border-2 transition-all text-left ${
-                  hasAnswered && selectedAnswer === index
-                    ? isCorrect
-                      ? 'bg-green-500/20 border-green-500'
-                      : 'bg-red-500/20 border-red-500'
-                    : hasAnswered
-                    ? 'bg-white/5 border-white/10 opacity-50'
-                    : 'bg-white/5 border-white/20 hover:border-[#64FFDA] hover:bg-white/10'
-                } ${!hasAnswered ? 'cursor-pointer' : 'cursor-not-allowed'}`}
-              >
-                <div className="flex items-center gap-3">
-                  <span className="text-2xl font-bold text-[#64FFDA]">
-                    {String.fromCharCode(65 + index)}
-                  </span>
-                  <span className="text-white text-lg">{option}</span>
-                </div>
-              </button>
-            ))}
-          </div>
-
-          {/* Answer Feedback */}
-          {hasAnswered && (
-            <div className={`mt-6 p-4 rounded-lg ${isCorrect ? 'bg-green-500/20' : 'bg-red-500/20'}`}>
-              <p className={`text-center text-lg font-semibold ${isCorrect ? 'text-green-400' : 'text-red-400'}`}>
-                {isCorrect ? '✓ Correct!' : '✗ Incorrect'}
-              </p>
+        {error && (
+            <div className="p-4 bg-red-500/10 border border-red-500/30 rounded-xl text-red-400 text-sm">
+                ⚠️ {error}
             </div>
-          )}
-        </div>
+        )}
+
+        <form onSubmit={startQuiz} className="space-y-4">
+            <div className="space-y-1">
+                <label className="text-xs text-[#64FFDA] font-bold uppercase tracking-widest ml-1">Topic</label>
+                <input 
+                    required
+                    value={topic}
+                    onChange={e => setTopic(e.target.value)}
+                    placeholder="e.g. History of Rome, React Hooks, Space..."
+                    className="w-full bg-[#0A192F] border border-[#64FFDA]/20 rounded-xl px-4 py-3 text-[#CCD6F6] focus:border-[#64FFDA] outline-none transition-all"
+                />
+            </div>
+
+            <div className="grid grid-cols-3 gap-2">
+                {([1, 2, 3] as const).map(d => (
+                    <button
+                        key={d}
+                        type="button"
+                        onClick={() => setDifficulty(d)}
+                        className={`py-2 rounded-lg text-xs font-bold border transition-all ${
+                            difficulty === d ? 'bg-[#64FFDA]/20 border-[#64FFDA] text-[#64FFDA]' : 'border-white/10 text-[#8892B0]'
+                        }`}
+                    >
+                        {d === 1 ? 'EASY' : d === 2 ? 'MEDIUM' : 'HARD'}
+                    </button>
+                ))}
+            </div>
+
+            <div className="space-y-1">
+                <label className="text-xs text-[#64FFDA] font-bold uppercase tracking-widest ml-1">Number of Questions</label>
+                <select 
+                    value={qnum}
+                    onChange={e => setQnum(Number(e.target.value))}
+                    className="w-full bg-[#0A192F] border border-[#64FFDA]/20 rounded-xl px-4 py-3 text-[#CCD6F6] focus:border-[#64FFDA] outline-none appearance-none"
+                >
+                    <option value={5}>5 Questions</option>
+                    <option value={10}>10 Questions</option>
+                </select>
+            </div>
+
+            <Button 
+                type="submit" 
+                variant="Play" 
+                className="w-full h-14"
+                disabled={isLoading}
+            >
+                {isLoading ? 'GENERATING...' : 'START QUIZ'}
+            </Button>
+            
+            <button 
+                type="button"
+                onClick={() => router.push('/dashboard')}
+                className="w-full text-[#8892B0] text-sm hover:underline"
+            >
+                Back to Dashboard
+            </button>
+        </form>
       </div>
-    </div>
+    </main>
   );
 }

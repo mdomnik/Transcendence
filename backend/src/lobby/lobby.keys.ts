@@ -6,5 +6,6 @@ export const LobbyKeys = {
     userLobby: (userId: string) => `user:${userId}:lobby`,
     lobbyCode: (code: string) => `lobby:code:${code}`,
     banned: (lobbyId: string) => `lobby:${lobbyId}:banned`,
-
+    topics: (lobbyId: string) => `lobby:${lobbyId}:topics`,
+    topicVotes: (lobbyId: string, topic: string) => `lobby:${lobbyId}:topic:${topic}:votes`,
 };

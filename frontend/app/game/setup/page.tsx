@@ -99,35 +99,6 @@ export default function GameSetupPage() {
         <h1 className="text-3xl font-bold text-[#CCD6F6] text-center">
           Game Setup
         </h1>
-
-        <div className="flex gap-2">
-          <input
-            value={topicInput}
-            onChange={(e) => setTopicInput(e.target.value)}
-            className="flex-1 rounded-xl bg-[#0A192F] border border-[#64FFDA]/30 px-4 py-3 text-[#CCD6F6]"
-            placeholder="Suggest a topic..."
-          />
-          <Button onClick={addTopic}>Add</Button>
-        </div>
-
-        <div className="space-y-3">
-          {topics.map((topic) => (
-            <button
-              key={topic}
-              onClick={() => vote(topic)}
-              className="w-full p-4 rounded-xl bg-[#0A192F] border border-[#64FFDA]/30 flex justify-between"
-            >
-              <span className="text-[#CCD6F6]">{topic}</span>
-              <span className="text-[#64FFDA] font-bold">
-                {votes[topic] ?? 0}
-              </span>
-            </button>
-          ))}
-        </div>
-
-        <Button variant="Play" onClick={finalize}>
-          Finalize Topic
-        </Button>
       </div>
     </main>
   );

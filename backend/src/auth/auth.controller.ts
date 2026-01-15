@@ -24,11 +24,11 @@ export class AuthController {
     const accessToken = await this.authService.signup(dto); // or return token from service
 
     res.cookie('access_token', accessToken, {
-      httpOnly: false,
+      httpOnly: true,
       sameSite: 'lax',
-      secure: true,
+      secure: false, // development
       path: '/',
-      maxAge: 15 * 60 * 1000,
+      maxAge: 24 * 60 * 60 * 1000,
     });
 
     return { ok: true };
@@ -42,11 +42,11 @@ export class AuthController {
     const accessToken = await this.authService.signin(dto); // or return token from service
 
     res.cookie('access_token', accessToken, {
-      httpOnly: false,
+      httpOnly: true,
       sameSite: 'lax',
-      secure: true,
+      secure: false, // development
       path: '/',
-      maxAge: 15 * 60 * 1000,
+      maxAge: 24 * 60 * 60 * 1000,
     });
 
     return { ok: true };
@@ -55,9 +55,6 @@ export class AuthController {
   @Post('logout')
   logout(@Res() res: Response) {
     res.clearCookie('access_token', {
-      httpOnly: true,
-      sameSite: 'lax',
-      secure: true,
       path: '/',
     });
     return res.status(200).json({ message: 'Logged out successfully' });
@@ -79,9 +76,9 @@ export class AuthController {
     res.cookie('access_token', accessToken, {
       httpOnly: true,
       sameSite: 'lax',
-      secure: true, // true in production
+      secure: false, // development
       path: '/',
-      maxAge: 15 * 60 * 1000,
+      maxAge: 24 * 60 * 60 * 1000,
     });
     console.log('access token: ', accessToken);
     // Redirect to homepage - frontend will check auth and redirect to dashboard

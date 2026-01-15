@@ -40,6 +40,10 @@ export interface LobbyView {
     username: string;
     ready: boolean;
   }>;
+  topics: Array<{
+    text: string;
+    votes: string[]; // userIds
+  }>;
 }
 
 @Injectable()
@@ -71,13 +75,24 @@ export class LobbyService {
       }))
       .sort((a, b) => (a.userId == meta.ownerId ? -1 : 1));
 
+    // Fetch topics and votes
+    const topicTexts = await this.redis.client.smembers(LobbyKeys.topics(lobbyId));
+    const topics = await Promise.all(
+      topicTexts.map(async (text) => {
+        const votes = await this.redis.client.smembers(
+          LobbyKeys.topicVotes(lobbyId, text),
+        );
+        return { text, votes };
+      }),
+    );
+
     const config: MatchConfig = {
       roundsTotal: Number(meta.roundsTotal),
       timePerQuestion: Number(meta.timePerQuestion),
       questionsPerRound: Number(meta.questionsPerRound),
     };
 
-    const lobby = {
+    const lobby: LobbyView = {
       lobbyId,
       lobbyCode: meta.lobbyCode,
       ownerId: meta.ownerId,
@@ -86,6 +101,7 @@ export class LobbyService {
       minPlayers: Number(meta.minPlayers ?? DEFAULT_MIN_PLAYERS),
       maxPlayers: Number(meta.maxPlayers ?? DEFAULT_MAX_PLAYERS),
       members,
+      topics,
     };
     return lobby;
   }
@@ -303,7 +319,7 @@ export class LobbyService {
     return this.getLobby(lobbyId);
   }
 
-  async startSetup(lobbyId: string, userId: string): Promise<LobbyView> {
+  async startSetup(lobbyId: string, userId: string, topic?: string): Promise<LobbyView> {
     const meta = await this.redis.client.hgetall(LobbyKeys.meta(lobbyId));
     if (!meta?.ownerId) throw new NotFoundException('Lobby not Found');
     if (meta.ownerId !== userId)
@@ -335,7 +351,10 @@ export class LobbyService {
 
     if (!allReady) throw new ForbiddenException('Not all players are ready');
 
-    await this.redis.client.hset(LobbyKeys.meta(lobbyId), { state: 'SETUP' });
+    await this.redis.client.hset(LobbyKeys.meta(lobbyId), { 
+      state: 'SETUP', 
+      selectedTopic: topic || '' 
+    });
 
     await this.refreshTTL(lobbyId);
 
@@ -475,5 +494,40 @@ export class LobbyService {
     await this.redis.client.sadd(LobbyKeys.banned(lobbyId), targetUserId);
 
     return this.removeMember(lobbyId, targetUserId);
+  }
+
+  async suggestTopic(lobbyId: string, userId: string, topic: string) {
+    const meta = await this.redis.client.hgetall(LobbyKeys.meta(lobbyId));
+    if (!meta?.ownerId) throw new NotFoundException('Lobby not found');
+
+    const cleanTopic = topic.trim().slice(0, 50);
+    if (!cleanTopic) return this.getLobby(lobbyId);
+
+    await this.redis.client.sadd(LobbyKeys.topics(lobbyId), cleanTopic);
+    await this.refreshTTL(lobbyId);
+    return this.getLobby(lobbyId);
+  }
+
+  async voteTopic(lobbyId: string, userId: string, topic: string) {
+    const isMember = await this.redis.client.sismember(
+      LobbyKeys.members(lobbyId),
+      userId,
+    );
+    if (!isMember) throw new ForbiddenException('Not a member of this lobby');
+
+    const allTopics = await this.redis.client.smembers(LobbyKeys.topics(lobbyId));
+    
+    // Remove previous votes by this user for ANY topic in this lobby
+    for (const t of allTopics) {
+      await this.redis.client.srem(LobbyKeys.topicVotes(lobbyId, t), userId);
+    }
+
+    // Add vote to the new topic
+    if (topic && allTopics.includes(topic)) {
+      await this.redis.client.sadd(LobbyKeys.topicVotes(lobbyId, topic), userId);
+    }
+
+    await this.refreshTTL(lobbyId);
+    return this.getLobby(lobbyId);
   }
 }

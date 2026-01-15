@@ -160,6 +160,33 @@ export class LobbyGateway {
     return { ok: true, data: lobby };
   }
 
+  @SubscribeMessage('lobby:suggest-topic')
+  async onSuggestTopic(
+    @ConnectedSocket() client: Socket,
+    @MessageBody() dto: { lobbyId: string; topic: string },
+  ) {
+    const lobby = await this.lobbyService.suggestTopic(
+      dto.lobbyId,
+      client.data.userId,
+      dto.topic,
+    );
+    this.server.to(dto.lobbyId).emit('lobby:update', lobby);
+    return { ok: true, data: lobby };
+  }
+
+  @SubscribeMessage('lobby:vote-topic')
+  async onVoteTopic(
+    @ConnectedSocket() client: Socket,
+    @MessageBody() dto: { lobbyId: string; topic: string },
+  ) {
+    const lobby = await this.lobbyService.voteTopic(
+      dto.lobbyId,
+      client.data.userId,
+      dto.topic,
+    );
+    this.server.to(dto.lobbyId).emit('lobby:update', lobby);
+    return { ok: true, data: lobby };
+  }
 
   @SubscribeMessage('lobby:ban')
   async onLobbyBan(
@@ -191,9 +218,11 @@ export class LobbyGateway {
     const lobby = await this.lobbyService.startSetup(
       dto.lobbyId,
       client.data.userId,
+      dto.topic,
     );
 
     this.server.to(lobby.lobbyId).emit('lobby:update', lobby);
+    this.server.to(lobby.lobbyId).emit('lobby:start');
     return { ok: true, data: lobby };
   }
 

@@ -1,17 +1,39 @@
 import { Socket } from "socket.io-client";
 
-export function emitWithAck<T = any>(
+export async function emitWithAck<T = any>(
   socket: Socket,
   event: string,
   payload?: any,
-  timeoutMs = 600000,
+  timeoutMs = 60000,
 ): Promise<T> {
-  return new Promise((resolve, reject) => {
-    if (!socket.connected) {
-      reject(new Error("SOCKET_NOT_CONNECTED"));
-      return;
-    }
+  // Ensure connection before emitting
+  if (!socket.connected) {
+    console.warn(`[socketEmit] Socket not connected for event "${event}". Attempting to connect...`);
+    socket.connect();
+    
+    await new Promise<void>((resolve, reject) => {
+      const onConnect = () => {
+        socket.off("connect_error", onConnectError);
+        resolve();
+      };
+      const onConnectError = (err: any) => {
+        socket.off("connect", onConnect);
+        reject(new Error(`SOCKET_CONNECTION_FAILED: ${err.message}`));
+      };
 
+      socket.once("connect", onConnect);
+      socket.once("connect_error", onConnectError);
+
+      // Timeout for connection attempt
+      setTimeout(() => {
+        socket.off("connect", onConnect);
+        socket.off("connect_error", onConnectError);
+        reject(new Error("SOCKET_CONNECTION_TIMEOUT"));
+      }, 10000);
+    });
+  }
+
+  return new Promise((resolve, reject) => {
     let timeout: NodeJS.Timeout;
 
     const onTimeout = () => {

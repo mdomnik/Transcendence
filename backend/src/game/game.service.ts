@@ -60,6 +60,8 @@ interface QuestionSelectionView {
 
 interface AnsweringView {
   phase: 'ANSWERING';
+  topic: string;
+  difficulty: string;
   questions: Array<{
     id: string;
     text: string;
@@ -201,20 +203,22 @@ export class GameService {
         GameKeys.roundInputs(lobbyId, currentRound),
       );
 
+      const proposals = Object.entries(rawInputs).map(([uId, data]) => {
+        const parsed = JSON.parse(data);
+        return {
+          userId: uId,
+          topicTitle: parsed.topicTitle,
+          difficulty: parsed.difficulty,
+        };
+      });
+
       const rawVotes = await this.redis.client.hgetall(
         GameKeys.roundVotes(lobbyId, currentRound),
       );
 
       roundData = {
         phase: 'VOTING',
-        proposals: Object.entries(rawInputs).map(([userId, raw]) => {
-          const parsed = JSON.parse(raw);
-          return {
-            userId,
-            topicTitle: parsed.topicTitle,
-            difficulty: parsed.difficulty,
-          };
-        }),
+        proposals,
         votedBy: Object.keys(rawVotes),
       };
     } else if (phase === 'SELECT_QUESTION') {
@@ -248,8 +252,14 @@ export class GameService {
         answeredBy[userId] = Object.keys(parsed.answers ?? {});
       }
 
+      const selected = await this.redis.client.hgetall(
+        GameKeys.selected(lobbyId, currentRound),
+      );
+
       roundData = {
         phase: 'ANSWERING',
+        topic: selected?.topicTitle || '',
+        difficulty: selected?.difficulty || '',
         questions,
         answeredBy,
       };
@@ -311,6 +321,10 @@ export class GameService {
       players,
       roundData,
     };
+  }
+
+  async getLobbyIdForUser(userId: string): Promise<string | null> {
+    return this.redis.client.get(LobbyKeys.userLobby(userId));
   }
 
   async setMatchConfig(
@@ -392,16 +406,58 @@ export class GameService {
       currentRound: '1',
     });
 
-    await this.redis.client.hset(GameKeys.roundMeta(lobbyId, 1), {
-      phase: 'TOPIC_INPUT',
-      phaseStartedAt: Date.now().toString(),
-    });
+    const topic = lobbyMeta.selectedTopic || 'General Knowledge';
+    await this.startRoundAnswering(lobbyId, 1, topic, 'MEDIUM');
 
     await this.redis.client.hset(LobbyKeys.meta(lobbyId), {
       state: 'IN_PROGRESS',
     });
 
     return;
+  }
+
+  async startRoundAnswering(
+    lobbyId: string,
+    round: number,
+    topicTitle: string,
+    difficulty: 'EASY' | 'MEDIUM' | 'HARD',
+  ): Promise<void> {
+    const members = await this.redis.client.smembers(
+      LobbyKeys.members(lobbyId),
+    );
+
+    const configRaw = await this.redis.client.hgetall(
+      GameKeys.matchConfig(lobbyId),
+    );
+
+    let difficultyNumber = 2;
+    if (difficulty === 'EASY') difficultyNumber = 1;
+    if (difficulty === 'HARD') difficultyNumber = 3;
+
+    const questions = await this.quizService.getQuestionSet(
+      {
+        topic: topicTitle,
+        difficulty: difficultyNumber,
+        qnum: Number(configRaw.questionsPerRound) || 5,
+      },
+      members,
+    );
+
+    await this.redis.client.hset(GameKeys.selected(lobbyId, round), {
+      topicTitle,
+      difficulty,
+      proposerId: '',
+    });
+
+    await this.redis.client.set(
+      GameKeys.questions(lobbyId, round),
+      JSON.stringify(questions),
+    );
+
+    await this.redis.client.hset(GameKeys.roundMeta(lobbyId, round), {
+      phase: 'ANSWERING',
+      phaseStartedAt: Date.now().toString(),
+    });
   }
 
   async submitTopic(
@@ -1054,10 +1110,9 @@ export class GameService {
       currentRound: nextRound.toString(),
     });
 
-    await this.redis.client.hset(GameKeys.roundMeta(lobbyId, nextRound), {
-      phase: 'TOPIC_INPUT',
-      phaseStartedAt: Date.now().toString(),
-    });
+    const lobbyMeta = await this.redis.client.hgetall(LobbyKeys.meta(lobbyId));
+    const topic = lobbyMeta.selectedTopic || 'General Knowledge';
+    await this.startRoundAnswering(lobbyId, nextRound, topic, 'MEDIUM');
 
     return;
   }

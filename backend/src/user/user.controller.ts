@@ -1,4 +1,4 @@
-import { Controller, Get, UseGuards, Param, Query } from '@nestjs/common';
+import { Controller, Get, UseGuards, Param, Query, Patch, Body } from '@nestjs/common';
 import { AuthGuard } from '@nestjs/passport';
 import { User as UserDecorator } from 'src/common/decorators/user.decorator';
 import { UserService } from './user.service';
@@ -11,6 +11,15 @@ export class UserController {
     @UseGuards(AuthGuard('jwt'))
     getMe(@UserDecorator() user: { id: string }) {
         return this.usersService.getMe(user.id);
+    }
+
+    @Patch('me')
+    @UseGuards(AuthGuard('jwt'))
+    updateMe(
+        @UserDecorator() user: { id: string },
+        @Body() body: { username?: string; avatarUrl?: string },
+    ) {
+        return this.usersService.updateProfile(user.id, body);
     }
 
     @Get('search')

@@ -135,4 +135,33 @@ async getMe(userId: string) {
 
     return users;
   }
+
+  async updateProfile(userId: string, data: { username?: string; avatarUrl?: string }) {
+    if (data.username) {
+      const existing = await this.prisma.user.findFirst({
+        where: {
+          username: { equals: data.username, mode: 'insensitive' },
+          id: { not: userId },
+        },
+      });
+
+      if (existing) {
+        throw new BadRequestException('Username is already taken');
+      }
+    }
+
+    return this.prisma.user.update({
+      where: { id: userId },
+      data: {
+        username: data.username,
+        avatarUrl: data.avatarUrl,
+      },
+      select: {
+        id: true,
+        username: true,
+        email: true,
+        avatarUrl: true,
+      },
+    });
+  }
 }
