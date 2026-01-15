@@ -5,4 +5,6 @@ export const LobbyKeys = {
     ready: (lobbyId: string) => `lobby:${lobbyId}:ready`,
     userLobby: (userId: string) => `user:${userId}:lobby`,
     lobbyCode: (code: string) => `lobby:code:${code}`,
+    banned: (lobbyId: string) => `lobby:${lobbyId}:banned`,
+
 };

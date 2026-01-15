@@ -16,7 +16,7 @@ const DEFAULT_MATCH_CONFIG: MatchConfig = {
   questionsPerRound: 5,
 };
 const DEFAULT_MIN_PLAYERS = 2;
-const DEFAULT_MAX_PLAYERS = 24;
+const DEFAULT_MAX_PLAYERS = 4;
 
 interface MatchConfig {
   roundsTotal: number;
@@ -42,7 +42,7 @@ export interface LobbyView {
 @Injectable()
 export class LobbyService {
   constructor(
-    private readonly redis: RedisService,
+    public readonly redis: RedisService,
     private readonly prisma: PrismaService,
   ) {}
 
@@ -137,6 +137,15 @@ export class LobbyService {
 
     if (meta.state !== 'WAITING')
       throw new ForbiddenException('Lobby is not joinable');
+
+    const isBanned = await this.redis.client.sismember(
+      LobbyKeys.banned(lobbyId),
+      userId,
+    );
+
+    if (isBanned) {
+      throw new ForbiddenException('BANNED_FROM_LOBBY');
+    }
 
     const memberCount = await this.redis.client.scard(
       LobbyKeys.members(lobbyId),
@@ -236,6 +245,7 @@ export class LobbyService {
   ): Promise<LobbyView | null> {
     await this.redis.client.srem(LobbyKeys.members(lobbyId), userId);
     await this.redis.client.hdel(LobbyKeys.ready(lobbyId), userId);
+
     await this.redis.client.del(LobbyKeys.userLobby(userId));
 
     const remainingPlayers = await this.redis.client.smembers(
@@ -446,5 +456,21 @@ export class LobbyService {
 
     await this.refreshTTL(lobbyId);
     return this.getLobby(lobbyId);
+  }
+
+  async banPlayer(
+    lobbyId: string,
+    ownerId: string,
+    targetUserId: string,
+  ): Promise<LobbyView | null> {
+    const meta = await this.redis.client.hgetall(LobbyKeys.meta(lobbyId));
+    if (!meta?.ownerId) throw new NotFoundException('Lobby not found');
+
+    if (meta.ownerId !== ownerId)
+      throw new ForbiddenException('Only owner can ban players');
+
+    await this.redis.client.sadd(LobbyKeys.banned(lobbyId), targetUserId);
+
+    return this.removeMember(lobbyId, targetUserId);
   }
 }
