@@ -107,11 +107,15 @@ export class GameGateway {
     const lobbyId = await this.lobbyService.getLobbyIdForUser(userId);
     if (!lobbyId) return { ok: false };
 
+    // server-side state update
     await this.gameService.quitGame(lobbyId, userId);
 
     // Remove socket from room and notify client
     client.leave(lobbyId);
     client.emit('game:quit-confirmed');
+
+    // notify the remaining players
+    await this.emitGameState(lobbyId);
 
     return { ok: true };
   }

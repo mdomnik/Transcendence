@@ -28,7 +28,7 @@ export class LobbyGateway {
   constructor(
     private readonly lobbyService: LobbyService,
     @Inject(forwardRef(() => GameService))
-    private readonly gameService: GameService,        
+    private readonly gameService: GameService,
   ) {}
 
   handleConnection(client: Socket) {
@@ -43,20 +43,20 @@ export class LobbyGateway {
     });
   }
 
-    private async emitRemovalAndLeaveRoom(
+  private async emitRemovalAndLeaveRoom(
     lobbyId: string,
     targetUserId: string,
-    reason: "LEFT" | "KICKED" | "BANNED",
-    ) {
+    reason: 'LEFT' | 'KICKED' | 'BANNED',
+  ) {
     const sockets = await this.server.fetchSockets();
 
     for (const s of sockets) {
-        if (s.data.userId === targetUserId) {
+      if (s.data.userId === targetUserId) {
         s.leave(lobbyId);
-        s.emit("lobby:removed", { reason });
-        }
+        s.emit('lobby:removed', { reason });
+      }
     }
-    }
+  }
 
   @SubscribeMessage('lobby:create')
   async onLobbyCreate(@ConnectedSocket() client: Socket) {
@@ -68,7 +68,6 @@ export class LobbyGateway {
 
     return { ok: true, data: lobby };
   }
-
 
   @SubscribeMessage('lobby:join')
   async onLobbyJoin(
@@ -112,7 +111,6 @@ export class LobbyGateway {
     return { ok: true, data: lobby };
   }
 
-
   @SubscribeMessage('lobby:ready')
   async onLobbyReady(
     @ConnectedSocket() client: Socket,
@@ -143,7 +141,6 @@ export class LobbyGateway {
     return { ok: true, data: lobby };
   }
 
-
   @SubscribeMessage('lobby:kick')
   async onLobbyKick(
     @ConnectedSocket() client: Socket,
@@ -155,16 +152,11 @@ export class LobbyGateway {
       dto.targetId,
     );
 
-    await this.emitRemovalAndLeaveRoom(
-      dto.lobbyId,
-      dto.targetId,
-      'KICKED',
-    );
+    await this.emitRemovalAndLeaveRoom(dto.lobbyId, dto.targetId, 'KICKED');
 
     this.server.to(dto.lobbyId).emit('lobby:update', lobby);
     return { ok: true, data: lobby };
   }
-
 
   @SubscribeMessage('lobby:ban')
   async onLobbyBan(
@@ -177,39 +169,32 @@ export class LobbyGateway {
       dto.targetId,
     );
 
-    await this.emitRemovalAndLeaveRoom(
-      dto.lobbyId,
-      dto.targetId,
-      'BANNED',
-    );
+    await this.emitRemovalAndLeaveRoom(dto.lobbyId, dto.targetId, 'BANNED');
 
     this.server.to(dto.lobbyId).emit('lobby:update', lobby);
     return { ok: true, data: lobby };
   }
 
+  @SubscribeMessage('lobby:start')
+  async onLobbyStart(
+    @ConnectedSocket() client: Socket,
+    @MessageBody() dto: LobbyDto,
+  ) {
+    const lobby = await this.lobbyService.startGame(
+      dto.lobbyId,
+      client.data.userId,
+    );
 
-@SubscribeMessage('lobby:start')
-async onLobbyStart(
-  @ConnectedSocket() client: Socket,
-  @MessageBody() dto: LobbyDto,
-) {
-  const lobby = await this.lobbyService.startGame(
-    dto.lobbyId,
-    client.data.userId,
-  );
+    // 1️⃣ Create match
+    await this.gameService.createMatchFromLobby(lobby);
 
-  // 1️⃣ Create match
-  await this.gameService.createMatchFromLobby(lobby);
+    this.server.to(lobby.lobbyId).emit('lobby:update', lobby);
 
-  this.server.to(lobby.lobbyId).emit('lobby:update', lobby);
+    const gameView = await this.gameService.getGameView(lobby.lobbyId);
+    this.server.to(lobby.lobbyId).emit('game:state', gameView);
 
-  const gameView = await this.gameService.getGameView(lobby.lobbyId);
-  this.server.to(lobby.lobbyId).emit('game:state', gameView);
-
-  return { ok: true };
-}
-
-
+    return { ok: true };
+  }
 
   @SubscribeMessage('lobby:sync')
   async onLobbySync(@ConnectedSocket() client: Socket) {
@@ -231,7 +216,6 @@ async onLobbyStart(
     return { ok: true, data: lobby };
   }
 
-
   @SubscribeMessage('lobby:config')
   async onLobbyUpdateConfig(
     @ConnectedSocket() client: Socket,
@@ -247,7 +231,6 @@ async onLobbyStart(
     this.server.to(lobby.lobbyId).emit('lobby:update', lobby);
     return { ok: true, data: lobby };
   }
-
 
   @SubscribeMessage('lobby:preview')
   async onLobbyPreview(@MessageBody() dto: LobbyJoinDto) {
