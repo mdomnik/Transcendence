@@ -17,6 +17,7 @@ import { GameModule } from './game/game.module';
 import { WebsocketModule } from './websocket/websocket.module';
 import { DashboardModule } from './dashboard/dashboard.module';
 import { FriendshipModule } from './friendship/friendship.module';
+import { ScheduleModule } from '@nestjs/schedule';
 
 @Module({
   imports: [
@@ -30,6 +31,7 @@ import { FriendshipModule } from './friendship/friendship.module';
         },
       ],
     }),
+    ScheduleModule.forRoot(),
     PrismaModule,
     AuthModule,
     QuizModule,

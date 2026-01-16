@@ -33,33 +33,41 @@ export class RepositoryService {
     }
 
     // create a question entry under a certain topic
-    async createQuestionsWithAnswers(
-        questions: QuestionDto[],
-        topicId: string,
-    ) {
-        return this.prisma.$transaction(
-            questions.map((q) =>
-                this.prisma.question.create({
-                    data: {
-                        text: q.question,
-                        difficulty: DIFFICULTY_FROM_INT[q.difficulty],
-                        topicId,
+async createQuestionsWithAnswers(
+  questions: QuestionDto[],
+  topicId: string,
+) {
+  return this.prisma.$transaction(
+    questions.map((q) =>
+      this.prisma.question.upsert({
+        where: {
+          topicId_text: {
+            topicId,
+            text: q.question.trim(),
+          },
+        },
+        update: {}, // do nothing if question already exists
+        create: {
+          text: q.question.trim(),
+          difficulty: DIFFICULTY_FROM_INT[q.difficulty],
+          topicId,
 
-                        answers: {
-                            create: q.answers.map((a) => ({
-                                text: a.text,
-                                isCorrect: a.isCorrect,
-                                position: a.position,
-                            })),
-                        },
-                    },
-                    include: {
-                        answers: true,
-                    },
-                })
-            ),
-        );
-    }
+          answers: {
+            create: q.answers.map((a) => ({
+              text: a.text,
+              isCorrect: a.isCorrect,
+              position: a.position,
+            })),
+          },
+        },
+        include: {
+          answers: true,
+        },
+      }),
+    ),
+  );
+}
+
 
     // find topic with matching title, else create it
     async findOrCreateTopic(title: string) {

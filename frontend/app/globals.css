@@ -131,6 +131,83 @@ body {
   }
 }
 
+@keyframes votePulse {
+  0% { transform: scale(1); }
+  40% { transform: scale(1.35); }
+  100% { transform: scale(1); }
+}
+
+@keyframes winnerReveal {
+  0% { transform: scale(1); }
+  60% { transform: scale(1.12); }
+  100% { transform: scale(1.08); }
+}
+
+@keyframes fadeLoser {
+  from { opacity: 1; }
+  to { opacity: 0.35; }
+}
+
+@keyframes votePulseCard {
+  0%   { transform: scale(1); box-shadow: 0 0 0 rgba(100,255,218,0); }
+  40%  { transform: scale(1.06); box-shadow: 0 0 25px rgba(100,255,218,0.6); }
+  100% { transform: scale(1); box-shadow: 0 0 0 rgba(100,255,218,0); }
+}
+
+@keyframes topicAppear {
+  0% {
+    opacity: 0;
+    transform: translateY(12px) scale(0.92);
+  }
+  100% {
+    opacity: 1;
+    transform: translateY(0) scale(1);
+  }
+}
+
+@keyframes phaseIntro {
+  0% {
+    opacity: 0;
+    transform: scale(0.96);
+  }
+  100% {
+    opacity: 1;
+    transform: scale(1);
+  }
+}
+
+@keyframes topicAppear {
+  0% {
+    opacity: 0;
+    transform: translateY(16px) scale(0.9);
+  }
+  100% {
+    opacity: 1;
+    transform: translateY(0) scale(1);
+  }
+}
+
+@keyframes winnerGlow {
+  0% {
+    box-shadow: 0 0 0 rgba(100,255,218,0);
+    transform: scale(1);
+  }
+  50% {
+    box-shadow: 0 0 35px rgba(100,255,218,0.9);
+    transform: scale(1.1);
+  }
+  100% {
+    box-shadow: 0 0 0 rgba(100,255,218,0);
+    transform: scale(1.05);
+  }
+}
+
+
+
+.fade-loser {
+  animation: fadeLoser 300ms ease-out forwards;
+}
+
 .animate-float-down {
   animation: floatDown linear infinite;
 }

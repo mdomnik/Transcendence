@@ -9,6 +9,13 @@ export const GameKeys = {
     roundInputs: (lobbyId: string, round: number) =>
         `match:${lobbyId}:round:${round}:inputs`,
 
+    activeMatches: () => `match:active`,
+
+    eventsChannel: () => `game-events`,
+
+    selectLock: (lobbyId: string, round: number) =>
+        `match:${lobbyId}:round:${round}:select_lock`,
+
     roundVotes: (lobbyId: string, round: number) =>
         `match:${lobbyId}:round:${round}:votes`,
 

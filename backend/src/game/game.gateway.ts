@@ -30,6 +30,7 @@ export class GameGateway {
   server: Server;
 
   constructor(
+    @Inject(forwardRef(() => GameService))
     private readonly gameService: GameService,
     @Inject(forwardRef(() => LobbyService))
     private readonly lobbyService: LobbyService,
@@ -71,6 +72,7 @@ export class GameGateway {
     @ConnectedSocket() client: Socket,
     @MessageBody() body: SubmitAnswerDto,
   ) {
+    console.log('🟢 WS submit-answer received', body);
     const userId = client.data.userId;
 
     await this.gameService.submitAnswer(body.lobbyId, userId, {
@@ -120,4 +122,5 @@ export class GameGateway {
 
     this.server.to(lobbyId).emit('game:state', view);
   }
+  
 }
