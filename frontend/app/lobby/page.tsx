@@ -53,34 +53,26 @@ export default function LobbyPage() {
 
     const socket = getSocket();
 
-    const sync = async () => {
-      try {
-        await emitWithAck(socket, "lobby:sync");
-      } catch (err) {
-        console.warn('syncronization error caught:', err);
-        router.push("/dashboard");
-      }
-    };
-
-    socket.on("connect", sync);
+    
     socket.on("lobby:update", (payload) => {
-      if (payload.state === "FINISHED") {
+      /* if (payload.state === "FINISHED") {
         // TODO! Destroy the lobby instance and kick players out, otherwise lobby:update will be infinitely called
         socket.emit("lobby:terminate");
-        router.push("/dashboard");
+        router.replace("/dashboard");
       } else {
-      setLobby(payload);
-      }
+        setLobby(payload);
+      } */
+     setLobby(payload);
     });
     socket.on("game:state", (view) => {
       if (view.match.state === "IN_PROGRESS") {
         router.push("/game");
       }
     });
-
+    
     socket.on("lobby:deleted", () => router.push("/dashboard"));
     socket.on("lobby:kicked", () => router.push("/dashboard"));
-
+    
     socket.on(
       "lobby:removed",
       ({ reason }: { reason: "LEFT" | "KICKED" | "BANNED" }) => {
@@ -89,6 +81,25 @@ export default function LobbyPage() {
         else router.push("/dashboard");
       }
     );
+    
+    const sync = async () => {
+      try {
+        const res = await emitWithAck(socket, "lobby:sync");
+        if (!res.ok) {
+          router.replace('/dashboard');
+          return ;
+        }
+        setLobby(res.data);
+
+        if (res.data.state === "IN_PROGRESS") {
+          router.replace('/game');
+        }
+      } catch (err) {
+        console.warn('syncronization error caught:', err);
+        router.push("/dashboard");
+      }
+    };
+    socket.on("connect", sync);
 
     if (!socket.connected) socket.connect();
     else sync();
@@ -112,6 +123,7 @@ export default function LobbyPage() {
       await emitWithAck(getSocket(), isReady ? "lobby:unready" : "lobby:ready", {
         lobbyId: lobby.lobbyId,
       });
+      
     } catch (err) {
       console.warn('Emit failed:', err);
     }

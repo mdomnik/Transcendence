@@ -216,7 +216,6 @@ export class LobbyGateway {
     const lobby = await this.lobbyService.getLobby(lobbyId);
     // if (lobby.state == 'FINISHED') lobby.state = 'WAITING';
     client.join(lobbyId);
-    client.emit('lobby:update', lobby);
 
     return { ok: true, data: lobby };
   }

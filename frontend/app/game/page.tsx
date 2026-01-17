@@ -106,7 +106,7 @@ export default function GamePage() {
     const onGameState = (view: GameState) => {
       if (!view) return;
       if (view.match?.state === "FINISHED") {
-        // emitWithAck(socket, "lobby:terminated");
+        emitWithAck(socket, "lobby:terminated");
         router.replace("/dashboard");
         return;
       }

@@ -4,15 +4,28 @@ export function emitWithAck<T = any>(
   socket: Socket,
   event: string,
   payload?: any,
-  timeoutMs = 600000,
+  timeoutMs = 60000,
 ): Promise<T> {
   return new Promise((resolve, reject) => {
     if (!socket.connected) {
       reject(new Error("SOCKET_NOT_CONNECTED"));
       return;
     }
+    const timeout = setTimeout(() => {
+      reject(new Error("ACK_TIMEOUT"));
+    }, timeoutMs);
 
-    let timeout: NodeJS.Timeout;
+    socket.emit(event, payload ?? {}, (response: any) => {
+      clearTimeout(timeout);
+
+      if (!response) {
+        reject(new Error("NO_ACK_RESPONSE"));
+        return;
+      }
+
+      resolve(response);
+    });
+    /* let timeout: NodeJS.Timeout;
 
     const onTimeout = () => {
       cleanup();
@@ -38,6 +51,6 @@ export function emitWithAck<T = any>(
       } else {
         reject(new Error(response.error || "UNKNOWN_ERROR"));
       }
-    });
+    }); */
   });
 }

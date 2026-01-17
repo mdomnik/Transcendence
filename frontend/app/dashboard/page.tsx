@@ -77,8 +77,25 @@ export default function Dashboard() {
           });
         }
 
-        await emitWithAck(socket, "lobby:sync");
-        router.replace("/lobby");
+        const res = await emitWithAck(socket, "lobby:sync");
+        if (!res.ok) {
+          setCheckingLobby(false);
+          return ;
+        }
+
+        const lobby = res.data;
+
+        console.log('lobby state in dashboard:', lobby);
+        if (lobby.state === "WAITING") {
+          router.replace("/lobby");
+          return ;
+        }
+        if (lobby.state === "IN_PROGRESS") {
+          router.replace("/game");
+          return;
+        }
+
+        setCheckingLobby(false);
       } catch (err) {
         console.warn('Emit failed:', err);
         setCheckingLobby(false);

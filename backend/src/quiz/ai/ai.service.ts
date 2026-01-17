@@ -31,7 +31,7 @@ export class AiService {
       formattedExclusionQuestions,
     );
 
-    console.log(payload);
+    // console.log(payload);
     // send payload to the coresponding api
     const response = await this.sendChat(payload);
 
