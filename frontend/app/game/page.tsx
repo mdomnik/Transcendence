@@ -277,14 +277,14 @@ const submitAnswer = async (qid: string, aid: string) => {
             <div className="text-[#64FFDA] font-semibold mb-4">Players</div>
             {players.map((p) => {
               const answered =
-                game.roundData.answeredBy?.[p.userId] ?? [];
+                game?.roundData?.answeredBy?.[p.userId] ?? [];
               return (
                 <div key={p.userId} className="mb-4">
                   <div className="text-white text-sm mb-1">
                     {p.username}
                   </div>
                   <div className="flex gap-1">
-                    {game.roundData.questions.map((q: Question) => (
+                    {game?.roundData?.questions.map((q: Question) => (
                       <AnswerBall
                         key={q.id}
                         filled={answered.includes(q.id)}
@@ -298,10 +298,10 @@ const submitAnswer = async (qid: string, aid: string) => {
 
           <div className="flex-1 rounded-2xl border border-white/10 bg-[#0F223D] p-6">
             {(() => {
-              const qs: Question[] = game.roundData.questions;
+              const qs: Question[] = game?.roundData?.questions ?? [];
               if (!user)
                 return null;
-              const myA = game.roundData.answeredBy?.[user.id] ?? [];
+              const myA = game?.roundData?.answeredBy?.[user.id] ?? [];
               const q = qs.find((q) => !myA.includes(q.id));
               if (!q)
                 return (
