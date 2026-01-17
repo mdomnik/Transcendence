@@ -47,6 +47,7 @@ model User {
   requestsSent     Friendship[] @relation("FriendshipRequester")
   blocksInitiated  Friendship[] @relation("FriendshipBlocker")
 
+  avatarPath String?  // public URL or relative path
   games         GameResult[]
 }
 
