@@ -13,7 +13,7 @@ interface DropdownProps {
   items: DropdownItem[];
   userName?: string;
   userEmail?: string;
-  userAvatar?: string;
+  avatarPath?: string;
 }
 
 export default function Dropdown({
@@ -21,7 +21,7 @@ export default function Dropdown({
   items,
   userName,
   userEmail,
-  userAvatar,
+  avatarPath,
 }: DropdownProps) {
   const [isOpen, setIsOpen] = useState(false);
   const dropdownRef = useRef<HTMLDivElement>(null);
@@ -51,9 +51,9 @@ export default function Dropdown({
           {/* User Info Header (optional) */}
           {(userName || userEmail) && (
             <div className="flex items-center gap-3 p-4 border-b border-[#64FFDA]/20">
-              {userAvatar ? (
+              {avatarPath ? (
                 <img
-                  src={userAvatar}
+                  src={avatarPath}
                   alt={userName}
                   className="w-10 h-10 rounded-full border-2 border-[#64FFDA]/50"
                 />

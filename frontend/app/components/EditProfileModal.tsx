@@ -12,7 +12,7 @@ interface EditProfileModalProps {
 
 export default function EditProfileModal({ currentUsername, isOpen, onClose, onSave }: EditProfileModalProps) {
   const [username, setUsername] = useState(currentUsername);
-  const [avatar, setAvatar] = useState<File | undefined>(undefined);
+  const [avatarPath, setAvatar] = useState<File | undefined>(undefined);
   const [avatarPreview, setAvatarPreview] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
@@ -39,7 +39,7 @@ export default function EditProfileModal({ currentUsername, isOpen, onClose, onS
     setError("");
 
     try {
-      await onSave(username, avatar);
+      await onSave(username, avatarPath);
       onClose();
     } catch (err) {
         // eslint-disable-next-line @typescript-eslint/no-explicit-any

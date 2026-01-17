@@ -5,6 +5,9 @@ https://localhost {
     reverse_proxy /api/* backend_nestjs:8080
     reverse_proxy /socket.io/* backend_nestjs:8080
 
+	# Avatar/static uploads served by backend
+	reverse_proxy /uploads/* backend_nestjs:8080
+    
     # Frontend (Next.js) as root
     reverse_proxy frontend_nextjs:3000
 }

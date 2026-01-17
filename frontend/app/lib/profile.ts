@@ -19,7 +19,7 @@ export interface UserProfile {
   id: string;
   username: string;
   email: string;
-  avatarUrl?: string; // Optional URL for image
+  avatarPath?: string; // Optional URL for image
   status: 'online' | 'offline' | 'in-game';
   stats: UserStats;
   matchHistory: MatchHistory[];
@@ -64,7 +64,7 @@ export const getUserProfile = async (userId?: string): Promise<UserProfile> => {
     id: data.id,
     username: data.username,
     email: data.email || '',
-    avatarUrl: data.avatarUrl,
+    avatarPath: data.avatarPath,
     status: 'online', // Placeholder
     stats: {
       rank: 0, // Not in backend yet
@@ -78,30 +78,49 @@ export const getUserProfile = async (userId?: string): Promise<UserProfile> => {
   };
 };
 
-export const updateUserProfile = async (username: string, avatar?: File): Promise<Partial<UserProfile>> => {
-  const body: any = { username };
-  
-  // Note: For real images, you'd use FormData. For now, we'll keep it simple
-  // and prioritize the username persistence fix.
-  
+export const updateUsername = async (username: string) => {
   const response = await fetch('/api/users/me', {
     method: 'PATCH',
-    headers: {
-      'Content-Type': 'application/json',
-    },
+    headers: { 'Content-Type': 'application/json' },
     credentials: 'include',
-    body: JSON.stringify(body),
+    body: JSON.stringify({ username }),
   });
 
   if (!response.ok) {
-    const error = await response.json();
-    throw new Error(error.message || 'Failed to update profile');
+    let msg = 'Failed to update profile';
+    try {
+      const err = await response.json();
+      msg = err?.message ?? msg;
+    } catch {}
+    throw new Error(msg);
   }
 
-  const updatedUser = await response.json();
-  
-  return {
-    username: updatedUser.username,
-    avatarUrl: updatedUser.avatarUrl
-  };
+  // Expect backend to return updated user (via getMe or select)
+  return response.json();
 };
+
+export const uploadAvatar = async (file: File) => {
+  const form = new FormData();
+
+  // IMPORTANT: this key MUST match FileInterceptor('<key>') in NestJS.
+  // Common keys: 'file' or 'avatar'
+  form.append('avatar', file);
+
+  const response = await fetch('/api/users/me/avatar', {
+    method: 'PATCH', 
+    credentials: 'include',
+    body: form,
+  });
+
+  if (!response.ok) {
+    let msg = 'Failed to upload avatar';
+    try {
+      const err = await response.json();
+      msg = err?.message ?? msg;
+    } catch {}
+    throw new Error(msg);
+  }
+
+  return response.json(); // should contain avatarPath
+};
+
