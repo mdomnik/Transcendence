@@ -1,34 +1,33 @@
 export const GameKeys = {
-    matchMeta: (lobbyId: string) => `match:${lobbyId}:meta`,
-    matchConfig: (lobbyId: string) => `match:${lobbyId}:config`,
-    scores: (lobbyId: string) => `match:${lobbyId}:scores`,
+  matchMeta: (lobbyId: string) => `match:${lobbyId}:meta`,
+  matchConfig: (lobbyId: string) => `match:${lobbyId}:config`,
+  scores: (lobbyId: string) => `match:${lobbyId}:scores`,
 
-    roundMeta: (lobbyId: string, round: number) =>
-        `match:${lobbyId}:round:${round}:meta`,
+  roundMeta: (lobbyId: string, round: number) =>
+    `match:${lobbyId}:round:${round}:meta`,
 
-    roundInputs: (lobbyId: string, round: number) =>
-        `match:${lobbyId}:round:${round}:inputs`,
+  roundInputs: (lobbyId: string, round: number) =>
+    `match:${lobbyId}:round:${round}:inputs`,
 
-    activeMatches: () => `match:active`,
+  activeMatches: () => `match:active`,
 
-    eventsChannel: () => `game-events`,
+  eventsChannel: () => `game-events`,
 
-    selectLock: (lobbyId: string, round: number) =>
-        `match:${lobbyId}:round:${round}:select_lock`,
+  selectLock: (lobbyId: string, round: number) =>
+    `match:${lobbyId}:round:${round}:select_lock`,
 
-    roundVotes: (lobbyId: string, round: number) =>
-        `match:${lobbyId}:round:${round}:votes`,
+  roundVotes: (lobbyId: string, round: number) =>
+    `match:${lobbyId}:round:${round}:votes`,
 
-    roundScore: (lobbyId: string, round: number) =>
-        `match:${lobbyId}:round:${round}:score`,
+  roundScore: (lobbyId: string, round: number) =>
+    `match:${lobbyId}:round:${round}:score`,
 
-    selected: (lobbyId: string, round: number) =>
-        `match:${lobbyId}:round:${round}:selected`,
+  selected: (lobbyId: string, round: number) =>
+    `match:${lobbyId}:round:${round}:selected`,
 
-    questions: (lobbyId: string, round: number) =>
-        `match:${lobbyId}:round:${round}:questions`,
+  questions: (lobbyId: string, round: number) =>
+    `match:${lobbyId}:round:${round}:questions`,
 
-    answers: (lobbyId: string, round: number) =>
-        `match:${lobbyId}:round:${round}:answers`,
-
-}
+  answers: (lobbyId: string, round: number) =>
+    `match:${lobbyId}:round:${round}:answers`,
+};

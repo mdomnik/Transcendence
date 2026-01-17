@@ -197,8 +197,10 @@ export class LobbyService {
     const meta = await this.redis.client.hgetall(LobbyKeys.meta(lobbyId));
     if (!meta?.ownerId) throw new NotFoundException('Lobby not found');
 
-    if (meta.state !== 'WAITING')
-      throw new ForbiddenException('Cannot leave during an active game');
+    // Instead of commenting this out the proper behavior should be the game server
+    // should be turning the lobby state from finished to waiting!
+    // if (meta.state !== 'WAITING')
+    //   throw new ForbiddenException('Cannot leave during an active game');
 
     const isMember = await this.redis.client.sismember(
       LobbyKeys.members(lobbyId),

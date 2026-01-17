@@ -79,7 +79,8 @@ export default function Dashboard() {
 
         await emitWithAck(socket, "lobby:sync");
         router.replace("/lobby");
-      } catch {
+      } catch (err) {
+        console.warn('Emit failed:', err);
         setCheckingLobby(false);
       }
     };

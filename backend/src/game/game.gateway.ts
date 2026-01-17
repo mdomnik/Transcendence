@@ -17,6 +17,7 @@ import {
 } from './dto';
 import { LobbyService } from 'src/lobby/lobby.service';
 import { forwardRef, Inject } from '@nestjs/common';
+import { finished } from 'stream';
 
 @WebSocketGateway({
   namespace: '/quiz',
@@ -122,9 +123,13 @@ export class GameGateway {
 
   private async emitGameState(lobbyId: string) {
     const view = await this.gameService.getGameView(lobbyId);
-    if (!view) return;
+    if (!view) {
+      this.server.to(lobbyId).emit('game:terminated');
+      return;
+    }
 
+    if (view.match.state == 'FINISHED')
+      this.server.to(lobbyId).emit('game:terminated', view);
     this.server.to(lobbyId).emit('game:state', view);
   }
-  
 }

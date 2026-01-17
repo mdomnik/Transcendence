@@ -56,13 +56,22 @@ export default function LobbyPage() {
     const sync = async () => {
       try {
         await emitWithAck(socket, "lobby:sync");
-      } catch {
+      } catch (err) {
+        console.warn('syncronization error caught:', err);
         router.push("/dashboard");
       }
     };
 
     socket.on("connect", sync);
-    socket.on("lobby:update", setLobby);
+    socket.on("lobby:update", (payload) => {
+      if (payload.state === "FINISHED") {
+        // TODO! Destroy the lobby instance and kick players out, otherwise lobby:update will be infinitely called
+        socket.emit("lobby:terminate");
+        router.push("/dashboard");
+      } else {
+      setLobby(payload);
+      }
+    });
     socket.on("game:state", (view) => {
       if (view.match.state === "IN_PROGRESS") {
         router.push("/game");
@@ -99,28 +108,44 @@ export default function LobbyPage() {
 
     const isReady = lobby.members.find((p) => p.userId === user?.id)?.ready;
 
-    await emitWithAck(getSocket(), isReady ? "lobby:unready" : "lobby:ready", {
-      lobbyId: lobby.lobbyId,
-    });
+    try {
+      await emitWithAck(getSocket(), isReady ? "lobby:unready" : "lobby:ready", {
+        lobbyId: lobby.lobbyId,
+      });
+    } catch (err) {
+      console.warn('Emit failed:', err);
+    }
   };
 
   const startGame = async () => {
     if (!lobby) return;
-    await emitWithAck(getSocket(), "lobby:start", {
-      lobbyId: lobby.lobbyId,
-    });
-    await emitWithAck(getSocket(), "setup:set-config", {
-      lobbyId: lobby.lobbyId,
-      config: lobby.config,
-    });
+    try {
+      await emitWithAck(getSocket(), "lobby:start", {
+        lobbyId: lobby.lobbyId,
+      });
+      } catch (err) {
+      console.warn('Emit failed:', err);
+      }
+    try {
+      await emitWithAck(getSocket(), "setup:set-config", {
+        lobbyId: lobby.lobbyId,
+        config: lobby.config,
+      });
+    } catch (err) {
+      console.warn('Emit failed:', err);
+    }
   };
 
   const kickPlayer = async (targetId: string) => {
     if (!lobby) return;
-    await emitWithAck(getSocket(), "lobby:kick", {
-      lobbyId: lobby.lobbyId,
-      targetId,
-    });
+    try {
+      await emitWithAck(getSocket(), "lobby:kick", {
+        lobbyId: lobby.lobbyId,
+        targetId,
+      });
+    } catch (err) {
+      console.warn('Emit failed:', err);
+    }
   };
 
   const banPlayer = async (targetId: string, username: string) => {
@@ -131,17 +156,25 @@ export default function LobbyPage() {
     );
     if (!confirmed) return;
 
-    await emitWithAck(getSocket(), "lobby:ban", {
-      lobbyId: lobby.lobbyId,
-      targetId,
-    });
+    try {
+      await emitWithAck(getSocket(), "lobby:ban", {
+        lobbyId: lobby.lobbyId,
+        targetId,
+      });
+    } catch (err) {
+      console.warn('Emit failed:', err);
+    }
   };
 
   const leaveLobby = async () => {
     if (!lobby) return;
-    await emitWithAck(getSocket(), "lobby:leave", {
-      lobbyId: lobby.lobbyId,
-    });
+    try {
+      await emitWithAck(getSocket(), "lobby:leave", {
+        lobbyId: lobby.lobbyId,
+      });
+    } catch (err) {
+      console.warn('Emit failed:', err);
+    }
   };
 
   const updateSetting = (
@@ -150,11 +183,15 @@ export default function LobbyPage() {
   ) => {
     if (!lobby || !isHost || allReady) return;
 
-    emitWithAck(getSocket(), "lobby:config", {
-      lobbyId: lobby.lobbyId,
-      key,
-      delta,
-    });
+    try {
+      emitWithAck(getSocket(), "lobby:config", {
+        lobbyId: lobby.lobbyId,
+        key,
+        delta,
+      });
+    } catch (err) {
+      console.warn('Emit failed:', err);
+    }
   };
 
   const copyCode = async () => {

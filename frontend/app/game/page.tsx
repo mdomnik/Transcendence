@@ -29,6 +29,27 @@ type Question = {
   answers: { id: string; text: string }[];
 };
 
+type GameState = {
+  phase?: {
+    state: string;
+    endsAt?: number;
+  };
+  match?: {
+    state: string;
+    round: number;
+    roundsTotal: number;
+  };
+  lobbyId: string;
+  players: Player[];
+  roundData?: {
+    proposals: Proposal[];
+    submittedBy?: string[];
+    votedBy?: string[];
+    questions: Question[];
+    answeredBy?: Record<string, string[]>;
+  };
+};
+
 /* ===================== ANSWER BALL ===================== */
 
 function AnswerBall({ filled }: { filled: boolean }) {
@@ -47,7 +68,7 @@ export default function GamePage() {
   const router = useRouter();
   const { user, loading } = useAuth();
 
-  const [game, setGame] = useState<any>(null);
+  const [game, setGame] = useState<GameState | null>(null);
   const [topic, setTopic] = useState("");
   const [difficulty, setDifficulty] = useState<Difficulty>("EASY");
   const [now, setNow] = useState(Date.now());
@@ -75,12 +96,17 @@ export default function GamePage() {
 
     const sync = async () => {
       if (!socket.connected) socket.connect();
-      await emitWithAck(socket, "game:sync");
+      try {
+        await emitWithAck(socket, "game:sync");
+      } catch (err) {
+        console.warn('Emit failed:', err);
+      }
     };
 
-    const onGameState = (view: any) => {
+    const onGameState = (view: GameState) => {
       if (!view) return;
       if (view.match?.state === "FINISHED") {
+        // emitWithAck(socket, "lobby:terminated");
         router.replace("/dashboard");
         return;
       }
@@ -166,30 +192,38 @@ export default function GamePage() {
 
   const submitTopic = async () => {
     if (topic.trim().length < 3) return;
-    await emitWithAck(getSocket(), "game:submit-topic", {
-      lobbyId: game.lobbyId,
-      topicTitle: topic.trim(),
-      difficulty,
-    });
+    try {
+      await emitWithAck(getSocket(), "game:submit-topic", {
+        lobbyId: game?.lobbyId,
+        topicTitle: topic.trim(),
+        difficulty,
+      });
+    } catch (err) {
+      console.warn('Emit failed:', err);
+    }
     setTopic("");
   };
 
   const submitVote = async (targetUserId: string) => {
     if (!isVotingLike || myVoted || targetUserId === userId) return;
-    await emitWithAck(getSocket(), "game:submit-vote", {
-      lobbyId: game.lobbyId,
-      votedForUserId: targetUserId,
-    });
+    try {
+      await emitWithAck(getSocket(), "game:submit-vote", {
+        lobbyId: game?.lobbyId,
+        votedForUserId: targetUserId,
+      });
+    } catch (err) {
+      console.warn('Emit failed:', err);
+    }
   };
 
 const submitAnswer = async (qid: string, aid: string) => {
   try {
     console.log('🟢 submitting answer', { qid, aid });
-    await emitWithAck(getSocket(), "game:submit-answer", {
-      lobbyId: game.lobbyId,
-      questionId: qid,
-      answerId: aid,
-    });
+      await emitWithAck(getSocket(), "game:submit-answer", {
+        lobbyId: game?.lobbyId,
+        questionId: qid,
+        answerId: aid,
+      });
   } catch (e) {
     console.error("submitAnswer failed", e);
   }
@@ -197,7 +231,11 @@ const submitAnswer = async (qid: string, aid: string) => {
 
 
   const quitGame = async () => {
-    await emitWithAck(getSocket(), "game:quit");
+    try {
+      await emitWithAck(getSocket(), "game:quit");
+    } catch (err) {
+      console.warn('Emit failed:', err);
+    }
   };
 
   /* ===================== RENDER ===================== */
@@ -261,6 +299,8 @@ const submitAnswer = async (qid: string, aid: string) => {
           <div className="flex-1 rounded-2xl border border-white/10 bg-[#0F223D] p-6">
             {(() => {
               const qs: Question[] = game.roundData.questions;
+              if (!user)
+                return null;
               const myA = game.roundData.answeredBy?.[user.id] ?? [];
               const q = qs.find((q) => !myA.includes(q.id));
               if (!q)
@@ -298,7 +338,7 @@ const submitAnswer = async (qid: string, aid: string) => {
               <button
                 key={p.userId}
                 onClick={() => submitVote(p.userId)}
-                disabled={myVoted || p.userId === user.id || phase === "SELECT_TOPIC"}
+                disabled={myVoted || p.userId === user?.id || phase === "SELECT_TOPIC"}
                 className="relative w-60 h-40 rounded-2xl border border-[#64FFDA]/40
                            bg-[#64FFDA]/10 flex flex-col items-center justify-center"
                 style={{

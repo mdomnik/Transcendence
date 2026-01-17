@@ -98,17 +98,22 @@ export class LobbyGateway {
   ) {
     const userId = client.data.userId;
 
-    const lobby = await this.lobbyService.leaveLobby(dto.lobbyId, userId);
+    try {
+      const lobby = await this.lobbyService.leaveLobby(dto.lobbyId, userId);
 
-    await this.emitRemovalAndLeaveRoom(dto.lobbyId, userId, 'LEFT');
+      await this.emitRemovalAndLeaveRoom(dto.lobbyId, userId, 'LEFT');
 
-    if (!lobby) {
-      this.server.to(dto.lobbyId).emit('lobby:deleted');
-      return { ok: true, data: null };
+      if (!lobby) {
+        this.server.to(dto.lobbyId).emit('lobby:deleted');
+        return { ok: true, data: null };
+      }
+
+      this.server.to(lobby.lobbyId).emit('lobby:update', lobby);
+      return { ok: true, data: lobby };
+    } catch (err) {
+      console.warn('Error leaving lobby', err);
+      return { ok: false, error: err?.message ?? 'UNABLE_TO_LEAVE_LOBBY' };
     }
-
-    this.server.to(lobby.lobbyId).emit('lobby:update', lobby);
-    return { ok: true, data: lobby };
   }
 
   @SubscribeMessage('lobby:ready')
@@ -200,7 +205,6 @@ export class LobbyGateway {
   async onLobbySync(@ConnectedSocket() client: Socket) {
     const userId = client.data.userId;
     const lobbyId = await this.lobbyService.getLobbyIdForUser(userId);
-
     if (!lobbyId) return { ok: false, error: 'NOT_IN_LOBBY' };
 
     const isBanned = await this.lobbyService.redis.client.sismember(
@@ -210,6 +214,7 @@ export class LobbyGateway {
     if (isBanned) return { ok: false, error: 'BANNED_FROM_LOBBY' };
 
     const lobby = await this.lobbyService.getLobby(lobbyId);
+    // if (lobby.state == 'FINISHED') lobby.state = 'WAITING';
     client.join(lobbyId);
     client.emit('lobby:update', lobby);
 
