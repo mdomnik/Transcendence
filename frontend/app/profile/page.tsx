@@ -4,7 +4,7 @@ import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import FloatingShapes from "../components/FloatingShapes";
 import { useAuth } from "../context/AuthContext";
-import { getUserProfile, updateUserProfile, UserProfile } from "../lib/profile";
+import { getUserProfile, updateUsername, uploadAvatar, UserProfile } from "../lib/profile";
 import EditProfileModal from "../components/EditProfileModal";
 
 export default function ProfilePage() {
@@ -40,19 +40,34 @@ export default function ProfilePage() {
 
   const handleSaveProfile = async (newUsername: string, newAvatar?: File) => {
     if (!profile) return;
-    
+  
     try {
-      // Call the API function to save to backend
-      const updatedFields = await updateUserProfile(newUsername, newAvatar);
-      
-      // Update local state to reflect changes immediately
-      setProfile({
-        ...profile,
-        username: updatedFields.username || profile.username,
-        avatarUrl: updatedFields.avatarUrl || profile.avatarUrl
-      });
-
-      // Refresh global auth state so header/dashboard update too
+      const updatedFields = await updateUsername(newUsername);
+  
+      let avatarUpdate: any = null;
+      if (newAvatar) {
+        avatarUpdate = await uploadAvatar(newAvatar);
+      }
+  
+      // Choose the best available avatarPath, but never wipe it out unintentionally
+      const nextAvatarPath =
+        avatarUpdate?.avatarPath ??
+        updatedFields?.avatarPath ??
+        profile.avatarPath;
+  
+      setProfile(prev =>
+        prev
+          ? {
+              ...prev,
+              username: updatedFields?.username ?? prev.username,
+              avatarPath: nextAvatarPath,
+            }
+          : prev
+      );
+  
+      // Log what you're actually setting (not the stale state)
+      console.log('avatar path set to:', nextAvatarPath);
+  
       await refreshAuth();
     } catch (error: any) {
       console.error("Failed to save profile:", error);
@@ -91,19 +106,35 @@ export default function ProfilePage() {
         {/* Profile Header Card */}
         <div className="mb-10 rounded-3xl bg-[#112240] border border-[#64FFDA]/30 p-8 md:p-10 flex flex-col md:flex-row items-center md:items-start gap-8 backdrop-blur-sm shadow-xl">
           
-          {/* Avatar Section */}
-          <div className="flex flex-col items-center gap-4">
-            <div className="w-32 h-32 md:w-40 md:h-40 rounded-full bg-gradient-to-br from-[#64FFDA] to-[#38BDF8] p-1 shadow-[0_0_20px_rgba(100,255,218,0.3)]">
-              <div className="w-full h-full rounded-full bg-[#0A192F] flex items-center justify-center text-4xl font-bold text-[#64FFDA]">
-                {profile.username.charAt(0).toUpperCase()}
-              </div>
-            </div>
-            <div className={`px-4 py-1 rounded-full text-xs font-bold uppercase tracking-wider ${
-              profile.status === 'online' ? 'bg-green-500/20 text-green-400 border border-green-500/50' : 'bg-gray-500/20 text-gray-400'
-            }`}>
-              {profile.status}
+        {/* Avatar Section */}
+        <div className="flex flex-col items-center gap-4">
+          <div className="w-32 h-32 md:w-40 md:h-40 rounded-full bg-gradient-to-br from-[#64FFDA] to-[#38BDF8] p-1 shadow-[0_0_20px_rgba(100,255,218,0.3)]">
+            <div className="w-full h-full rounded-full bg-[#0A192F] flex items-center justify-center overflow-hidden">
+              {profile.avatarPath ? (
+                <img
+                  src={`${profile.avatarPath}?v=${Date.now()}`}
+                  alt="Avatar"
+                  className="w-full h-full rounded-full object-cover"
+                />
+              ) : (
+                <div className="w-full h-full rounded-full bg-[#0A192F] flex items-center justify-center text-4xl font-bold text-[#64FFDA]">
+                  {profile.username.charAt(0).toUpperCase()}
+                </div>
+              )}
             </div>
           </div>
+          
+          <div
+            className={`px-4 py-1 rounded-full text-xs font-bold uppercase tracking-wider ${
+              profile.status === 'online'
+                ? 'bg-green-500/20 text-green-400 border border-green-500/50'
+                : 'bg-gray-500/20 text-gray-400'
+            }`}
+          >
+            {profile.status}
+          </div>
+        </div>
+        
 
           {/* User Info & Actions */}
           <div className="flex-1 text-center md:text-left space-y-4">

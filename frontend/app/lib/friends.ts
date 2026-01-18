@@ -11,7 +11,7 @@ export enum FriendStatus {
 export interface FriendUser {
 	id: string;
 	username: string;
-	avatar?: string;
+	avatarPath?: string;
 	status?: 'online' | 'offline' | 'in-game'; // maybe we need more options later
 }
 
@@ -28,7 +28,7 @@ export interface Friendship {
 
 //This functions is to get my list if accepted friends
 export async function getFriends(): Promise<Friendship[]> {
-	const res = await fetch('/api/friends', {
+	const res = await fetch('/api/friendship/friedslist', {
 		credentials: 'include',
 		cache: 'no-store',
 	});
@@ -47,11 +47,11 @@ export async function getFriendRequests(): Promise<Friendship[]> {
 }
 
 // Function to send a request to someone by username
-export async function sendFriendRequest(username: string) {
+export async function sendFriendRequest(userId: string) {
   const res = await fetch('/api/friends/request', {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ username }),
+    body: JSON.stringify({ userId }),
     credentials: 'include',
   });
   if (!res.ok) throw new Error('Failed to send request');
