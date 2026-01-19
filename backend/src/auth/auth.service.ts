@@ -27,7 +27,7 @@ export class AuthService {
         },
       });
       await this.userservice.ensureUserStats(user.id);
-      return this.signToken(user.username, user.id, user.email);
+      return this.signToken(user.username, user.id, user.email, dto.remember);
     } catch (error) {
       if (error instanceof PrismaClientKnownRequestError)
         if (error.code === 'P2002')
@@ -36,7 +36,7 @@ export class AuthService {
     }
   }
 
-  async signin(dto: { identifier: string; password: string }) {
+  async signin(dto: { identifier: string; password: string; remember?: boolean }) {
     // find user by email or username
     const user = await this.prisma.user.findFirst({
       where: {
@@ -53,22 +53,24 @@ export class AuthService {
     if (!pwMatches) throw new ForbiddenException('Credentials incorrect');
     // send back the user
 
-    return this.signToken(user.username, user.id, user.email);
+    return this.signToken(user.username, user.id, user.email, dto.remember);
   }
 
   async signToken(
     username: string,
     userID: string,
     email: string,
+    remember: boolean = false,
   ): Promise<string> {
     const payload = {
       sub: userID,
       email,
     };
     const secret = process.env.JWT_SECRET;
+    const expiresIn = remember ? '7d' : '24h';
 
     return await this.jwt.signAsync(payload, {
-      expiresIn: '24h',
+      expiresIn: expiresIn,
       secret: secret,
     });
   }

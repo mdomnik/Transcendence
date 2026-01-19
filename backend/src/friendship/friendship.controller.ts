@@ -1,4 +1,4 @@
-import { Controller, Param, Post, UseGuards, ParseUUIDPipe } from '@nestjs/common';
+import { Controller, Param, Post, Get, UseGuards, ParseUUIDPipe } from '@nestjs/common';
 import { AuthGuard } from '@nestjs/passport';
 import { FriendshipService } from './friendship.service';
 import { User as UserDecorator } from 'src/common/decorators/user.decorator'
@@ -7,6 +7,16 @@ import { User as UserDecorator } from 'src/common/decorators/user.decorator'
 @Controller('friendship')
 export class FriendshipController {
     constructor(private friendshipService: FriendshipService) {}
+
+    @Get('list')
+    getFriends(@UserDecorator('id') myId: string) {
+        return this.friendshipService.friendsList(myId);
+    }
+
+    @Get('requests')
+    getRequests(@UserDecorator('id') myId: string) {
+        return this.friendshipService.pendingRequests(myId);
+    }
     
     @Post('request/:userId')
     request(@UserDecorator('id') id: string, @Param('userId') userId: string) {

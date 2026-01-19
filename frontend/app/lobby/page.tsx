@@ -41,6 +41,7 @@ export default function LobbyPage() {
   const codeRef = useRef<HTMLSpanElement | null>(null);
 
   const isHost = lobby?.ownerId === user?.id;
+
   const allReady = lobby?.members.every((p) => p.ready) ?? false;
   const playerCount = lobby?.members.length ?? 0;
 
@@ -135,16 +136,8 @@ export default function LobbyPage() {
       await emitWithAck(getSocket(), "lobby:start", {
         lobbyId: lobby.lobbyId,
       });
-      } catch (err) {
-      console.warn('Emit failed:', err);
-      }
-    try {
-      await emitWithAck(getSocket(), "setup:set-config", {
-        lobbyId: lobby.lobbyId,
-        config: lobby.config,
-      });
     } catch (err) {
-      console.warn('Emit failed:', err);
+      console.warn("Start game failed:", err);
     }
   };
 
@@ -191,7 +184,8 @@ export default function LobbyPage() {
 
   const updateSetting = (
     key: keyof GameSettings | "maxPlayers",
-    delta: number
+    delta?: number,
+    value?: string
   ) => {
     if (!lobby || !isHost || allReady) return;
 
@@ -200,6 +194,7 @@ export default function LobbyPage() {
         lobbyId: lobby.lobbyId,
         key,
         delta,
+        value,
       });
     } catch (err) {
       console.warn('Emit failed:', err);
@@ -227,47 +222,67 @@ export default function LobbyPage() {
   const settings = lobby.config;
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-[#0A0E27] via-[#16213E] to-[#0F3460] flex items-center justify-center p-8">
+    <div className="min-h-screen bg-gradient-to-br from-[#0A0E27] via-[#16213E] to-[#0F3460] flex flex-col items-center justify-center p-8">
       <div className="max-w-4xl w-full space-y-6">
+        <button
+          onClick={() => router.push("/dashboard?fromLobby=1")}
+          className="group flex items-center gap-2 px-4 py-2 rounded-xl bg-white/5 border border-white/10 text-white/70 hover:text-white hover:bg-white/10 hover:border-white/20 transition-all shadow-lg backdrop-blur-sm w-fit"
+        >
+          <svg
+            xmlns="http://www.w3.org/2000/svg"
+            className="w-4 h-4 transition-transform group-hover:-translate-x-1"
+            fill="none"
+            viewBox="0 0 24 24"
+            stroke="currentColor"
+          >
+            <path
+              strokeLinecap="round"
+              strokeLinejoin="round"
+              strokeWidth={2}
+              d="M15 19l-7-7 7-7"
+            />
+          </svg>
+          <span className="text-sm font-medium">Dashboard</span>
+        </button>
+
         {/* MAIN LOBBY */}
         <div className="bg-white/5 backdrop-blur-lg rounded-2xl border border-white/10 p-8">
           {/* Header */}
           <div className="mb-8 flex justify-between items-start">
             <div>
               <h1 className="text-4xl font-bold text-white">Game Lobby</h1>
-              <p className="mt-1 text-sm text-[#64FFDA] font-mono">
-                Lobby ID: {lobby.lobbyId}
-              </p>
             </div>
 
             <div className="flex flex-col items-end">
-              <div className="px-6 py-4 rounded-2xl bg-white/10 border border-white/20">
+              <div className="bg-white/10 rounded-xl border border-white/10 p-4">
                 <div className="flex items-center gap-4">
-                  <span className="text-[#64FFDA] font-semibold">
+                  <span className="text-[#64FFDA] font-semibold text-sm">
                     Lobby Code
                   </span>
 
                   <span
                     ref={codeRef}
                     onClick={selectCode}
-                    className="font-mono text-[#64FFDA] cursor-pointer select-none"
+                    className="font-mono text-[#64FFDA] cursor-pointer select-none tracking-widest"
                   >
                     {displayedCode}
                   </span>
 
-                  <button
-                    onClick={copyCode}
-                    className="border border-[#64FFDA]/40 px-3 py-1 rounded-md hover:bg-[#64FFDA]/10"
-                  >
-                    📋 {copied ? "Copied" : "Copy"}
-                  </button>
+                  <div className="flex gap-2">
+                    <button
+                      onClick={copyCode}
+                      className="text-xs bg-white/5 border border-white/10 px-3 py-1.5 rounded-lg hover:bg-white/10 transition-colors"
+                    >
+                      {copied ? "Copied!" : "Copy"}
+                    </button>
 
-                  <button
-                    onClick={() => setShowCode((v) => !v)}
-                    className="border border-[#64FFDA]/40 px-3 py-1 rounded-md hover:bg-[#64FFDA]/10"
-                  >
-                    {showCode ? "🙈 Hide" : "🐵 Show"}
-                  </button>
+                    <button
+                      onClick={() => setShowCode((v) => !v)}
+                      className="text-xs bg-white/5 border border-white/10 px-3 py-1.5 rounded-lg hover:bg-white/10 transition-colors"
+                    >
+                      {showCode ? "Hide" : "Show"}
+                    </button>
+                  </div>
                 </div>
               </div>
             </div>
@@ -284,7 +299,7 @@ export default function LobbyPage() {
                 <div className="flex items-center gap-1">
                   <button
                     onClick={() => updateSetting("maxPlayers", -1)}
-                    disabled={!canEditLimits || lobby.maxPlayers <= playerCount}
+                    disabled={!canEditLimits || lobby.maxPlayers <= playerCount || lobby.maxPlayers <= 2}
                     className="w-6 h-6 rounded border border-white/20 text-white text-sm hover:bg-white/10 disabled:opacity-40"
                   >
                     −
@@ -365,7 +380,9 @@ export default function LobbyPage() {
           {/* Actions */}
           <div className="flex justify-between items-center">
             <div className="flex gap-4">
-              <Button onClick={toggleReady}>Ready</Button>
+              <Button onClick={toggleReady}>
+                {lobby.members.find((p) => p.userId === user?.id)?.ready ? "Unready" : "Ready"}
+              </Button>
               <Button variant="outline" onClick={leaveLobby}>
                 Leave Lobby
               </Button>
@@ -381,7 +398,7 @@ export default function LobbyPage() {
 
         {/* GAME SETTINGS */}
         <div className="bg-white/5 backdrop-blur-lg rounded-2xl border border-white/10 p-8">
-          <div className="flex items-center justify-between mb-6">
+          <div className="flex items-center justify-between mb-8">
             <h2 className="text-3xl font-semibold text-white">Game Settings</h2>
             {allReady && (
               <span className="text-[#64FFDA] text-sm font-medium">
@@ -433,7 +450,6 @@ function Setting({
   value,
   min,
   max,
-  step = 1,
   disabled,
   onIncrement,
   onDecrement,
@@ -448,32 +464,23 @@ function Setting({
   onDecrement: () => void;
 }) {
   return (
-    <div
-      className={`rounded-xl p-6 border transition ${
-        disabled
-          ? "border-white/5 opacity-60"
-          : "border-white/15 hover:border-[#64FFDA]/40"
-      }`}
-    >
-      <div className="mb-4 text-lg font-semibold text-white">{label}</div>
-
-      <div className="flex items-center justify-center gap-6">
+    <div className="flex flex-col gap-2">
+      <span className="text-sm text-white/60 font-medium">{label}</span>
+      <div className="flex items-center gap-4 bg-white/5 rounded-xl p-2 border border-white/10">
         <button
           onClick={onDecrement}
           disabled={disabled || value <= min}
-          className="w-10 h-10 rounded-full border border-white/20 text-white text-xl font-bold hover:bg-white/10 disabled:opacity-40"
+          className="w-8 h-8 rounded-lg bg-white/5 border border-white/10 text-white text-lg hover:bg-white/10 disabled:opacity-40 flex items-center justify-center transition-colors"
         >
           −
         </button>
-
-        <div className="px-6 py-2 rounded-full bg-[#64FFDA]/15 text-[#64FFDA] font-semibold text-xl min-w-[64px] text-center">
+        <span className="flex-1 text-center text-xl font-bold text-white">
           {value}
-        </div>
-
+        </span>
         <button
           onClick={onIncrement}
           disabled={disabled || value >= max}
-          className="w-10 h-10 rounded-full border border-white/20 text-white text-xl font-bold hover:bg-white/10 disabled:opacity-40"
+          className="w-8 h-8 rounded-lg bg-white/5 border border-white/10 text-white text-lg hover:bg-white/10 disabled:opacity-40 flex items-center justify-center transition-colors"
         >
           +
         </button>

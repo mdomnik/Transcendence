@@ -25,6 +25,10 @@ interface MatchConfig {
   roundsTotal: number;
   timePerQuestion: number;
   questionsPerRound: number;
+  topic?: string;
+  difficulty?: string;
+  minPlayers?: number;
+  maxPlayers?: number;
 }
 
 export interface LobbyView {
@@ -75,6 +79,8 @@ export class LobbyService {
       roundsTotal: Number(meta.roundsTotal),
       timePerQuestion: Number(meta.timePerQuestion),
       questionsPerRound: Number(meta.questionsPerRound),
+      topic: meta.topic || '',
+      difficulty: meta.difficulty || 'EASY',
     };
 
     const lobby = {
@@ -118,6 +124,8 @@ export class LobbyService {
       roundsTotal: DEFAULT_MATCH_CONFIG.roundsTotal.toString(),
       timePerQuestion: DEFAULT_MATCH_CONFIG.timePerQuestion.toString(),
       questionsPerRound: DEFAULT_MATCH_CONFIG.questionsPerRound.toString(),
+      topic: '',
+      difficulty: 'EASY',
       minPlayers: DEFAULT_MIN_PLAYERS.toString(),
       maxPlayers: DEFAULT_MAX_PLAYERS.toString(),
     });
@@ -345,6 +353,32 @@ export class LobbyService {
     return this.getLobby(lobbyId);
   }
 
+  async retryLobby(lobbyId: string, userId: string): Promise<LobbyView> {
+    const meta = await this.redis.client.hgetall(LobbyKeys.meta(lobbyId));
+    if (!meta?.ownerId) throw new NotFoundException('Lobby not Found');
+
+    if (meta.ownerId !== userId) {
+      throw new ForbiddenException('Only the host can restart the game');
+    }
+
+    // Reset lobby state
+    await this.redis.client.hset(LobbyKeys.meta(lobbyId), {
+      state: 'WAITING',
+    });
+
+    // Reset ready status for all members
+    await this.redis.client.del(LobbyKeys.ready(lobbyId));
+    // Initialize everyone to unready
+    const members = await this.redis.client.smembers(LobbyKeys.members(lobbyId));
+    for (const id of members) {
+      await this.redis.client.hset(LobbyKeys.ready(lobbyId), id, '0');
+    }
+
+    await this.refreshTTL(lobbyId);
+
+    return this.getLobby(lobbyId);
+  }
+
   private async refreshTTL(lobbyId: string) {
     const ttl = 3600;
 
@@ -400,8 +434,17 @@ export class LobbyService {
 
   async getLobbyIdForUser(userId: string): Promise<string | null> {
     const lobbyId = await this.redis.client.get(LobbyKeys.userLobby(userId));
+    if (!lobbyId) return null;
 
-    return lobbyId ?? null;
+    // Check if the lobby actually exists
+    const exists = await this.redis.client.exists(LobbyKeys.meta(lobbyId));
+    if (!exists) {
+      // Self-healing: remove stale reference
+      await this.redis.client.del(LobbyKeys.userLobby(userId));
+      return null;
+    }
+
+    return lobbyId;
   }
 
   private async generateLobbyCode(codeLength: number) {
@@ -426,7 +469,8 @@ export class LobbyService {
     lobbyId: string,
     userId: string,
     key: keyof MatchConfig,
-    delta: number,
+    delta?: number,
+    value?: string,
   ): Promise<LobbyView> {
     const meta = await this.redis.client.hgetall(LobbyKeys.meta(lobbyId));
 
@@ -438,9 +482,19 @@ export class LobbyService {
     if (meta.state !== 'WAITING')
       throw new ForbiddenException('Cannot change config after game start');
 
+    if (key === 'topic' || key === 'difficulty') {
+      if (value === undefined) return this.getLobby(lobbyId);
+
+      await this.redis.client.hset(LobbyKeys.meta(lobbyId), {
+        [key]: value,
+      });
+      await this.refreshTTL(lobbyId);
+      return this.getLobby(lobbyId);
+    }
+
     const current = Number(meta[key]);
 
-    let next = current + delta;
+    let next = current + (delta ?? 0);
 
     switch (key) {
       case 'roundsTotal':
@@ -452,6 +506,21 @@ export class LobbyService {
       case 'timePerQuestion':
         next = Math.min(60, Math.max(10, next));
         break;
+      case 'minPlayers':
+        next = Math.min(4, Math.max(2, next));
+        break;
+      case 'maxPlayers':
+        next = Math.min(8, Math.max(2, next));
+        break;
+    }
+
+    if (key === 'maxPlayers') {
+      const minP = Number(meta.minPlayers ?? DEFAULT_MIN_PLAYERS);
+      if (next < minP) next = minP;
+    }
+    if (key === 'minPlayers') {
+      const maxP = Number(meta.maxPlayers ?? DEFAULT_MAX_PLAYERS);
+      if (next > maxP) next = maxP;
     }
 
     if (next === current) return this.getLobby(lobbyId);

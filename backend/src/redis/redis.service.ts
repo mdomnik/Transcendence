@@ -8,8 +8,8 @@ export class RedisService implements OnModuleInit, OnModuleDestroy {
 
     //on construction
     constructor() {
-        const host = process.env.REDIS_HOST;
-        const port = Number(process.env.REDIS_PORT);
+        const host = process.env.REDIS_HOST || 'cache_redis';
+        const port = Number(process.env.REDIS_PORT) || 6379;
 
         // create host port connection; lazy connect prevents creashesd by not connecting immidiately
         this.client = new Redis({
@@ -24,6 +24,14 @@ export class RedisService implements OnModuleInit, OnModuleDestroy {
         try {
             await this.client.connect();
             await this.client.ping();
+            
+            // Clear all socket tracking on startup to prevent ghost online statuses
+            const keys = await this.client.keys('user:*:sockets');
+            if (keys.length > 0) {
+                await this.client.del(...keys);
+                this.logger.log(`Cleared ${keys.length} stale socket sets from Redis`);
+            }
+            
             this.logger.log('Redis Connected');
         } catch (e: any) {
             this.logger.error(`Redus connection failed: ${e?.message ?? e}`);
@@ -35,4 +43,21 @@ export class RedisService implements OnModuleInit, OnModuleDestroy {
         await this.client.quit();
     }
 
+    async isUserOnline(userId: string): Promise<boolean> {
+        try {
+            const count = await this.client.scard(`user:${userId}:sockets`);
+            return count > 0;
+        } catch (e) {
+            return false;
+        }
+    }
+
+    async trackSocket(userId: string, socketId: string) {
+        await this.client.sadd(`user:${userId}:sockets`, socketId);
+        await this.client.expire(`user:${userId}:sockets`, 86400); // 24h safety
+    }
+
+    async untrackSocket(userId: string, socketId: string) {
+        await this.client.srem(`user:${userId}:sockets`, socketId);
+    }
 }

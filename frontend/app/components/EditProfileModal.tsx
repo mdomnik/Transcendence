@@ -22,6 +22,14 @@ export default function EditProfileModal({ currentUsername, isOpen, onClose, onS
   const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     if (e.target.files && e.target.files[0]) {
       const file = e.target.files[0];
+
+      // Limit to 5MB (matching updated backend)
+      if (file.size > 5 * 1024 * 1024) {
+        setError("File size must be less than 5MB");
+        return;
+      }
+
+      setError("");
       setAvatar(file);
       
       // Create preview

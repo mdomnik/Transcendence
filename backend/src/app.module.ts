@@ -4,7 +4,6 @@ import { AppController } from './app.controller';
 import { AppService } from './app.service';
 import { PrismaModule } from './prisma/prisma.module';
 import { AuthModule } from './auth/auth.module';
-import { UserController } from './user/user.controller';
 import { ThrottlerGuard, ThrottlerModule } from '@nestjs/throttler';
 import { APP_GUARD } from '@nestjs/core';
 import { QuizModule } from './quiz/quiz.module';
@@ -17,6 +16,7 @@ import { GameModule } from './game/game.module';
 import { WebsocketModule } from './websocket/websocket.module';
 import { DashboardModule } from './dashboard/dashboard.module';
 import { FriendshipModule } from './friendship/friendship.module';
+import { ChatModule } from './chat/chat.module';
 import { ScheduleModule } from '@nestjs/schedule';
 
 @Module({
@@ -44,8 +44,9 @@ import { ScheduleModule } from '@nestjs/schedule';
     WebsocketModule,
     DashboardModule,
     FriendshipModule,
+    ChatModule,
   ],
-  controllers: [AppController, UserController],
+  controllers: [AppController],
   providers: [
     AppService,
     {

@@ -65,7 +65,7 @@ export const getUserProfile = async (userId?: string): Promise<UserProfile> => {
     username: data.username,
     email: data.email || '',
     avatarPath: data.avatarPath,
-    status: 'online', // Placeholder
+    status: data.status || 'offline',
     stats: {
       rank: 0, // Not in backend yet
       tier: 'Bronze', // Not in backend yet
@@ -74,7 +74,13 @@ export const getUserProfile = async (userId?: string): Promise<UserProfile> => {
       winRate: Math.round((data.derived?.winRate || 0) * 100),
       matchesPlayed: data.stats?.gamesPlayed || 0,
     },
-    matchHistory: [] // To be implemented
+    matchHistory: data.games?.map((g: any) => ({
+      id: g.id,
+      topic: g.topic?.title || 'Unknown',
+      score: g.score,
+      won: g.won,
+      playedAt: g.playedAt,
+    })) || [],
   };
 };
 
@@ -100,16 +106,13 @@ export const updateUsername = async (username: string) => {
 };
 
 export const uploadAvatar = async (file: File) => {
-  const form = new FormData();
-
-  // IMPORTANT: this key MUST match FileInterceptor('<key>') in NestJS.
-  // Common keys: 'file' or 'avatar'
-  form.append('avatar', file);
+  const formData = new FormData();
+  formData.append('avatar', file);
 
   const response = await fetch('/api/users/me/avatar', {
-    method: 'PATCH', 
+    method: 'PATCH',
     credentials: 'include',
-    body: form,
+    body: formData,
   });
 
   if (!response.ok) {
@@ -121,6 +124,14 @@ export const uploadAvatar = async (file: File) => {
     throw new Error(msg);
   }
 
-  return response.json(); // should contain avatarPath
+  return response.json();
+};
+
+export const searchUsers = async (query: string) => {
+  const response = await fetch(`/api/users/search?query=${encodeURIComponent(query)}`, {
+    credentials: 'include',
+  });
+  if (!response.ok) return [];
+  return response.json();
 };
 

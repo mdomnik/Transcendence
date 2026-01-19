@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect } from "react";
+import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import FloatingShapes from "../components/FloatingShapes";
 import AddFriend from "../components/AddFriend";
@@ -11,6 +11,9 @@ import { useAuth } from "../context/AuthContext";
 export default function FriendsPage() {
   const router = useRouter();
   const { user, loading } = useAuth();
+  const [refreshTrigger, setRefreshTrigger] = useState(0);
+
+  const handleRefresh = () => setRefreshTrigger(prev => prev + 1);
 
   useEffect(() => {
     if (!loading && !user) {
@@ -71,12 +74,12 @@ export default function FriendsPage() {
               
               {/* Add Friend */}
               <div className="bg-[#112240]/80 backdrop-blur rounded-2xl p-6 border border-[#64FFDA]/10">
-                <AddFriend />
+                <AddFriend onAction={handleRefresh} />
               </div>
 
               {/* Friend Requests */}
               <div className="bg-[#112240]/80 backdrop-blur rounded-2xl p-6 border border-[#64FFDA]/10 min-h-[300px]">
-                <FriendRequests />
+                <FriendRequests onAction={handleRefresh} />
               </div>
               
             </div>
@@ -84,7 +87,7 @@ export default function FriendsPage() {
             {/* Right Column: Friends List */}
             <div className="lg:col-span-7">
               <div className="bg-[#112240]/80 backdrop-blur rounded-2xl p-8 border border-[#64FFDA]/10 min-h-[600px]">
-                <FriendList />
+                <FriendList refreshTrigger={refreshTrigger} />
               </div>
             </div>
 

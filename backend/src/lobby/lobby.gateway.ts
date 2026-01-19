@@ -27,9 +27,21 @@ export class LobbyGateway {
 
   constructor(
     private readonly lobbyService: LobbyService,
+    private readonly redisService: RedisService,
     @Inject(forwardRef(() => GameService))
     private readonly gameService: GameService,
   ) {}
+
+  private async broadcastStatus(userId: string) {
+    const online = await this.redisService.isUserOnline(userId);
+    if (!online) {
+      this.server.emit('presence:updated', { userId, status: 'offline' });
+      return;
+    }
+    const lobbyId = await this.lobbyService.getLobbyIdForUser(userId);
+    const status = lobbyId ? 'in-game' : 'online';
+    this.server.emit('presence:updated', { userId, status });
+  }
 
   handleConnection(client: Socket) {
     client.onAny((event, payload) => {
@@ -61,12 +73,17 @@ export class LobbyGateway {
   @SubscribeMessage('lobby:create')
   async onLobbyCreate(@ConnectedSocket() client: Socket) {
     const userId = client.data.userId;
-    const lobby = await this.lobbyService.createLobby(userId);
+    try {
+      const lobby = await this.lobbyService.createLobby(userId);
 
-    client.join(lobby.lobbyId);
-    this.server.to(lobby.lobbyId).emit('lobby:update', lobby);
+      client.join(lobby.lobbyId);
+      this.server.to(lobby.lobbyId).emit('lobby:update', lobby);
+      await this.broadcastStatus(userId);
 
-    return { ok: true, data: lobby };
+      return { ok: true, data: lobby };
+    } catch (err: any) {
+      return { ok: false, error: err?.message ?? 'FORBIDDEN' };
+    }
   }
 
   @SubscribeMessage('lobby:join')
@@ -85,6 +102,7 @@ export class LobbyGateway {
       const lobby = await this.lobbyService.joinLobby(lobbyId, userId);
       client.join(lobby.lobbyId);
       this.server.to(lobby.lobbyId).emit('lobby:update', lobby);
+      await this.broadcastStatus(userId);
       return { ok: true, data: lobby };
     } catch (err: any) {
       return { ok: false, error: err?.message ?? 'UNABLE_TO_JOIN_LOBBY' };
@@ -102,6 +120,7 @@ export class LobbyGateway {
       const lobby = await this.lobbyService.leaveLobby(dto.lobbyId, userId);
 
       await this.emitRemovalAndLeaveRoom(dto.lobbyId, userId, 'LEFT');
+      await this.broadcastStatus(userId);
 
       if (!lobby) {
         this.server.to(dto.lobbyId).emit('lobby:deleted');
@@ -146,6 +165,20 @@ export class LobbyGateway {
     return { ok: true, data: lobby };
   }
 
+  @SubscribeMessage('lobby:retry')
+  async onLobbyRetry(
+    @ConnectedSocket() client: Socket,
+    @MessageBody() dto: LobbyDto,
+  ) {
+    const lobby = await this.lobbyService.retryLobby(
+      dto.lobbyId,
+      client.data.userId,
+    );
+
+    this.server.to(lobby.lobbyId).emit('lobby:update', lobby);
+    return { ok: true, data: lobby };
+  }
+
   @SubscribeMessage('lobby:kick')
   async onLobbyKick(
     @ConnectedSocket() client: Socket,
@@ -158,6 +191,7 @@ export class LobbyGateway {
     );
 
     await this.emitRemovalAndLeaveRoom(dto.lobbyId, dto.targetId, 'KICKED');
+    await this.broadcastStatus(dto.targetId);
 
     this.server.to(dto.lobbyId).emit('lobby:update', lobby);
     return { ok: true, data: lobby };
@@ -175,6 +209,7 @@ export class LobbyGateway {
     );
 
     await this.emitRemovalAndLeaveRoom(dto.lobbyId, dto.targetId, 'BANNED');
+    await this.broadcastStatus(dto.targetId);
 
     this.server.to(dto.lobbyId).emit('lobby:update', lobby);
     return { ok: true, data: lobby };
@@ -204,20 +239,24 @@ export class LobbyGateway {
   @SubscribeMessage('lobby:sync')
   async onLobbySync(@ConnectedSocket() client: Socket) {
     const userId = client.data.userId;
-    const lobbyId = await this.lobbyService.getLobbyIdForUser(userId);
-    if (!lobbyId) return { ok: false, error: 'NOT_IN_LOBBY' };
+    try {
+      const lobbyId = await this.lobbyService.getLobbyIdForUser(userId);
+      if (!lobbyId) return { ok: false, error: 'NOT_IN_LOBBY' };
 
-    const isBanned = await this.lobbyService.redis.client.sismember(
-      LobbyKeys.banned(lobbyId),
-      userId,
-    );
-    if (isBanned) return { ok: false, error: 'BANNED_FROM_LOBBY' };
+      const isBanned = await this.lobbyService.redis.client.sismember(
+        LobbyKeys.banned(lobbyId),
+        userId,
+      );
+      if (isBanned) return { ok: false, error: 'BANNED_FROM_LOBBY' };
 
-    const lobby = await this.lobbyService.getLobby(lobbyId);
-    // if (lobby.state == 'FINISHED') lobby.state = 'WAITING';
-    client.join(lobbyId);
+      const lobby = await this.lobbyService.getLobby(lobbyId);
+      // if (lobby.state == 'FINISHED') lobby.state = 'WAITING';
+      client.join(lobbyId);
 
-    return { ok: true, data: lobby };
+      return { ok: true, data: lobby };
+    } catch (err) {
+      return { ok: false, error: 'SYNC_FAILED' };
+    }
   }
 
   @SubscribeMessage('lobby:config')
@@ -230,6 +269,7 @@ export class LobbyGateway {
       client.data.userId,
       dto.key,
       dto.delta,
+      dto.value,
     );
 
     this.server.to(lobby.lobbyId).emit('lobby:update', lobby);

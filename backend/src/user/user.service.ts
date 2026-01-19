@@ -3,10 +3,14 @@ import { PrismaService } from "src/prisma/prisma.service";
 import { join } from 'path';
 import { promises as fs } from 'fs';
 import { UpdateMeDto } from "./dto/update-me.dto";
+import { RedisService } from "src/redis/redis.service";
 
 @Injectable()
 export class UserService {
-    constructor(private prisma: PrismaService) {}
+    constructor(
+        private prisma: PrismaService,
+        private redisService: RedisService,
+    ) {}
 async getMe(userId: string) {
     const user = await this.prisma.user.findUnique({
       where: { id: userId },
@@ -14,6 +18,7 @@ async getMe(userId: string) {
         id: true,
         username: true,
         email: true,
+        avatarPath: true,
         createdAt: true,
         updatedAt: true,
         stats: {
@@ -32,6 +37,21 @@ async getMe(userId: string) {
             requestsSent: true,
           },
         },
+        games: {
+          select: {
+            id: true,
+            score: true,
+            won: true,
+            playedAt: true,
+            topic: {
+              select: {
+                title: true,
+              },
+            },
+          },
+          orderBy: { playedAt: 'desc' },
+          take: 20,
+        },
       },
     });
 
@@ -42,8 +62,11 @@ async getMe(userId: string) {
     const totalQuestions = user.stats?.totalQuestions ?? 0;
     const correctAnswers = user.stats?.correctAnswers ?? 0;
 
+    const online = await this.redisService.isUserOnline(userId);
+
     return {
       ...user,
+      status: online ? "online" : "offline",
       derived: {
         winRate: gamesPlayed > 0 ? gamesWon / gamesPlayed : 0,
         accuracy: totalQuestions > 0 ? correctAnswers / totalQuestions : 0,
@@ -57,6 +80,7 @@ async getMe(userId: string) {
       select: {
         id: true,
         username: true,
+        avatarPath: true,
         createdAt: true,
         stats: {
           select: {
@@ -72,6 +96,21 @@ async getMe(userId: string) {
             games: true,
           },
         },
+        games: {
+          select: {
+            id: true,
+            score: true,
+            won: true,
+            playedAt: true,
+            topic: {
+              select: {
+                title: true,
+              },
+            },
+          },
+          orderBy: { playedAt: 'desc' },
+          take: 20,
+        },
       },
     });
 
@@ -82,8 +121,11 @@ async getMe(userId: string) {
     const totalQuestions = user.stats?.totalQuestions ?? 0;
     const correctAnswers = user.stats?.correctAnswers ?? 0;
 
+    const online = await this.redisService.isUserOnline(userId);
+
     return {
       ...user,
+      status: online ? "online" : "offline",
       derived: {
         winRate: gamesPlayed > 0 ? gamesWon / gamesPlayed : 0,
         accuracy: totalQuestions > 0 ? correctAnswers / totalQuestions : 0,

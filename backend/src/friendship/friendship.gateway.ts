@@ -30,8 +30,16 @@ export class FriendshipGateway {
 
       // Notify both parties that friendship state changed
       const otherId = this.otherFromRow(myId, row.userA.id, row.userB.id);
+      
+      // Find my username to send to the other user
+      const myUsername = row.userA.id === myId ? row.userA.username : row.userB.username;
+
       this.emitToUser(myId, 'friendship:updated', { type: 'REQUEST_SENT', row });
-      this.emitToUser(otherId, 'friendship:updated', { type: 'REQUEST_RECEIVED', row });
+      this.emitToUser(otherId, 'friendship:updated', { 
+        type: 'REQUEST_RECEIVED', 
+        row,
+        fromUsername: myUsername 
+      });
 
       return { ok: true, data: row };
     } catch (e: any) {
@@ -49,9 +57,14 @@ export class FriendshipGateway {
     try {
       const row = await this.friendshipService.accept(myId, body.friendshipId);
       const otherId = this.otherFromRow(myId, row.userA.id, row.userB.id);
+      const myUsername = row.userA.id === myId ? row.userA.username : row.userB.username;
 
       this.emitToUser(myId, 'friendship:updated', { type: 'ACCEPTED', row });
-      this.emitToUser(otherId, 'friendship:updated', { type: 'ACCEPTED', row });
+      this.emitToUser(otherId, 'friendship:updated', { 
+        type: 'ACCEPTED', 
+        row,
+        fromUsername: myUsername
+      });
 
       return { ok: true, data: row };
     } catch (e: any) {

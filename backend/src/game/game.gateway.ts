@@ -50,6 +50,7 @@ export class GameGateway {
     });
 
     await this.emitGameState(body.lobbyId);
+    return { ok: true };
   }
 
   @SubscribeMessage('game:submit-vote')
@@ -66,6 +67,7 @@ export class GameGateway {
     );
 
     await this.emitGameState(body.lobbyId);
+    return { ok: true };
   }
 
   @SubscribeMessage('game:submit-answer')
@@ -82,6 +84,7 @@ export class GameGateway {
     });
 
     await this.emitGameState(body.lobbyId);
+    return { ok: true };
   }
 
   @SubscribeMessage('game:sync')

@@ -4,13 +4,23 @@ import {
   ForbiddenException,
   Injectable,
   NotFoundException,
+  Inject,
+  forwardRef,
 } from '@nestjs/common';
 import { PrismaService } from 'src/prisma/prisma.service';
 import { FriendStatus } from 'generated/prisma/enums';
+import { RedisService } from 'src/redis/redis.service';
+import { LobbyService } from 'src/lobby/lobby.service';
 
 @Injectable()
 export class FriendshipService {
-  constructor(private readonly prisma: PrismaService) {}
+  constructor(
+    private readonly prisma: PrismaService,
+    private readonly redisService: RedisService,
+    @Inject(forwardRef(() => LobbyService))
+    private readonly lobbyService: LobbyService,
+  ) {}
+
 
   private pair(a: string, b: string) {
     return a < b ? { userAId: a, userBId: b } : { userAId: b, userBId: a };
@@ -184,32 +194,90 @@ export class FriendshipService {
     return { ok: true };
   }
 
+  async getFriendUserIds(userId: string): Promise<string[]> {
+    const friendships = await this.prisma.friendship.findMany({
+      where: {
+        status: FriendStatus.ACCEPTED,
+        OR: [{ userAId: userId }, { userBId: userId }],
+      },
+      select: { userAId: true, userBId: true },
+    });
+    return friendships.map((f) => (f.userAId === userId ? f.userBId : f.userAId));
+  }
+
+  async getLobbyIdForUser(userId: string) {
+    return this.lobbyService.getLobbyIdForUser(userId);
+  }
+
   async friendsList(myId: string) {
     const rows = await this.prisma.friendship.findMany({
         where: {
             status: FriendStatus.ACCEPTED,
             OR: [{ userAId: myId }, { userBId: myId }],
         },
-        select: {
-            id: true,
-            createdAt: true,
-            updatedAt: true,
-            userA: { select: { id:true, username: true, avatarPath: true } },
-            userB: { select: { id:true, username: true, avatarPath: true } },
-        },
+        select: this.selectRow(myId),
         orderBy: { updatedAt: 'desc' },
     });
 
-    return rows.map((r) => {
-        const friend = r.userA.id === myId ? r.userB : r.userA;
+    return Promise.all(
+      rows.map(async (r) => {
+        const friend = (r.userA.id === myId ? r.userB : r.userA) as any;
+        const online = await this.redisService.isUserOnline(friend.id);
+        const lobbyId = await this.lobbyService.getLobbyIdForUser(friend.id);
+
+        let status = online ? 'online' : 'offline';
+        if (online && lobbyId) status = 'in-game';
+
         return {
-            friendshipId: r.id,
-            since: r.createdAt,
-            updatedAt: r.updatedAt,
-            friend,
+          id: r.id,
+          status: r.status,
+          since: r.createdAt,
+          updatedAt: r.updatedAt,
+          friend: {
+            ...friend,
+            status,
+          },
         };
-    });
+      }),
+    );
   }
+
+  async pendingRequests(myId: string) {
+    const rows = await this.prisma.friendship.findMany({
+      where: {
+        status: FriendStatus.PENDING,
+        OR: [{ userAId: myId }, { userBId: myId }],
+      },
+      select: this.selectRow(myId),
+      orderBy: { updatedAt: 'desc' },
+    });
+
+    return Promise.all(
+      rows.map(async (r) => {
+        const isRequester = r.requesterId === myId;
+        const friend = (r.userA.id === myId ? r.userB : r.userA) as any;
+        const online = await this.redisService.isUserOnline(friend.id);
+        const lobbyId = await this.lobbyService.getLobbyIdForUser(friend.id);
+
+        let status = online ? 'online' : 'offline';
+        if (online && lobbyId) status = 'in-game';
+
+        return {
+          id: r.id,
+          status: r.status,
+          createdAt: r.createdAt,
+          updatedAt: r.updatedAt,
+          requesterId: r.requesterId,
+          isRequester,
+          friend: {
+            ...friend,
+            status,
+          },
+        };
+      }),
+    );
+  }
+
   // Select includes "me vs other" convenience
   private selectRow(myId: string) {
     return {
@@ -219,8 +287,8 @@ export class FriendshipService {
       updatedAt: true,
       requesterId: true,
       blockerId: true,
-      userA: { select: { id: true, username: true } },
-      userB: { select: { id: true, username: true } },
+      userA: { select: { id: true, username: true, avatarPath: true } },
+      userB: { select: { id: true, username: true, avatarPath: true } },
     };
   }
 }

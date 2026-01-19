@@ -16,6 +16,7 @@ export default function SignUpModal({ isOpen, onClose, onSwitchToLogin } : SignU
 	const [username, setUsername] = useState("");
 	const [email, setEmail] = useState("");
 	const [password, setPassword] = useState("");
+	const [remember, setRemember] = useState(false);
 	const [isLoading, setIsLoading] = useState(false);
 	const [error, setError] = useState("");
 
@@ -34,7 +35,7 @@ export default function SignUpModal({ isOpen, onClose, onSwitchToLogin } : SignU
 					'Content-Type': 'application/json',
 				},
 				credentials: 'include', // Important: allows cookies
-				body: JSON.stringify({ username, email, password }),
+				body: JSON.stringify({ username, email, password, remember }),
 			});
 
 			if (!response.ok) {
@@ -99,6 +100,20 @@ export default function SignUpModal({ isOpen, onClose, onSwitchToLogin } : SignU
 			required
             className="w-full px-4 py-3 rounded-xl bg-[#0A192F] border border-[#64FFDA]/30 text-[#CCD6F6] placeholder-[#8892B0] focus:outline-none focus:border-[#64FFDA] transition-colors"
           />
+
+          <div className="flex items-center gap-2 px-1">
+            <input
+              type="checkbox"
+              id="remember-signup"
+              checked={remember}
+              onChange={(e) => setRemember(e.target.checked)}
+              className="w-4 h-4 rounded border-[#64FFDA]/30 bg-[#0A192F] text-[#64FFDA] focus:ring-offset-[#112240] focus:ring-[#64FFDA]"
+            />
+            <label htmlFor="remember-signup" className="text-sm text-[#8892B0] cursor-pointer hover:text-[#CCD6F6] transition-colors">
+              Remember me
+            </label>
+          </div>
+
           <button
             type="submit"
 			disabled={isLoading}

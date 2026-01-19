@@ -3,19 +3,41 @@
 
 import { useState } from 'react';
 import { sendFriendRequest } from '../lib/friends';
+import { searchUsers } from '../lib/profile';
 
-export default function AddFriend() {
+interface AddFriendProps {
+  onAction?: () => void;
+}
+
+export default function AddFriend({ onAction }: AddFriendProps) {
   const [username, setUsername] = useState('');
   const [message, setMessage] = useState('');
+  const [loading, setLoading] = useState(false);
 
   const handleAdd = async (e: React.FormEvent) => {
     e.preventDefault();
+    setLoading(true);
+    setMessage('');
     try {
-      await sendFriendRequest(username);
-      setMessage(`Reqest sent to ${username}!`);
+      // 1. Find user by username
+      const results = await searchUsers(username);
+      const target = results.find((u: any) => u.username.toLowerCase() === username.toLowerCase());
+      
+      if (!target) {
+        setMessage(`Error: User "${username}" not found.`);
+        return;
+      }
+
+      // 2. Send request by ID
+      await sendFriendRequest(target.id);
+      setMessage(`Request sent to ${target.username}!`);
       setUsername('');
+      
+      if (onAction) onAction();
     } catch (error) {
-      setMessage('Error: Could not send request (User not found? or Request already sent?)');
+      setMessage('Error: Could not send request.');
+    } finally {
+      setLoading(false);
     }
   };
 
@@ -35,9 +57,10 @@ export default function AddFriend() {
         />
         <button 
           type="submit" 
-          className="w-full bg-gradient-to-r from-[#64FFDA] to-[#5EEAD4] text-[#0A192F] font-bold px-6 py-3 rounded-lg hover:shadow-[0_0_20px_rgba(100,255,218,0.3)] hover:scale-[1.02] transition-all duration-300"
+          disabled={loading}
+          className="w-full bg-gradient-to-r from-[#64FFDA] to-[#5EEAD4] text-[#0A192F] font-bold px-6 py-3 rounded-lg hover:shadow-[0_0_20px_rgba(100,255,218,0.3)] hover:scale-[1.02] transition-all duration-300 disabled:opacity-50"
         >
-          Send Request
+          {loading ? 'Sending...' : 'Send Request'}
         </button>
       </form>
       {message && (

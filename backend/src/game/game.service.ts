@@ -1003,10 +1003,27 @@ export class GameService {
       currentRound: nextRound.toString(),
     });
 
-    await this.redis.client.hset(GameKeys.roundMeta(lobbyId, nextRound), {
-      phase: 'TOPIC_INPUT',
-      phaseStartedAt: Date.now().toString(),
-    });
+    const lobbyMeta = await this.redis.client.hgetall(LobbyKeys.meta(lobbyId));
+
+    if (lobbyMeta?.topic && lobbyMeta.topic.trim().length > 0) {
+      // Pre-fill next round topic
+      await this.redis.client.hset(GameKeys.roundInputs(lobbyId, nextRound), {
+        [lobbyMeta.ownerId]: JSON.stringify({
+          topicTitle: lobbyMeta.topic,
+          difficulty: lobbyMeta.difficulty || 'EASY',
+        }),
+      });
+
+      await this.redis.client.hset(GameKeys.roundMeta(lobbyId, nextRound), {
+        phase: 'SELECT_TOPIC',
+        phaseStartedAt: Date.now().toString(),
+      });
+    } else {
+      await this.redis.client.hset(GameKeys.roundMeta(lobbyId, nextRound), {
+        phase: 'TOPIC_INPUT',
+        phaseStartedAt: Date.now().toString(),
+      });
+    }
 
     await this.emitGameUpdate(lobbyId);
     return;
@@ -1019,36 +1036,104 @@ export class GameService {
 
     if (members.length === 0) return;
 
+    // Get match info for topic
+    const matchMeta = await this.redis.client.hgetall(GameKeys.matchMeta(lobbyId));
+    const currentRound = Number(matchMeta.currentRound || 1);
+
+    // Get topic from the last round played
+    const selected = await this.redis.client.hgetall(GameKeys.selected(lobbyId, currentRound));
+    const topicTitle = selected?.topicTitle || 'General Knowledge';
+
+    // Find or create topic
+    let topic = await this.prisma.quizTopic.findUnique({
+      where: { title: topicTitle },
+    });
+
+    if (!topic) {
+      topic = await this.prisma.quizTopic.create({
+        data: { title: topicTitle },
+      });
+    }
+
     const rawScores = await this.redis.client.hgetall(GameKeys.scores(lobbyId));
 
     const scores: Record<string, number> = {};
+    const correctCounts: Record<string, number> = {};
+    const totalQuestions: Record<string, number> = {};
+
     for (const userId of members) {
       scores[userId] = Number(rawScores[userId] ?? 0);
+      correctCounts[userId] = 0;
+      totalQuestions[userId] = 0;
     }
 
-    const maxScore = Math.max(...Object.values(scores));
+    // Aggregate correct answers across all rounds
+    for (let r = 1; r <= currentRound; r++) {
+      const qRaw = await this.redis.client.get(GameKeys.questions(lobbyId, r));
+      if (!qRaw) continue;
+      const questions = JSON.parse(qRaw) as any[];
+
+      for (const userId of members) {
+        totalQuestions[userId] += questions.length;
+        const ansRaw = await this.redis.client.hget(GameKeys.answers(lobbyId, r), userId);
+        if (!ansRaw) continue;
+        const parsed = JSON.parse(ansRaw);
+
+        for (const q of questions) {
+          const userAnswer = parsed.answers?.[q.id];
+          if (!userAnswer) continue;
+          const correct = q.answers?.find((a: any) => a.isCorrect);
+          if (correct && userAnswer.answerId === correct.id) {
+            correctCounts[userId]++;
+          }
+        }
+      }
+    }
+
+    const maxScore = Math.max(...Object.values(scores), -1);
 
     const winners = new Set(
       Object.entries(scores)
-        .filter(([_, score]) => score === maxScore)
+        .filter(([_, score]) => score === maxScore && score > 0)
         .map(([userId]) => userId),
     );
 
     for (const userId of members) {
+      const isWinner = winners.has(userId);
+      const userScore = scores[userId];
+
       await this.prisma.userStats.upsert({
         where: { userId },
         update: {
           gamesPlayed: { increment: 1 },
-          gamesWon: winners.has(userId) ? { increment: 1 } : undefined,
-          gamesLost: !winners.has(userId) ? { increment: 1 } : undefined,
+          gamesWon: isWinner ? { increment: 1 } : undefined,
+          gamesLost: !isWinner ? { increment: 1 } : undefined,
+          totalQuestions: { increment: totalQuestions[userId] },
+          correctAnswers: { increment: correctCounts[userId] },
         },
         create: {
           userId,
           gamesPlayed: 1,
-          gamesWon: winners.has(userId) ? 1 : 0,
-          gamesLost: winners.has(userId) ? 0 : 1,
+          gamesWon: isWinner ? 1 : 0,
+          gamesLost: isWinner ? 0 : 1,
+          totalQuestions: totalQuestions[userId],
+          correctAnswers: correctCounts[userId],
         },
       });
+
+      // Save individual game result for history
+      try {
+        await this.prisma.gameResult.create({
+          data: {
+            userId,
+            topicId: topic.id,
+            score: userScore,
+            won: isWinner,
+          },
+        });
+      } catch (e) {
+        console.error(`Failed to save game result for user ${userId}:`, e);
+      }
     }
   }
 
@@ -1082,10 +1167,29 @@ export class GameService {
       questionsPerRound: lobby.config.questionsPerRound.toString(),
     });
 
-    await this.redis.client.hset(GameKeys.roundMeta(lobby.lobbyId, 1), {
-      phase: 'TOPIC_INPUT',
-      phaseStartedAt: Date.now().toString(),
-    });
+    const lobbyMeta = await this.redis.client.hgetall(
+      LobbyKeys.meta(lobby.lobbyId),
+    );
+
+    if (lobbyMeta?.topic && lobbyMeta.topic.trim().length > 0) {
+      // Pre-fill round 1 topic
+      await this.redis.client.hset(GameKeys.roundInputs(lobby.lobbyId, 1), {
+        [lobby.ownerId]: JSON.stringify({
+          topicTitle: lobbyMeta.topic,
+          difficulty: lobbyMeta.difficulty || 'EASY',
+        }),
+      });
+
+      await this.redis.client.hset(GameKeys.roundMeta(lobby.lobbyId, 1), {
+        phase: 'SELECT_TOPIC',
+        phaseStartedAt: Date.now().toString(),
+      });
+    } else {
+      await this.redis.client.hset(GameKeys.roundMeta(lobby.lobbyId, 1), {
+        phase: 'TOPIC_INPUT',
+        phaseStartedAt: Date.now().toString(),
+      });
+    }
 
     await this.redis.client.sadd(GameKeys.activeMatches(), lobby.lobbyId);
   }
