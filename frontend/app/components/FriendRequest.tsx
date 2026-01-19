@@ -4,6 +4,7 @@
 import { useEffect, useState } from 'react';
 import { getFriendRequests, respondToRequest, Friendship, FriendStatus } from '../lib/friends';
 import { useSocketConnection } from '../context/SocketContext';
+import { getSocket } from "../lib/socket";
 
 interface FriendRequestsProps {
   onAction?: () => void;
@@ -73,7 +74,7 @@ export default function FriendRequests({ onAction }: FriendRequestsProps) {
                   <div className="w-full h-full rounded-full bg-[#0A192F] flex items-center justify-center overflow-hidden">
                     {req.friend.avatarPath ? (
                       <img 
-                        src={req.friend.avatarPath} 
+                        src={req.friend.avatarPath}
                         alt={req.friend.username}
                         className="w-full h-full object-cover"
                       />

@@ -18,6 +18,8 @@ import { DashboardModule } from './dashboard/dashboard.module';
 import { FriendshipModule } from './friendship/friendship.module';
 import { ChatModule } from './chat/chat.module';
 import { ScheduleModule } from '@nestjs/schedule';
+import { LeaderboardModule } from './leaderboard/leaderboard.module';
+import { EventEmitterModule } from '@nestjs/event-emitter';
 
 @Module({
   imports: [
@@ -32,6 +34,7 @@ import { ScheduleModule } from '@nestjs/schedule';
       ],
     }),
     ScheduleModule.forRoot(),
+    EventEmitterModule.forRoot(),
     PrismaModule,
     AuthModule,
     QuizModule,
@@ -45,6 +48,7 @@ import { ScheduleModule } from '@nestjs/schedule';
     DashboardModule,
     FriendshipModule,
     ChatModule,
+    LeaderboardModule,
   ],
   controllers: [AppController],
   providers: [

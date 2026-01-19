@@ -11,6 +11,6 @@ import { GameModule } from 'src/game/game.module';
   imports: [RedisModule, AuthModule, forwardRef(() => GameModule)],
   providers: [LobbyService, LobbyGateway, PrismaService],
   controllers: [LobbyController],
-  exports: [LobbyService]
+  exports: [LobbyService],
 })
 export class LobbyModule {}

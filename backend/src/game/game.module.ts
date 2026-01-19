@@ -15,6 +15,6 @@ import { GameTicker } from './game.ticker';
     forwardRef(() => LobbyModule),
   ],
   providers: [GameService, GameTicker, GameGateway],
-  exports: [GameService]
+  exports: [GameService],
 })
 export class GameModule {}

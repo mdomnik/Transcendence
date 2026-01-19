@@ -1,4 +1,4 @@
-/* import {
+import {
   WebSocketGateway,
   SubscribeMessage,
   ConnectedSocket,
@@ -6,6 +6,8 @@
   WebSocketServer,
 } from '@nestjs/websockets';
 import { Server, Socket } from 'socket.io';
+import { LeaderboardService } from './leaderboard.service';
+import { OnEvent } from '@nestjs/event-emitter';
 
 @WebSocketGateway({
   namespace: '/leaderboard',
@@ -18,9 +20,17 @@ export class LeaderboardGateway {
   @WebSocketServer()
   private server: Server;
 
-  @SubscribeMessage('leaderboard:update')
-  async onLeaderboardUpdate(@ConnectedSocket() client: Socket) {}
+  constructor(private readonly leaderboardService: LeaderboardService) {}
 
-  @SubscribeMessage('leaderboard:')
+  @SubscribeMessage('leaderboard:get')
+  async getLeaderboard() {
+    const data = await this.leaderboardService.getTop(20);
+    return { ok: true, data };
+  }
+
+  @OnEvent('leaderboard:updated')
+  async broadcastUpdate() {
+    const data = await this.leaderboardService.getTop(20);
+    this.server.emit('leaderboard:update', data);
+  }
 }
- */

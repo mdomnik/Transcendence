@@ -5,17 +5,20 @@ import { useRouter } from "next/navigation";
 import FloatingShapes from "../components/FloatingShapes";
 import { useAuth } from "../context/AuthContext";
 import { getLeaderboard, LeaderboardEntry } from "../lib/leaderboard";
+import { getSocket } from "../lib/socket";
 
 export default function LeaderboardPage() {
   const router = useRouter();
   const { user, loading } = useAuth();
   const [entries, setEntries] = useState<LeaderboardEntry[]>([]);
   const [isFetching, setIsFetching] = useState(true);
+  const socket = getSocket();
 
   useEffect(() => {
     if (!loading && !user) {
       router.push("/");
     }
+
   }, [user, loading, router]);
 
   useEffect(() => {
@@ -25,6 +28,8 @@ export default function LeaderboardPage() {
         .catch(console.error)
         .finally(() => setIsFetching(false));
     }
+
+    
   }, [user]);
 
   if (loading || isFetching) {

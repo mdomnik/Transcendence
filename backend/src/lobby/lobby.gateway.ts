@@ -12,6 +12,7 @@ import { LobbyDto, LobbyJoinDto, LobbyKickDto, LobbyConfigDto } from './dto';
 import { LobbyService } from './lobby.service';
 import { LobbyKeys } from './lobby.keys';
 import { GameService } from 'src/game/game.service';
+import { RedisService } from 'src/redis/redis.service';
 import { forwardRef, Inject } from '@nestjs/common';
 
 @WebSocketGateway({

@@ -17,6 +17,7 @@ import { QuizService } from 'src/quiz/quiz.service';
 import { RepositoryService } from 'src/quiz/repository/repository.service';
 import { LobbyView } from 'src/lobby/lobby.service';
 import { GameGateway } from './game.gateway';
+import { EventEmitter2 } from '@nestjs/event-emitter';
 
 const MAX_ROUNDS = 50;
 const MAX_TIME_PER_QUESTION = 120;
@@ -135,6 +136,7 @@ export class GameService {
     private readonly repositoryService: RepositoryService,
     @Inject(forwardRef(() => GameGateway))
     private readonly gameGateway: GameGateway,
+    private readonly eventEmitter: EventEmitter2,
   ) {}
 
   async getGameView(lobbyId: string): Promise<GameView | null> {
@@ -312,6 +314,8 @@ export class GameService {
         finalScores: scores,
         winners,
       };
+
+      this.eventEmitter.emit('leaderboard.updated');
       // console.log('Game has finshed, initiating cleanup!');
     }
 
