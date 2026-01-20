@@ -10,7 +10,7 @@ import { LeaderboardService } from './leaderboard.service';
 import { OnEvent } from '@nestjs/event-emitter';
 
 @WebSocketGateway({
-  namespace: '/leaderboard',
+  namespace: '/quiz',
   cors: {
     origin: 'https://localhost',
     credentials: true,
@@ -23,9 +23,17 @@ export class LeaderboardGateway {
   constructor(private readonly leaderboardService: LeaderboardService) {}
 
   @SubscribeMessage('leaderboard:get')
-  async getLeaderboard() {
+  async getLeaderboard(
+    @MessageBody() _: any,
+    @ConnectedSocket() client: Socket,
+  ) {
     const data = await this.leaderboardService.getTop(20);
-    return { ok: true, data };
+    console.log(data);
+    client.emit('leaderboard:data', {
+      ok: true,
+      data,
+    });
+    return;
   }
 
   @OnEvent('leaderboard:updated')

@@ -29,7 +29,6 @@ export default function LeaderboardPage() {
         .finally(() => setIsFetching(false));
     }
 
-    
   }, [user]);
 
   if (loading || isFetching) {
@@ -134,11 +133,11 @@ export default function LeaderboardPage() {
                   </div>
 
                   <div className="col-span-2 text-center font-mono text-[#CCD6F6]">
-                    {Math.round(entry.winRate * 100)}%
+                    {Math.round(entry.winRate)}%
                   </div>
 
                   <div className="col-span-2 text-center font-mono text-[#8892B0]">
-                    {Math.round(entry.accuracy * 100)}%
+                    {Math.round(entry.accuracy)}%
                   </div>
                 </div>
               ))

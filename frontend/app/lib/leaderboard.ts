@@ -21,12 +21,14 @@ export async function getLeaderboard(): Promise<LeaderboardEntry[]> {
   }
 
   return new Promise((resolve, reject) => {
-    socket.emit("leaderboard:get", {}, (res: any) => {
-      if (!res || !res.ok) {
-        reject(res?.error || "FAILED_TO_FETCH_LEADERBOARD");
+    socket.emit("leaderboard:get");
+
+    socket.once("leaderboard:data", (res) => {
+      if (!res?.ok) {
+        reject("FAILED");
         return;
       }
-
+      console.log('data received', res.data);
       resolve(res.data);
     });
   });

@@ -35,6 +35,10 @@ export class LeaderboardService {
       gamesPlayed: s.gamesPlayed,
       gamesWon: s.gamesWon,
       gamesLost: s.gamesLost,
+      winRate:
+        s.gamesPlayed === 0
+          ? 0
+          : Math.round((s.gamesWon / s.gamesPlayed) * 100),
       accuracy:
         s.totalQuestions === 0
           ? 0
