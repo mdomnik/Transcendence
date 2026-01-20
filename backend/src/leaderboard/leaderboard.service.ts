@@ -10,10 +10,7 @@ import { OnEvent } from '@nestjs/event-emitter';
 
 @Injectable()
 export class LeaderboardService {
-  constructor(
-    private prisma: PrismaService,
-    private gateway: LeaderboardGateway,
-  ) {}
+  constructor(private prisma: PrismaService) {}
 
   async getTop(limit = 20): Promise<LeaderboardEntryDto[]> {
     const stats = await this.prisma.userStats.findMany({
@@ -44,10 +41,4 @@ export class LeaderboardService {
           : Math.round((s.correctAnswers / s.totalQuestions) * 100),
     }));
   }
-
-  /*   @OnEvent('leaderboard:updated')
-  async broadcastMatchResults() {
-    await this.gateway.broadcastUpdate();
-    return;
-  } */
 }

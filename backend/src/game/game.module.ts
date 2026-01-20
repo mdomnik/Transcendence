@@ -6,12 +6,14 @@ import { QuizModule } from 'src/quiz/quiz.module';
 import { GameGateway } from './game.gateway';
 import { LobbyModule } from 'src/lobby/lobby.module';
 import { GameTicker } from './game.ticker';
+import { LeaderboardModule } from 'src/leaderboard/leaderboard.module';
 
 @Module({
   imports: [
     RedisModule,
     PrismaModule,
     QuizModule,
+    LeaderboardModule,
     forwardRef(() => LobbyModule),
   ],
   providers: [GameService, GameTicker, GameGateway],
