@@ -13,3 +13,7 @@ build/
 # OS
 .DS_Store
 /generated/prisma
+
+/uploads/*
+!/uploads/.gitkeep
+!/uploads/avatars/.gitkeep

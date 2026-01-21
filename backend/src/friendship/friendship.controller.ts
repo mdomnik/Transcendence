@@ -7,6 +7,16 @@ import { User as UserDecorator } from 'src/common/decorators/user.decorator'
 @Controller('friendship')
 export class FriendshipController {
     constructor(private friendshipService: FriendshipService) {}
+
+    @Get('list')
+    getFriends(@UserDecorator('id') myId: string) {
+        return this.friendshipService.friendsList(myId);
+    }
+
+    @Get('requests')
+    getRequests(@UserDecorator('id') myId: string) {
+        return this.friendshipService.pendingRequests(myId);
+    }
     
     @Get('friends')
     friends(@UserDecorator('id') myId: string) {

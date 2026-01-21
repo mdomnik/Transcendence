@@ -3,6 +3,7 @@ export interface User {
   id: string;
   email: string;
   username?: string;
+  avatarPath?: string;
 }
 
 export async function fetchCurrentUser(): Promise<User | null> {

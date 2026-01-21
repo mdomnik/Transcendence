@@ -1,21 +1,19 @@
-/* eslint-disable @typescript-eslint/no-unsafe-call */
-/* eslint-disable @typescript-eslint/no-unsafe-argument */
-import { Body, UseGuards } from '@nestjs/common';
+/* eslint-disable @typescript-eslint/no-unsafe-assignment */
+/* eslint-disable @typescript-eslint/no-unsafe-member-access */
 import {
   WebSocketGateway,
   SubscribeMessage,
   ConnectedSocket,
   MessageBody,
   WebSocketServer,
-  OnGatewayInit,
 } from '@nestjs/websockets';
-import * as cookie from 'cookie';
 import { Server, Socket } from 'socket.io';
-import { JwtService } from '@nestjs/jwt';
-import { WsJwtGuard } from 'src/auth/ws-jwt.guard';
-import { LobbyService } from 'src/lobby/lobby.service';
-import { LobbyDto, LobbyKickDto } from './dto';
-import { UnauthorizedException } from '@nestjs/common';
+import { LobbyDto, LobbyJoinDto, LobbyKickDto, LobbyConfigDto } from './dto';
+import { LobbyService } from './lobby.service';
+import { LobbyKeys } from './lobby.keys';
+import { GameService } from 'src/game/game.service';
+import { RedisService } from 'src/redis/redis.service';
+import { forwardRef, Inject } from '@nestjs/common';
 
 @WebSocketGateway({
   namespace: '/quiz',
@@ -30,75 +28,86 @@ export class LobbyGateway {
 
   constructor(
     private readonly lobbyService: LobbyService,
-    private readonly jwtService: JwtService,
+    private readonly redisService: RedisService,
+    @Inject(forwardRef(() => GameService))
+    private readonly gameService: GameService,
   ) {}
 
-  // Run once when the server is initialized
-  afterInit(server: Server) {
-    // Middleware to authenticate sockets using cookie
-    server.use((socket: Socket, next) => {
-      try {
-        console.log('Handshake headers:', socket.handshake.headers);
-        const rawCookie = socket.handshake.headers.cookie;
-        if (!rawCookie) {
-          console.log('no cookie');
-          throw new UnauthorizedException('No cookie found');
-        }
-        // Parse raw cookie string into key-value pairs
-        const parsed = cookie.parse(rawCookie);
-        const token = parsed['access_token'];
-        if (!token)
-          throw new UnauthorizedException('No access token in cookie');
-
-        // Verify JWT using JwtService (same as your HTTP JwtStrategy)
-        // TODO! Fix later :)
-        const payload = this.jwtService.verify(token, {
-          secret: process.env.JWT_SECRET,
-        });
-        socket.data.userId = payload.sub; // attach userId to socket
-        next();
-      } catch (err) {
-        next(new UnauthorizedException(err));
-      }
-    });
-    console.log('Quiz WebSocket Gateway initialized');
+  private async broadcastStatus(userId: string) {
+    const online = await this.redisService.isUserOnline(userId);
+    if (!online) {
+      this.server.emit('presence:updated', { userId, status: 'offline' });
+      return;
+    }
+    const lobbyId = await this.lobbyService.getLobbyIdForUser(userId);
+    const status = lobbyId ? 'in-game' : 'online';
+    this.server.emit('presence:updated', { userId, status });
   }
 
   handleConnection(client: Socket) {
-    console.log(`Client connected: ${client.id}`);
+    client.onAny((event, payload) => {
+      console.log(`[WS] event=${event} user=${client.data.userId}`, payload);
+    });
+    client.onAnyOutgoing((event, payload) => {
+      console.log(
+        `[WS] outgoing event=${event} user=${client.data.userId}`,
+        payload,
+      );
+    });
   }
 
-  handleDisconnect(client: Socket) {
-    console.log(`Client disconnected: ${client.id}`);
+  private async emitRemovalAndLeaveRoom(
+    lobbyId: string,
+    targetUserId: string,
+    reason: 'LEFT' | 'KICKED' | 'BANNED',
+  ) {
+    const sockets = await this.server.fetchSockets();
+
+    for (const s of sockets) {
+      if (s.data.userId === targetUserId) {
+        s.leave(lobbyId);
+        s.emit('lobby:removed', { reason });
+      }
+    }
   }
 
   @SubscribeMessage('lobby:create')
   async onLobbyCreate(@ConnectedSocket() client: Socket) {
     const userId = client.data.userId;
+    try {
+      const lobby = await this.lobbyService.createLobby(userId);
 
-    const lobby = await this.lobbyService.createLobby(userId);
+      client.join(lobby.lobbyId);
+      this.server.to(lobby.lobbyId).emit('lobby:update', lobby);
+      await this.broadcastStatus(userId);
 
-    client.join(lobby.lobbyId);
-
-    this.server.to(lobby.lobbyId).emit('lobby:update', lobby);
-
-    return { ok: true }; 
+      return { ok: true, data: lobby };
+    } catch (err: any) {
+      return { ok: false, error: err?.message ?? 'FORBIDDEN' };
+    }
   }
 
   @SubscribeMessage('lobby:join')
   async onLobbyJoin(
     @ConnectedSocket() client: Socket,
-    @MessageBody() dto: LobbyDto,
+    @MessageBody() dto: LobbyJoinDto,
   ) {
     const userId = client.data.userId;
 
-    const lobby = await this.lobbyService.joinLobby(dto.lobbyId, userId);
+    const lobbyId = await this.lobbyService.findLobbyIdFromLobbyCode(
+      dto.lobbyCode,
+    );
+    if (!lobbyId) return { ok: false, error: 'INVALID_LOBBY_CODE' };
 
-    client.join(lobby.lobbyId);
-
-    this.server.to(lobby.lobbyId).emit('lobby:update', lobby);
-
-    return { ok: true };
+    try {
+      const lobby = await this.lobbyService.joinLobby(lobbyId, userId);
+      client.join(lobby.lobbyId);
+      this.server.to(lobby.lobbyId).emit('lobby:update', lobby);
+      await this.broadcastStatus(userId);
+      return { ok: true, data: lobby };
+    } catch (err: any) {
+      return { ok: false, error: err?.message ?? 'UNABLE_TO_JOIN_LOBBY' };
+    }
   }
 
   @SubscribeMessage('lobby:leave')
@@ -108,17 +117,23 @@ export class LobbyGateway {
   ) {
     const userId = client.data.userId;
 
-    const lobby = await this.lobbyService.leaveLobby(dto.lobbyId, userId);
+    try {
+      const lobby = await this.lobbyService.leaveLobby(dto.lobbyId, userId);
 
-    client.leave(dto.lobbyId);
+      await this.emitRemovalAndLeaveRoom(dto.lobbyId, userId, 'LEFT');
+      await this.broadcastStatus(userId);
 
-    if (!lobby) {
-      this.server.to(dto.lobbyId).emit('lobby:deleted');
-    } else {
+      if (!lobby) {
+        this.server.to(dto.lobbyId).emit('lobby:deleted');
+        return { ok: true, data: null };
+      }
+
       this.server.to(lobby.lobbyId).emit('lobby:update', lobby);
+      return { ok: true, data: lobby };
+    } catch (err) {
+      console.warn('Error leaving lobby', err);
+      return { ok: false, error: err?.message ?? 'UNABLE_TO_LEAVE_LOBBY' };
     }
-
-    return { ok: true };
   }
 
   @SubscribeMessage('lobby:ready')
@@ -126,13 +141,14 @@ export class LobbyGateway {
     @ConnectedSocket() client: Socket,
     @MessageBody() dto: LobbyDto,
   ) {
-    const userId = client.data.userId;
-
-    const lobby = await this.lobbyService.setReady(dto.lobbyId, userId, true);
+    const lobby = await this.lobbyService.setReady(
+      dto.lobbyId,
+      client.data.userId,
+      true,
+    );
 
     this.server.to(lobby.lobbyId).emit('lobby:update', lobby);
-
-    return { ok: true };
+    return { ok: true, data: lobby };
   }
 
   @SubscribeMessage('lobby:unready')
@@ -140,13 +156,28 @@ export class LobbyGateway {
     @ConnectedSocket() client: Socket,
     @MessageBody() dto: LobbyDto,
   ) {
-    const userId = client.data.userId;
-
-    const lobby = await this.lobbyService.setReady(dto.lobbyId, userId, false);
+    const lobby = await this.lobbyService.setReady(
+      dto.lobbyId,
+      client.data.userId,
+      false,
+    );
 
     this.server.to(lobby.lobbyId).emit('lobby:update', lobby);
+    return { ok: true, data: lobby };
+  }
 
-    return { ok: true };
+  @SubscribeMessage('lobby:retry')
+  async onLobbyRetry(
+    @ConnectedSocket() client: Socket,
+    @MessageBody() dto: LobbyDto,
+  ) {
+    const lobby = await this.lobbyService.retryLobby(
+      dto.lobbyId,
+      client.data.userId,
+    );
+
+    this.server.to(lobby.lobbyId).emit('lobby:update', lobby);
+    return { ok: true, data: lobby };
   }
 
   @SubscribeMessage('lobby:kick')
@@ -154,32 +185,35 @@ export class LobbyGateway {
     @ConnectedSocket() client: Socket,
     @MessageBody() dto: LobbyKickDto,
   ) {
-    const userId = client.data.userId;
-    const targetId = dto.targetId;
-
     const lobby = await this.lobbyService.kickPlayer(
       dto.lobbyId,
-      userId,
-      targetId,
+      client.data.userId,
+      dto.targetId,
     );
 
-    if (!lobby) {
-      this.server.to(dto.lobbyId).emit('lobby:deleted');
-    } else {
-      this.server.to(dto.lobbyId).emit('lobby:update', lobby);
-    }
-
-    const sockets = await this.server.in(dto.lobbyId).fetchSockets();
-    for (const s of sockets) {
-      if (s.data.userId === targetId) {
-        s.leave(dto.lobbyId);
-        s.emit('lobby:kicked');
-      }
-    }
+    await this.emitRemovalAndLeaveRoom(dto.lobbyId, dto.targetId, 'KICKED');
+    await this.broadcastStatus(dto.targetId);
 
     this.server.to(dto.lobbyId).emit('lobby:update', lobby);
+    return { ok: true, data: lobby };
+  }
 
-    return { ok: true };
+  @SubscribeMessage('lobby:ban')
+  async onLobbyBan(
+    @ConnectedSocket() client: Socket,
+    @MessageBody() dto: LobbyKickDto,
+  ) {
+    const lobby = await this.lobbyService.banPlayer(
+      dto.lobbyId,
+      client.data.userId,
+      dto.targetId,
+    );
+
+    await this.emitRemovalAndLeaveRoom(dto.lobbyId, dto.targetId, 'BANNED');
+    await this.broadcastStatus(dto.targetId);
+
+    this.server.to(dto.lobbyId).emit('lobby:update', lobby);
+    return { ok: true, data: lobby };
   }
 
   @SubscribeMessage('lobby:start')
@@ -187,11 +221,18 @@ export class LobbyGateway {
     @ConnectedSocket() client: Socket,
     @MessageBody() dto: LobbyDto,
   ) {
-    const userId = client.data.userId;
+    const lobby = await this.lobbyService.startGame(
+      dto.lobbyId,
+      client.data.userId,
+    );
 
-    const lobby = await this.lobbyService.startSetup(dto.lobbyId, userId);
+    // 1️⃣ Create match
+    await this.gameService.createMatchFromLobby(lobby);
 
     this.server.to(lobby.lobbyId).emit('lobby:update', lobby);
+
+    const gameView = await this.gameService.getGameView(lobby.lobbyId);
+    this.server.to(lobby.lobbyId).emit('game:state', gameView);
 
     return { ok: true };
   }
@@ -199,16 +240,57 @@ export class LobbyGateway {
   @SubscribeMessage('lobby:sync')
   async onLobbySync(@ConnectedSocket() client: Socket) {
     const userId = client.data.userId;
+    try {
+      const lobbyId = await this.lobbyService.getLobbyIdForUser(userId);
+      if (!lobbyId) return { ok: false, error: 'NOT_IN_LOBBY' };
 
-    const lobbyId = await this.lobbyService.getLobbyIdForUser(userId);
+      const isBanned = await this.lobbyService.redis.client.sismember(
+        LobbyKeys.banned(lobbyId),
+        userId,
+      );
+      if (isBanned) return { ok: false, error: 'BANNED_FROM_LOBBY' };
 
+      const lobby = await this.lobbyService.getLobby(lobbyId);
+      // if (lobby.state == 'FINISHED') lobby.state = 'WAITING';
+      client.join(lobbyId);
+
+      return { ok: true, data: lobby };
+    } catch (err) {
+      return { ok: false, error: 'SYNC_FAILED' };
+    }
+  }
+
+  @SubscribeMessage('lobby:config')
+  async onLobbyUpdateConfig(
+    @ConnectedSocket() client: Socket,
+    @MessageBody() dto: LobbyConfigDto,
+  ) {
+    const lobby = await this.lobbyService.updateMatchConfig(
+      dto.lobbyId,
+      client.data.userId,
+      dto.key,
+      dto.delta,
+      dto.value,
+    );
+
+    this.server.to(lobby.lobbyId).emit('lobby:update', lobby);
+    return { ok: true, data: lobby };
+  }
+
+  @SubscribeMessage('lobby:preview')
+  async onLobbyPreview(@MessageBody() dto: LobbyJoinDto) {
+    const lobbyId = await this.lobbyService.findLobbyIdFromLobbyCode(
+      dto.lobbyCode,
+    );
     if (!lobbyId) return { ok: false };
 
-    const lobby = await this.lobbyService.getLobby(lobbyId);
-
-    client.join(lobbyId);
-    client.emit('lobby:update', lobby);
-
-    return { ok: true };
+    const meta = await this.lobbyService.getLobby(lobbyId);
+    return {
+      ok: true,
+      data: {
+        memberCount: meta.members.length,
+        maxPlayers: meta.maxPlayers,
+      },
+    };
   }
 }

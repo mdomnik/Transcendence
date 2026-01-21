@@ -1,27 +1,33 @@
 export const GameKeys = {
-    matchMeta: (lobbyId: string) => `match:${lobbyId}:meta`,
-    matchConfig: (lobbyId: string) => `match:${lobbyId}:config`,
-    scores: (lobbyId: string) => `match:${lobbyId}:scores`,
+  matchMeta: (lobbyId: string) => `match:${lobbyId}:meta`,
+  matchConfig: (lobbyId: string) => `match:${lobbyId}:config`,
+  scores: (lobbyId: string) => `match:${lobbyId}:scores`,
 
-    roundMeta: (lobbyId: string, round: number) =>
-        `match:${lobbyId}:round:${round}:meta`,
+  roundMeta: (lobbyId: string, round: number) =>
+    `match:${lobbyId}:round:${round}:meta`,
 
-    roundInputs: (lobbyId: string, round: number) =>
-        `match:${lobbyId}:round:${round}:inputs`,
+  roundInputs: (lobbyId: string, round: number) =>
+    `match:${lobbyId}:round:${round}:inputs`,
 
-    roundVotes: (lobbyId: string, round: number) =>
-        `match:${lobbyId}:round:${round}:votes`,
+  activeMatches: () => `match:active`,
 
-    roundScore: (lobbyId: string, round: number) =>
-        `match:${lobbyId}:round:${round}:score`,
+  eventsChannel: () => `game-events`,
 
-    selected: (lobbyId: string, round: number) =>
-        `match:${lobbyId}:round:${round}:selected`,
+  selectLock: (lobbyId: string, round: number) =>
+    `match:${lobbyId}:round:${round}:select_lock`,
 
-    questions: (lobbyId: string, round: number) =>
-        `match:${lobbyId}:round:${round}:questions`,
+  roundVotes: (lobbyId: string, round: number) =>
+    `match:${lobbyId}:round:${round}:votes`,
 
-    answers: (lobbyId: string, round: number) =>
-        `match:${lobbyId}:round:${round}:answers`,
+  roundScore: (lobbyId: string, round: number) =>
+    `match:${lobbyId}:round:${round}:score`,
 
-}
+  selected: (lobbyId: string, round: number) =>
+    `match:${lobbyId}:round:${round}:selected`,
+
+  questions: (lobbyId: string, round: number) =>
+    `match:${lobbyId}:round:${round}:questions`,
+
+  answers: (lobbyId: string, round: number) =>
+    `match:${lobbyId}:round:${round}:answers`,
+};

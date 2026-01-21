@@ -23,12 +23,14 @@ export class AuthController {
     ) {
     const accessToken = await this.authService.signup(dto); // or return token from service
 
+    const maxAge = dto.remember ? 7 * 24 * 60 * 60 * 1000 : 24 * 60 * 60 * 1000;
+
     res.cookie('access_token', accessToken, {
       httpOnly: false,
       sameSite: 'lax',
       secure: true,
       path: '/',
-      maxAge: 15 * 60 * 1000,
+      maxAge: maxAge,
     });
 
     return { ok: true };
@@ -41,12 +43,14 @@ export class AuthController {
   ) {
     const accessToken = await this.authService.signin(dto); // or return token from service
 
+    const maxAge = dto.remember ? 7 * 24 * 60 * 60 * 1000 : 24 * 60 * 60 * 1000;
+
     res.cookie('access_token', accessToken, {
       httpOnly: false,
       sameSite: 'lax',
       secure: true,
       path: '/',
-      maxAge: 15 * 60 * 1000,
+      maxAge: maxAge,
     });
 
     return { ok: true };
@@ -77,11 +81,11 @@ export class AuthController {
       user.email,
     );
     res.cookie('access_token', accessToken, {
-      httpOnly: true,
+      httpOnly: false,
       sameSite: 'lax',
       secure: true, // true in production
       path: '/',
-      maxAge: 15 * 60 * 1000,
+      maxAge: 24 * 60 * 60 * 1000,
     });
     console.log('access token: ', accessToken);
     // Redirect to homepage - frontend will check auth and redirect to dashboard

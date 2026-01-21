@@ -4,7 +4,6 @@ import { AppController } from './app.controller';
 import { AppService } from './app.service';
 import { PrismaModule } from './prisma/prisma.module';
 import { AuthModule } from './auth/auth.module';
-import { UserController } from './user/user.controller';
 import { ThrottlerGuard, ThrottlerModule } from '@nestjs/throttler';
 import { APP_GUARD } from '@nestjs/core';
 import { QuizModule } from './quiz/quiz.module';
@@ -15,6 +14,12 @@ import { RedisModule } from './redis/redis.module';
 import { LobbyModule } from './lobby/lobby.module';
 import { GameModule } from './game/game.module';
 import { FriendshipModule } from './friendship/friendship.module';
+import { WebsocketModule } from './websocket/websocket.module';
+import { DashboardModule } from './dashboard/dashboard.module';
+import { ChatModule } from './chat/chat.module';
+import { ScheduleModule } from '@nestjs/schedule';
+import { LeaderboardModule } from './leaderboard/leaderboard.module';
+import { EventEmitterModule } from '@nestjs/event-emitter';
 
 @Module({
   imports: [
@@ -28,6 +33,8 @@ import { FriendshipModule } from './friendship/friendship.module';
         },
       ],
     }),
+    ScheduleModule.forRoot(),
+    EventEmitterModule.forRoot(),
     PrismaModule,
     AuthModule,
     QuizModule,
@@ -37,9 +44,13 @@ import { FriendshipModule } from './friendship/friendship.module';
     LobbyModule,
     RedisModule,
     GameModule,
+    WebsocketModule,
+    DashboardModule,
     FriendshipModule,
+    ChatModule,
+    LeaderboardModule,
   ],
-  controllers: [AppController, UserController],
+  controllers: [AppController],
   providers: [
     AppService,
     {
@@ -48,4 +59,4 @@ import { FriendshipModule } from './friendship/friendship.module';
     },
   ],
 })
-export class AppModule { }
+export class AppModule {}

@@ -4,12 +4,12 @@ import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import FloatingShapes from "../components/FloatingShapes";
 import { useAuth } from "../context/AuthContext";
-import { getUserProfile, updateUserProfile, UserProfile } from "../lib/profile";
+import { getUserProfile, updateUsername, uploadAvatar, UserProfile } from "../lib/profile";
 import EditProfileModal from "../components/EditProfileModal";
 
 export default function ProfilePage() {
   const router = useRouter();
-  const { user, loading: authLoading } = useAuth();
+  const { user, loading: authLoading, refresh: refreshAuth } = useAuth();
   const [profile, setProfile] = useState<UserProfile | null>(null);
   const [loading, setLoading] = useState(true);
   const [isEditModalOpen, setIsEditModalOpen] = useState(false);
@@ -25,10 +25,6 @@ export default function ProfilePage() {
     const fetchProfile = async () => {
       try {
         const data = await getUserProfile();
-        // Override mock name with real user name if available
-        if (user?.username) {
-            data.username = user.username;
-        }
         setProfile(data);
       } catch (error) {
         console.error("Failed to fetch profile", error);
@@ -44,16 +40,39 @@ export default function ProfilePage() {
 
   const handleSaveProfile = async (newUsername: string, newAvatar?: File) => {
     if (!profile) return;
-    
-    // Call the API function to save to backend
-    const updatedFields = await updateUserProfile(newUsername, newAvatar);
-    
-    // Update local state to reflect changes immediately
-    setProfile({
-      ...profile,
-      username: updatedFields.username || profile.username,
-      avatarUrl: updatedFields.avatarUrl || profile.avatarUrl
-    });
+  
+    try {
+      const updatedFields = await updateUsername(newUsername);
+  
+      let avatarUpdate: any = null;
+      if (newAvatar) {
+        avatarUpdate = await uploadAvatar(newAvatar);
+      }
+  
+      // Choose the best available avatarPath, but never wipe it out unintentionally
+      const nextAvatarPath =
+        avatarUpdate?.avatarPath ??
+        updatedFields?.avatarPath ??
+        profile.avatarPath;
+  
+      setProfile(prev =>
+        prev
+          ? {
+              ...prev,
+              username: updatedFields?.username ?? prev.username,
+              avatarPath: nextAvatarPath,
+            }
+          : prev
+      );
+  
+      // Log what you're actually setting (not the stale state)
+      console.log('avatar path set to:', nextAvatarPath);
+  
+      await refreshAuth();
+    } catch (error: any) {
+      console.error("Failed to save profile:", error);
+      alert(error.message || "Failed to update profile. The username might be taken.");
+    }
   };
 
   if (authLoading || loading) {
@@ -87,19 +106,35 @@ export default function ProfilePage() {
         {/* Profile Header Card */}
         <div className="mb-10 rounded-3xl bg-[#112240] border border-[#64FFDA]/30 p-8 md:p-10 flex flex-col md:flex-row items-center md:items-start gap-8 backdrop-blur-sm shadow-xl">
           
-          {/* Avatar Section */}
-          <div className="flex flex-col items-center gap-4">
-            <div className="w-32 h-32 md:w-40 md:h-40 rounded-full bg-gradient-to-br from-[#64FFDA] to-[#38BDF8] p-1 shadow-[0_0_20px_rgba(100,255,218,0.3)]">
-              <div className="w-full h-full rounded-full bg-[#0A192F] flex items-center justify-center text-4xl font-bold text-[#64FFDA]">
-                {profile.username.charAt(0).toUpperCase()}
-              </div>
-            </div>
-            <div className={`px-4 py-1 rounded-full text-xs font-bold uppercase tracking-wider ${
-              profile.status === 'online' ? 'bg-green-500/20 text-green-400 border border-green-500/50' : 'bg-gray-500/20 text-gray-400'
-            }`}>
-              {profile.status}
+        {/* Avatar Section */}
+        <div className="flex flex-col items-center gap-4">
+          <div className="w-32 h-32 md:w-40 md:h-40 rounded-full bg-gradient-to-br from-[#64FFDA] to-[#38BDF8] p-1 shadow-[0_0_20px_rgba(100,255,218,0.3)]">
+            <div className="w-full h-full rounded-full bg-[#0A192F] flex items-center justify-center overflow-hidden">
+              {profile.avatarPath ? (
+                <img
+                  src={`${profile.avatarPath}?v=${Date.now()}`}
+                  alt="Avatar"
+                  className="w-full h-full rounded-full object-cover"
+                />
+              ) : (
+                <div className="w-full h-full rounded-full bg-[#0A192F] flex items-center justify-center text-4xl font-bold text-[#64FFDA]">
+                  {profile.username.charAt(0).toUpperCase()}
+                </div>
+              )}
             </div>
           </div>
+          
+          <div
+            className={`px-4 py-1 rounded-full text-xs font-bold uppercase tracking-wider ${
+              profile.status === 'online'
+                ? 'bg-green-500/20 text-green-400 border border-green-500/50'
+                : 'bg-gray-500/20 text-gray-400'
+            }`}
+          >
+            {profile.status}
+          </div>
+        </div>
+        
 
           {/* User Info & Actions */}
           <div className="flex-1 text-center md:text-left space-y-4">
@@ -151,7 +186,7 @@ export default function ProfilePage() {
         {/* Match History Section */}
         <div className="space-y-6">
           <h3 className="text-2xl font-bold text-[#CCD6F6] flex items-center gap-2">
-            <span>📜</span> Match History
+            <span>📜</span> Game History
           </h3>
 
           <div className="bg-[#112240] rounded-2xl border border-[#64FFDA]/10 overflow-hidden">
@@ -160,9 +195,8 @@ export default function ProfilePage() {
                 <thead className="bg-[#0A192F] text-[#8892B0] text-sm uppercase tracking-wider">
                   <tr>
                     <th className="p-4 font-medium">Result</th>
-                    <th className="p-4 font-medium">Opponent</th>
+                    <th className="p-4 font-medium">Topic</th>
                     <th className="p-4 font-medium">Score</th>
-                    <th className="p-4 font-medium">Type</th>
                     <th className="p-4 font-medium text-right">Date</th>
                   </tr>
                 </thead>
@@ -171,15 +205,16 @@ export default function ProfilePage() {
                     <tr key={match.id} className="hover:bg-[#64FFDA]/5 transition-colors text-[#CCD6F6]">
                       <td className="p-4">
                         <span className={`inline-block px-2 py-1 rounded text-xs font-bold uppercase ${
-                          match.result === 'win' ? 'text-green-400 bg-green-400/10' : 'text-red-400 bg-red-400/10'
+                          match.won ? 'text-green-400 bg-green-400/10' : 'text-red-400 bg-red-400/10'
                         }`}>
-                          {match.result}
+                          {match.won ? 'WIN' : 'LOSS'}
                         </span>
                       </td>
-                      <td className="p-4 font-medium">{match.opponent}</td>
-                      <td className="p-4 font-mono">{match.score}</td>
-                      <td className="p-4 text-[#8892B0] text-sm">{match.type}</td>
-                      <td className="p-4 text-[#8892B0] text-sm text-right">{match.date}</td>
+                      <td className="p-4 font-medium">{match.topic}</td>
+                      <td className="p-4 font-mono text-[#64FFDA]">{match.score}</td>
+                      <td className="p-4 text-[#8892B0] text-sm text-right">
+                        {new Date(match.playedAt).toLocaleDateString()}
+                      </td>
                     </tr>
                   ))}
                 </tbody>

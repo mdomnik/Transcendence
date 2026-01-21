@@ -47,7 +47,27 @@ model User {
   requestsSent     Friendship[] @relation("FriendshipRequester")
   blocksInitiated  Friendship[] @relation("FriendshipBlocker")
 
+  avatarPath String?  // public URL or relative path
   games         GameResult[]
+
+  messagesSent     ChatMessage[] @relation("SentMessages")
+  messagesReceived ChatMessage[] @relation("ReceivedMessages")
+}
+
+model ChatMessage {
+  id        String   @id @default(uuid())
+  content   String
+  createdAt DateTime @default(now())
+  read      Boolean  @default(false)
+
+  senderId String
+  sender   User   @relation("SentMessages", fields: [senderId], references: [id], onDelete: Cascade)
+
+  receiverId String
+  receiver   User   @relation("ReceivedMessages", fields: [receiverId], references: [id], onDelete: Cascade)
+
+  @@index([senderId, receiverId])
+  @@index([receiverId, senderId])
 }
 
 model UserQuestion {

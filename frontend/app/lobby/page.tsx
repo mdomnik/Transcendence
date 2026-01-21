@@ -1,210 +1,489 @@
-'use client';
+"use client";
 
-import { useEffect, useState } from 'react';
-import { useRouter } from 'next/navigation';
-import { getSocket } from '../lib/socket';
-import { useAuth } from '../context/AuthContext';
-import Button from '../components/Button';
+import { useEffect, useState, useRef } from "react";
+import { useRouter } from "next/navigation";
+import { getSocket } from "../lib/socket";
+import { emitWithAck } from "../lib/socketEmit";
+import { useAuth } from "../context/AuthContext";
+import Button from "../components/Button";
 
 interface Player {
-  id: string;
+  userId: string;
   username: string;
-  isReady: boolean;
+  ready: boolean;
+  votes: number;
+}
+
+interface GameSettings {
+  roundsTotal: number;
+  timePerQuestion: number;
+  questionsPerRound: number;
+}
+
+interface LobbyState {
+  lobbyId: string;
+  lobbyCode: string;
+  ownerId: string;
+  maxPlayers: number;
+  members: Player[];
+  config: GameSettings;
+  state: "WAITING" | "SETUP" | "IN_GAME";
 }
 
 export default function LobbyPage() {
   const router = useRouter();
-  const { user } = useAuth();
-  const [players, setPlayers] = useState<Player[]>([]);
-  const [isReady, setIsReady] = useState(false);
-  const [roomId, setRoomId] = useState<string | null>(null);
-  const [connectionStatus, setConnectionStatus] = useState<'connecting' | 'connected' | 'disconnected'>('connecting');
+  const { user, loading: authLoading } = useAuth();
+
+  const [lobby, setLobby] = useState<LobbyState | null>(null);
+  const [copied, setCopied] = useState(false);
+  const [showCode, setShowCode] = useState(false);
+
+  const codeRef = useRef<HTMLSpanElement | null>(null);
+
+  const isHost = lobby?.ownerId === user?.id;
+
+  const allReady = lobby?.members.every((p) => p.ready) ?? false;
+  const playerCount = lobby?.members.length ?? 0;
+
+  const canEditLimits = isHost && lobby?.state === "WAITING" && !allReady;
+
+  const displayedCode = showCode ? lobby?.lobbyCode : "********";
 
   useEffect(() => {
+    if (authLoading || !user) return;
+
     const socket = getSocket();
 
-    // Connection events
-    socket.on('connect', () => {
-      console.log('Connected to lobby');
-      setConnectionStatus('connected');
-      
-      // Join lobby when connected
-      socket.emit('join-lobby', { 
-        userId: user?.id, 
-        username: user?.username 
-      });
+    
+    socket.on("lobby:update", (payload) => {
+      /* if (payload.state === "FINISHED") {
+        // TODO! Destroy the lobby instance and kick players out, otherwise lobby:update will be infinitely called
+        socket.emit("lobby:terminate");
+        router.replace("/dashboard");
+      } else {
+        setLobby(payload);
+      } */
+     setLobby(payload);
     });
-
-    socket.on('disconnect', () => {
-      console.log('Disconnected from lobby');
-      setConnectionStatus('disconnected');
+    socket.on("game:state", (view) => {
+      if (view.match.state === "IN_PROGRESS") {
+        router.push("/game");
+      }
     });
+    
+    socket.on("lobby:deleted", () => router.push("/dashboard"));
+    socket.on("lobby:kicked", () => router.push("/dashboard"));
+    
+    socket.on(
+      "lobby:removed",
+      ({ reason }: { reason: "LEFT" | "KICKED" | "BANNED" }) => {
+        if (reason === "KICKED") router.push("/dashboard?kicked=1");
+        else if (reason === "BANNED") router.push("/dashboard?banned=1");
+        else router.push("/dashboard");
+      }
+    );
+    
+    const sync = async () => {
+      try {
+        const res = await emitWithAck(socket, "lobby:sync");
+        if (!res.ok) {
+          router.replace('/dashboard');
+          return ;
+        }
+        setLobby(res.data);
 
-    socket.on('connect_error', (error) => {
-      console.error('Connection error:', error);
-      setConnectionStatus('disconnected');
-    });
-
-    // Lobby events
-    socket.on('room:created', ({ roomId }) => {
-      console.log('Room created:', roomId);
-      setRoomId(roomId);
-    });
-
-    socket.on('player-joined', (player: Player) => {
-      console.log('Player joined:', player);
-      setPlayers((prev) => [...prev, player]);
-    });
-
-    socket.on('player-left', ({ userId }: { userId: string }) => {
-      console.log('Player left:', userId);
-      setPlayers((prev) => prev.filter((p) => p.id !== userId));
-    });
-
-    socket.on('player-ready', ({ userId, isReady }: { userId: string; isReady: boolean }) => {
-      console.log('Player ready status changed:', userId, isReady);
-      setPlayers((prev) =>
-        prev.map((p) => (p.id === userId ? { ...p, isReady } : p))
-      );
-    });
-
-    socket.on('lobby-state', ({ players, roomId }: { players: Player[]; roomId: string }) => {
-      console.log('Lobby state received:', players, roomId);
-      setPlayers(players);
-      setRoomId(roomId);
-    });
-
-    socket.on('game-starting', () => {
-      console.log('Game starting! Redirecting to quiz...');
-      router.push('/quiz');
-    });
-
-    socket.on('room:error', (error) => {
-      console.error('Lobby error:', error);
-      alert(error.message || 'An error occurred');
-    });
-
-    // Cleanup on unmount
-    return () => {
-      socket.emit('leave-lobby', { userId: user?.id });
-      socket.off('connect');
-      socket.off('disconnect');
-      socket.off('connect_error');
-      socket.off('room:created');
-      socket.off('player-joined');
-      socket.off('player-left');
-      socket.off('player-ready');
-      socket.off('lobby-state');
-      socket.off('game-starting');
-      socket.off('room:error');
+        if (res.data.state === "IN_PROGRESS") {
+          router.replace('/game');
+        }
+      } catch (err) {
+        console.warn('syncronization error caught:', err);
+        router.push("/dashboard");
+      }
     };
-  }, [user, router]);
+    socket.on("connect", sync);
 
-  const handleToggleReady = () => {
-    const socket = getSocket();
-    const newReadyState = !isReady;
-    setIsReady(newReadyState);
-    socket.emit('mark-ready', { 
-      userId: user?.id, 
-      isReady: newReadyState 
-    });
+    if (!socket.connected) socket.connect();
+    else sync();
+
+    return () => {
+      socket.off("connect", sync);
+      socket.off("lobby:update", setLobby);
+      socket.off("lobby:start");
+      socket.off("lobby:deleted");
+      socket.off("lobby:kicked");
+      socket.off("lobby:removed");
+    };
+  }, [authLoading, user, router]);
+
+  const toggleReady = async () => {
+    if (!lobby) return;
+
+    const isReady = lobby.members.find((p) => p.userId === user?.id)?.ready;
+
+    try {
+      await emitWithAck(getSocket(), isReady ? "lobby:unready" : "lobby:ready", {
+        lobbyId: lobby.lobbyId,
+      });
+      
+    } catch (err) {
+      console.warn('Emit failed:', err);
+    }
   };
 
-  const handleStartGame = () => {
-    const socket = getSocket();
-    socket.emit('start-game', { userId: user?.id });
+  const startGame = async () => {
+    if (!lobby) return;
+    try {
+      await emitWithAck(getSocket(), "lobby:start", {
+        lobbyId: lobby.lobbyId,
+      });
+    } catch (err) {
+      console.warn("Start game failed:", err);
+    }
   };
+
+  const kickPlayer = async (targetId: string) => {
+    if (!lobby) return;
+    try {
+      await emitWithAck(getSocket(), "lobby:kick", {
+        lobbyId: lobby.lobbyId,
+        targetId,
+      });
+    } catch (err) {
+      console.warn('Emit failed:', err);
+    }
+  };
+
+  const banPlayer = async (targetId: string, username: string) => {
+    if (!lobby) return;
+
+    const confirmed = window.confirm(
+      `Are you sure you want to ban ${username}?`
+    );
+    if (!confirmed) return;
+
+    try {
+      await emitWithAck(getSocket(), "lobby:ban", {
+        lobbyId: lobby.lobbyId,
+        targetId,
+      });
+    } catch (err) {
+      console.warn('Emit failed:', err);
+    }
+  };
+
+  const leaveLobby = async () => {
+    if (!lobby) return;
+    try {
+      await emitWithAck(getSocket(), "lobby:leave", {
+        lobbyId: lobby.lobbyId,
+      });
+    } catch (err) {
+      console.warn('Emit failed:', err);
+    }
+  };
+
+  const updateSetting = (
+    key: keyof GameSettings | "maxPlayers",
+    delta?: number,
+    value?: string
+  ) => {
+    if (!lobby || !isHost || allReady) return;
+
+    try {
+      emitWithAck(getSocket(), "lobby:config", {
+        lobbyId: lobby.lobbyId,
+        key,
+        delta,
+        value,
+      });
+    } catch (err) {
+      console.warn('Emit failed:', err);
+    }
+  };
+
+  const copyCode = async () => {
+    if (!lobby) return;
+    await navigator.clipboard.writeText(lobby.lobbyCode);
+    setCopied(true);
+    setTimeout(() => setCopied(false), 2000);
+  };
+
+  const selectCode = () => {
+    if (!codeRef.current) return;
+    const range = document.createRange();
+    range.selectNodeContents(codeRef.current);
+    const sel = window.getSelection();
+    sel?.removeAllRanges();
+    sel?.addRange(range);
+  };
+
+  if (authLoading || !user || !lobby) return null;
+
+  const settings = lobby.config;
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-[#0A0E27] via-[#16213E] to-[#0F3460] flex items-center justify-center p-8">
-      <div className="max-w-4xl w-full bg-white/5 backdrop-blur-lg rounded-2xl border border-white/10 p-8">
-        {/* Header */}
-        <div className="mb-8">
-          <h1 className="text-4xl font-bold text-white mb-2">Game Lobby</h1>
-          {roomId && (
-            <p className="text-[#64FFDA]">Room ID: {roomId}</p>
-          )}
-          <div className="flex items-center gap-2 mt-2">
-            <div className={`w-3 h-3 rounded-full ${
-              connectionStatus === 'connected' ? 'bg-green-500' : 
-              connectionStatus === 'connecting' ? 'bg-yellow-500 animate-pulse' : 
-              'bg-red-500'
-            }`} />
-            <span className="text-white/70 text-sm capitalize">{connectionStatus}</span>
-          </div>
-        </div>
+    <div className="min-h-screen bg-gradient-to-br from-[#0A0E27] via-[#16213E] to-[#0F3460] flex flex-col items-center justify-center p-8">
+      <div className="max-w-4xl w-full space-y-6">
+        <button
+          onClick={() => router.push("/dashboard?fromLobby=1")}
+          className="group flex items-center gap-2 px-4 py-2 rounded-xl bg-white/5 border border-white/10 text-white/70 hover:text-white hover:bg-white/10 hover:border-white/20 transition-all shadow-lg backdrop-blur-sm w-fit"
+        >
+          <svg
+            xmlns="http://www.w3.org/2000/svg"
+            className="w-4 h-4 transition-transform group-hover:-translate-x-1"
+            fill="none"
+            viewBox="0 0 24 24"
+            stroke="currentColor"
+          >
+            <path
+              strokeLinecap="round"
+              strokeLinejoin="round"
+              strokeWidth={2}
+              d="M15 19l-7-7 7-7"
+            />
+          </svg>
+          <span className="text-sm font-medium">Dashboard</span>
+        </button>
 
-        {/* Players List */}
-        <div className="mb-8">
-          <h2 className="text-2xl font-semibold text-white mb-4">
-            Players ({players.length})
-          </h2>
-          <div className="space-y-3">
-            {players.length === 0 ? (
-              <p className="text-white/50 text-center py-8">Waiting for players to join...</p>
-            ) : (
-              players.map((player) => (
-                <div
-                  key={player.id}
-                  className="flex items-center justify-between bg-white/5 backdrop-blur-sm rounded-lg p-4 border border-white/10"
-                >
-                  <div className="flex items-center gap-3">
-                    <div className="w-10 h-10 rounded-full bg-gradient-to-br from-[#64FFDA] to-[#38BDF8] flex items-center justify-center text-[#0A0E27] font-bold">
-                      {player.username.charAt(0).toUpperCase()}
-                    </div>
-                    <span className="text-white font-medium">{player.username}</span>
-                    {player.id === user?.id && (
-                      <span className="text-[#64FFDA] text-sm">(You)</span>
-                    )}
-                  </div>
-                  <div className="flex items-center gap-2">
-                    {player.isReady ? (
-                      <span className="text-green-400 font-semibold">✓ Ready</span>
-                    ) : (
-                      <span className="text-white/50">Not Ready</span>
-                    )}
+        {/* MAIN LOBBY */}
+        <div className="bg-white/5 backdrop-blur-lg rounded-2xl border border-white/10 p-8">
+          {/* Header */}
+          <div className="mb-8 flex justify-between items-start">
+            <div>
+              <h1 className="text-4xl font-bold text-white">Game Lobby</h1>
+            </div>
+
+            <div className="flex flex-col items-end">
+              <div className="bg-white/10 rounded-xl border border-white/10 p-4">
+                <div className="flex items-center gap-4">
+                  <span className="text-[#64FFDA] font-semibold text-sm">
+                    Lobby Code
+                  </span>
+
+                  <span
+                    ref={codeRef}
+                    onClick={selectCode}
+                    className="font-mono text-[#64FFDA] cursor-pointer select-none tracking-widest"
+                  >
+                    {displayedCode}
+                  </span>
+
+                  <div className="flex gap-2">
+                    <button
+                      onClick={copyCode}
+                      className="text-xs bg-white/5 border border-white/10 px-3 py-1.5 rounded-lg hover:bg-white/10 transition-colors"
+                    >
+                      {copied ? "Copied!" : "Copy"}
+                    </button>
+
+                    <button
+                      onClick={() => setShowCode((v) => !v)}
+                      className="text-xs bg-white/5 border border-white/10 px-3 py-1.5 rounded-lg hover:bg-white/10 transition-colors"
+                    >
+                      {showCode ? "Hide" : "Show"}
+                    </button>
                   </div>
                 </div>
-              ))
+              </div>
+            </div>
+          </div>
+
+          {/* Players */}
+          <div className="mb-8">
+            <div className="flex items-center gap-3 mb-4">
+              <h2 className="text-2xl font-semibold text-white">
+                Players ({playerCount}/{lobby.maxPlayers})
+              </h2>
+
+              {isHost && (
+                <div className="flex items-center gap-1">
+                  <button
+                    onClick={() => updateSetting("maxPlayers", -1)}
+                    disabled={!canEditLimits || lobby.maxPlayers <= playerCount || lobby.maxPlayers <= 2}
+                    className="w-6 h-6 rounded border border-white/20 text-white text-sm hover:bg-white/10 disabled:opacity-40"
+                  >
+                    −
+                  </button>
+                  <button
+                    onClick={() => updateSetting("maxPlayers", +1)}
+                    disabled={!canEditLimits}
+                    className="w-6 h-6 rounded border border-white/20 text-white text-sm hover:bg-white/10 disabled:opacity-40"
+                  >
+                    +
+                  </button>
+                </div>
+              )}
+            </div>
+
+            <div className="space-y-3">
+              {lobby.members.map((p) => {
+                const isOwner = p.userId === lobby.ownerId;
+                const isSelf = p.userId === user.id;
+                const showKick = isHost && !isOwner && !isSelf;
+
+                return (
+                  <div
+                    key={p.userId}
+                    className="flex items-center justify-between bg-white/5 p-4 rounded-lg border border-white/10"
+                  >
+                    <div className="flex items-center gap-3">
+                      <div className="w-10 h-10 rounded-full bg-gradient-to-br from-[#64FFDA] to-[#38BDF8] flex items-center justify-center text-[#0A0E27] font-bold">
+                        {p.username.charAt(0).toUpperCase()}
+                      </div>
+                      <span className="text-white font-medium">
+                        {p.username}
+                      </span>
+                      {isSelf && (
+                        <span className="text-[#64FFDA] text-sm">(You)</span>
+                      )}
+                    </div>
+
+                    <div className="flex items-center gap-3">
+                      {isOwner && <span>👑</span>}
+
+                      {showKick && (
+                        <>
+                          <button
+                            onClick={() => kickPlayer(p.userId)}
+                            className="hover:opacity-80"
+                            title="Kick"
+                          >
+                            ❌
+                          </button>
+
+                          <button
+                            onClick={() => banPlayer(p.userId, p.username)}
+                            className="hover:opacity-80"
+                            title="Ban"
+                          >
+                            🚫
+                          </button>
+                        </>
+                      )}
+
+                      <div className="w-24 text-center px-3 py-1.5 rounded-md border border-white/10">
+                        <span
+                          className={
+                            p.ready ? "text-green-400" : "text-white/50"
+                          }
+                        >
+                          {p.ready ? "Ready" : "Waiting"}
+                        </span>
+                      </div>
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
+          </div>
+
+          {/* Actions */}
+          <div className="flex justify-between items-center">
+            <div className="flex gap-4">
+              <Button onClick={toggleReady}>
+                {lobby.members.find((p) => p.userId === user?.id)?.ready ? "Unready" : "Ready"}
+              </Button>
+              <Button variant="outline" onClick={leaveLobby}>
+                Leave Lobby
+              </Button>
+            </div>
+
+            {isHost && (
+              <Button onClick={startGame} disabled={!allReady}>
+                Start Game
+              </Button>
             )}
           </div>
         </div>
 
-        {/* Actions */}
-        <div className="flex gap-4">
-          <Button
-            onClick={handleToggleReady}
-            variant={isReady ? 'outline' : 'primary'}
-            disabled={connectionStatus !== 'connected'}
-          >
-            {isReady ? '✓ Ready' : 'Mark as Ready'}
-          </Button>
-          
-          {/* Only show start button if you're the host (first player) */}
-          {players.length > 0 && players[0]?.id === user?.id && (
-            <Button
-              onClick={handleStartGame}
-              variant="primary"
-              disabled={!players.every((p) => p.isReady) || players.length < 2}
-            >
-              Start Game
-            </Button>
-          )}
+        {/* GAME SETTINGS */}
+        <div className="bg-white/5 backdrop-blur-lg rounded-2xl border border-white/10 p-8">
+          <div className="flex items-center justify-between mb-8">
+            <h2 className="text-3xl font-semibold text-white">Game Settings</h2>
+            {allReady && (
+              <span className="text-[#64FFDA] text-sm font-medium">
+                🔒 Locked in
+              </span>
+            )}
+          </div>
 
-          <Button
-            onClick={() => router.push('/dashboard')}
-            variant="outline"
-          >
-            Leave Lobby
-          </Button>
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-8">
+            <Setting
+              label="Rounds"
+              value={settings.roundsTotal}
+              min={1}
+              max={15}
+              disabled={!isHost || allReady}
+              onIncrement={() => updateSetting("roundsTotal", +1)}
+              onDecrement={() => updateSetting("roundsTotal", -1)}
+            />
+
+            <Setting
+              label="Questions"
+              value={settings.questionsPerRound}
+              min={3}
+              max={12}
+              disabled={!isHost || allReady}
+              onIncrement={() => updateSetting("questionsPerRound", +1)}
+              onDecrement={() => updateSetting("questionsPerRound", -1)}
+            />
+
+            <Setting
+              label="Time"
+              value={settings.timePerQuestion}
+              min={10}
+              max={60}
+              step={5}
+              disabled={!isHost || allReady}
+              onIncrement={() => updateSetting("timePerQuestion", +5)}
+              onDecrement={() => updateSetting("timePerQuestion", -5)}
+            />
+          </div>
         </div>
+      </div>
+    </div>
+  );
+}
 
-        {/* Info */}
-        {players.length > 0 && players[0]?.id === user?.id && (
-          <p className="text-white/50 text-sm mt-4">
-            💡 You are the host. You can start the game when all players are ready.
-          </p>
-        )}
+function Setting({
+  label,
+  value,
+  min,
+  max,
+  disabled,
+  onIncrement,
+  onDecrement,
+}: {
+  label: string;
+  value: number;
+  min: number;
+  max: number;
+  step?: number;
+  disabled: boolean;
+  onIncrement: () => void;
+  onDecrement: () => void;
+}) {
+  return (
+    <div className="flex flex-col gap-2">
+      <span className="text-sm text-white/60 font-medium">{label}</span>
+      <div className="flex items-center gap-4 bg-white/5 rounded-xl p-2 border border-white/10">
+        <button
+          onClick={onDecrement}
+          disabled={disabled || value <= min}
+          className="w-8 h-8 rounded-lg bg-white/5 border border-white/10 text-white text-lg hover:bg-white/10 disabled:opacity-40 flex items-center justify-center transition-colors"
+        >
+          −
+        </button>
+        <span className="flex-1 text-center text-xl font-bold text-white">
+          {value}
+        </span>
+        <button
+          onClick={onIncrement}
+          disabled={disabled || value >= max}
+          className="w-8 h-8 rounded-lg bg-white/5 border border-white/10 text-white text-lg hover:bg-white/10 disabled:opacity-40 flex items-center justify-center transition-colors"
+        >
+          +
+        </button>
       </div>
     </div>
   );

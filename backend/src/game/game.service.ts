@@ -1,7 +1,13 @@
+/* eslint-disable @typescript-eslint/no-unsafe-return */
+/* eslint-disable @typescript-eslint/no-unsafe-member-access */
+/* eslint-disable @typescript-eslint/no-unsafe-assignment */
+/* eslint-disable @typescript-eslint/no-unsafe-call */
 import {
   Injectable,
   ForbiddenException,
   NotFoundException,
+  Inject,
+  forwardRef,
 } from '@nestjs/common';
 import { LobbyKeys } from 'src/lobby/lobby.keys';
 import { RedisService } from 'src/redis/redis.service';
@@ -9,6 +15,9 @@ import { GameKeys } from './game.keys';
 import { PrismaService } from 'src/prisma/prisma.service';
 import { QuizService } from 'src/quiz/quiz.service';
 import { RepositoryService } from 'src/quiz/repository/repository.service';
+import { LobbyView } from 'src/lobby/lobby.service';
+import { GameGateway } from './game.gateway';
+import { EventEmitter2 } from '@nestjs/event-emitter';
 
 const MAX_ROUNDS = 50;
 const MAX_TIME_PER_QUESTION = 120;
@@ -25,20 +34,19 @@ type MatchState = 'SETUP' | 'IN_PROGRESS' | 'FINISHED';
 type PhaseState =
   | 'TOPIC_INPUT'
   | 'VOTING'
-  | 'SELECT_QUESTION'
+  | 'SELECT_TOPIC'
   | 'ANSWERING'
   | 'ROUND_END'
   | 'MATCH_END';
 
-interface MatchConfig {
-  roundsTotal: number;
-  timePerQuestion: number;
-  questionsPerRound: number;
-}
-
 interface TopicInputView {
   phase: 'TOPIC_INPUT';
   submittedBy: string[];
+  proposals: Array<{
+    userId: string;
+    topicTitle: string;
+    difficulty: 'EASY' | 'MEDIUM' | 'HARD';
+  }>;
 }
 
 interface VotingView {
@@ -47,12 +55,13 @@ interface VotingView {
     userId: string;
     topicTitle: string;
     difficulty: 'EASY' | 'MEDIUM' | 'HARD';
+    votes: number;
   }>;
   votedBy: string[];
 }
 
 interface QuestionSelectionView {
-  phase: 'SELECT_QUESTION';
+  phase: 'SELECT_TOPIC';
 }
 
 interface AnsweringView {
@@ -125,6 +134,9 @@ export class GameService {
     private readonly prisma: PrismaService,
     private readonly quizService: QuizService,
     private readonly repositoryService: RepositoryService,
+    @Inject(forwardRef(() => GameGateway))
+    private readonly gameGateway: GameGateway,
+    private readonly eventEmitter: EventEmitter2,
   ) {}
 
   async getGameView(lobbyId: string): Promise<GameView | null> {
@@ -192,6 +204,14 @@ export class GameService {
       roundData = {
         phase: 'TOPIC_INPUT',
         submittedBy: Object.keys(rawInputs),
+        proposals: Object.entries(rawInputs).map(([userId, raw]) => {
+          const parsed = JSON.parse(raw);
+          return {
+            userId,
+            topicTitle: parsed.topicTitle,
+            difficulty: parsed.difficulty,
+          };
+        }),
       };
     } else if (phase === 'VOTING') {
       const rawInputs = await this.redis.client.hgetall(
@@ -202,21 +222,28 @@ export class GameService {
         GameKeys.roundVotes(lobbyId, currentRound),
       );
 
+      // voterId -> votedForUserId
+      const voteCounts: Record<string, number> = {};
+      for (const votedForUserId of Object.values(rawVotes)) {
+        voteCounts[votedForUserId] = (voteCounts[votedForUserId] ?? 0) + 1;
+      }
+
       roundData = {
         phase: 'VOTING',
         proposals: Object.entries(rawInputs).map(([userId, raw]) => {
           const parsed = JSON.parse(raw);
           return {
-            userId,
+            userId, // proposer id
             topicTitle: parsed.topicTitle,
             difficulty: parsed.difficulty,
+            votes: voteCounts[userId] ?? 0,
           };
         }),
         votedBy: Object.keys(rawVotes),
       };
-    } else if (phase === 'SELECT_QUESTION') {
+    } else if (phase === 'SELECT_TOPIC') {
       roundData = {
-        phase: 'SELECT_QUESTION',
+        phase: 'SELECT_TOPIC',
       };
     } else if (phase === 'ANSWERING') {
       const questionsRaw = await this.redis.client.get(
@@ -287,6 +314,9 @@ export class GameService {
         finalScores: scores,
         winners,
       };
+
+      this.eventEmitter.emit('leaderboard.updated');
+      // console.log('Game has finshed, initiating cleanup!');
     }
 
     return {
@@ -308,97 +338,6 @@ export class GameService {
       players,
       roundData,
     };
-  }
-
-  async setMatchConfig(
-    lobbyId: string,
-    ownerId: string,
-    config: MatchConfig,
-  ): Promise<void> {
-    const lobbyMeta = await this.redis.client.hgetall(LobbyKeys.meta(lobbyId));
-
-    if (!lobbyMeta?.ownerId) {
-      throw new NotFoundException('Lobby not found');
-    }
-
-    if (lobbyMeta.ownerId !== ownerId) {
-      throw new ForbiddenException('Only lobby owner can start the match');
-    }
-
-    if (lobbyMeta.state !== 'SETUP') {
-      throw new ForbiddenException(
-        'Match can only be started in the SETUP phase',
-      );
-    }
-
-    if (config.roundsTotal <= 0 || config.roundsTotal > MAX_ROUNDS)
-      throw new ForbiddenException('Invalid roundsTotal');
-
-    if (
-      config.timePerQuestion < 5 ||
-      config.timePerQuestion > MAX_TIME_PER_QUESTION
-    )
-      throw new ForbiddenException('Invalid timePerQuestion');
-
-    if (
-      config.questionsPerRound <= 0 ||
-      config.questionsPerRound > MAX_QUESTIONS_PER_ROUND
-    )
-      throw new ForbiddenException('Invalid questionsPerRound');
-
-    await this.redis.client.hset(GameKeys.matchConfig(lobbyId), {
-      roundsTotal: config.roundsTotal.toString(),
-      timePerQuestion: config.timePerQuestion.toString(),
-      questionsPerRound: config.questionsPerRound.toString(),
-    });
-
-    return;
-  }
-
-  async startMatch(lobbyId: string, ownerId: string): Promise<void> {
-    const lobbyMeta = await this.redis.client.hgetall(LobbyKeys.meta(lobbyId));
-
-    if (!lobbyMeta?.ownerId) {
-      throw new NotFoundException('Lobby not found');
-    }
-
-    if (lobbyMeta.ownerId !== ownerId) {
-      throw new ForbiddenException('Only lobby owner can start the match');
-    }
-
-    if (lobbyMeta.state !== 'SETUP') {
-      throw new ForbiddenException(
-        'Match can only be started in the SETUP phase',
-      );
-    }
-
-    const rawConfig = await this.redis.client.hgetall(
-      GameKeys.matchConfig(lobbyId),
-    );
-
-    if (
-      !rawConfig?.roundsTotal ||
-      !rawConfig?.timePerQuestion ||
-      !rawConfig?.questionsPerRound
-    ) {
-      throw new ForbiddenException('Match Configuration is not complete');
-    }
-
-    await this.redis.client.hset(GameKeys.matchMeta(lobbyId), {
-      state: 'IN_PROGRESS',
-      currentRound: '1',
-    });
-
-    await this.redis.client.hset(GameKeys.roundMeta(lobbyId, 1), {
-      phase: 'TOPIC_INPUT',
-      phaseStartedAt: Date.now().toString(),
-    });
-
-    await this.redis.client.hset(LobbyKeys.meta(lobbyId), {
-      state: 'IN_PROGRESS',
-    });
-
-    return;
   }
 
   async submitTopic(
@@ -479,8 +418,10 @@ export class GameService {
     }
 
     if (members.length === 2) {
+      await this.redis.client.del(GameKeys.questions(lobbyId, currentRound));
+
       await this.redis.client.hset(GameKeys.roundMeta(lobbyId, currentRound), {
-        phase: 'SELECT_QUESTION',
+        phase: 'SELECT_TOPIC',
         phaseStartedAt: Date.now().toString(),
       });
       return;
@@ -502,82 +443,75 @@ export class GameService {
     const matchMeta = await this.redis.client.hgetall(
       GameKeys.matchMeta(lobbyId),
     );
-
     if (!matchMeta?.state || matchMeta.state !== 'IN_PROGRESS') {
       throw new ForbiddenException('Match is not in progress');
     }
 
-    const currentRound = Number(matchMeta.currentRound);
+    const round = Number(matchMeta.currentRound);
 
     const roundMeta = await this.redis.client.hgetall(
-      GameKeys.roundMeta(lobbyId, currentRound),
+      GameKeys.roundMeta(lobbyId, round),
     );
-
     if (roundMeta.phase !== 'VOTING') {
       throw new ForbiddenException('Not in voting phase');
     }
-
-    const isMember = await this.redis.client.sismember(
-      LobbyKeys.members(lobbyId),
-      userId,
-    );
-
-    if (!isMember) {
-      throw new ForbiddenException('User is not a lobby member');
-    }
-
-    const alreadyVoted = await this.redis.client.hexists(
-      GameKeys.roundVotes(lobbyId, currentRound),
-      userId,
-    );
-
-    if (alreadyVoted) {
-      throw new ForbiddenException('Vote already submitted');
-    }
-
-    const proposalExists = await this.redis.client.hexists(
-      GameKeys.roundInputs(lobbyId, currentRound),
-      votedForUserId,
-    );
-
-    if (!proposalExists) {
-      throw new ForbiddenException('Voted proposal does not exist');
-    }
-
-    if (userId === votedForUserId)
-      throw new ForbiddenException('Cannot vote for your own topic');
-
-    await this.redis.client.hset(
-      GameKeys.roundVotes(lobbyId, currentRound),
-      userId,
-      votedForUserId,
-    );
 
     const members = await this.redis.client.smembers(
       LobbyKeys.members(lobbyId),
     );
 
-    const votesCount = await this.redis.client.hlen(
-      GameKeys.roundVotes(lobbyId, currentRound),
-    );
-
-    if (votesCount < members.length) {
-      return;
+    if (!members.includes(userId)) {
+      throw new ForbiddenException('User not in lobby');
     }
 
-    await this.redis.client.hset(GameKeys.roundMeta(lobbyId, currentRound), {
-      phase: 'SELECT_QUESTION',
+    if (userId === votedForUserId) {
+      throw new ForbiddenException('Cannot vote for your own topic');
+    }
+
+    const proposalExists = await this.redis.client.hexists(
+      GameKeys.roundInputs(lobbyId, round),
+      votedForUserId,
+    );
+    if (!proposalExists) {
+      throw new ForbiddenException('Proposal does not exist');
+    }
+
+    // idempotent vote
+    const alreadyVoted = await this.redis.client.hexists(
+      GameKeys.roundVotes(lobbyId, round),
+      userId,
+    );
+    if (alreadyVoted) return;
+
+    await this.redis.client.hset(
+      GameKeys.roundVotes(lobbyId, round),
+      userId,
+      votedForUserId,
+    );
+
+    // ----- COMPLETION CHECK -----
+    const votesCount = await this.redis.client.hlen(
+      GameKeys.roundVotes(lobbyId, round),
+    );
+
+    if (votesCount < members.length) return;
+
+    await this.redis.client.del(GameKeys.questions(lobbyId, round));
+
+    // ----- TRANSITION PHASE -----
+    await this.redis.client.hset(GameKeys.roundMeta(lobbyId, round), {
+      phase: 'SELECT_TOPIC',
       phaseStartedAt: Date.now().toString(),
     });
 
-    return;
+    // DO NOT call selectQuestion here
+    await this.emitGameUpdate(lobbyId);
   }
 
   async selectQuestion(lobbyId: string): Promise<void> {
     const matchMeta = await this.redis.client.hgetall(
       GameKeys.matchMeta(lobbyId),
     );
-
     if (!matchMeta?.state || matchMeta.state !== 'IN_PROGRESS') return;
 
     const round = Number(matchMeta.currentRound);
@@ -586,114 +520,121 @@ export class GameService {
       GameKeys.roundMeta(lobbyId, round),
     );
 
-    if (roundMeta.phase !== 'SELECT_QUESTION') return;
-
-    const rawInputs = await this.redis.client.hgetall(
-      GameKeys.roundInputs(lobbyId, round),
+    const alreadySelected = await this.redis.client.exists(
+      GameKeys.selected(lobbyId, round),
     );
 
-    const proposals = Object.entries(rawInputs).map(([userId, value]) => ({
-      userId,
-      ...JSON.parse(value),
-    }));
+    if (alreadySelected) {
+      return;
+    }
 
-    let selectedProposal: {
-      userId: string | null;
-      topicTitle: string;
-      difficulty: 'EASY' | 'MEDIUM' | 'HARD';
-    };
+    if (roundMeta.phase !== 'SELECT_TOPIC') return;
 
-    if (proposals.length === 0) {
-      const randomTopic = await this.repositoryService.getRandomTopic();
+    // 🔒 TRY TO ACQUIRE LOCK
+    const lockKey = GameKeys.selectLock(lobbyId, round);
+    const gotLock = await this.redis.client.setnx(lockKey, '1');
 
-      if (!randomTopic) {
-        selectedProposal = {
-          userId: null,
-          topicTitle: STATIC_FALLBACK_TOPIC.topicTitle,
-          difficulty: STATIC_FALLBACK_TOPIC.difficulty,
-        };
-      } else {
-        selectedProposal = {
-          userId: null,
-          topicTitle: randomTopic.title,
-          difficulty: 'EASY',
-        };
-      }
-    } else {
-      const rawVotes = await this.redis.client.hgetall(
-        GameKeys.roundVotes(lobbyId, round),
+    if (!gotLock) {
+      return; // someone else is already generating
+    }
+
+    // Auto-release lock if something crashes
+    await this.redis.client.pexpire(lockKey, 30_000);
+
+    try {
+      /* ---------- SELECT PROPOSAL ---------- */
+
+      const rawInputs = await this.redis.client.hgetall(
+        GameKeys.roundInputs(lobbyId, round),
       );
 
-      const voteCounts: Record<string, number> = {};
+      const proposals = Object.entries(rawInputs).map(([userId, value]) => ({
+        userId,
+        ...JSON.parse(value),
+      }));
 
-      for (const votedFor of Object.values(rawVotes)) {
-        voteCounts[votedFor] = (voteCounts[votedFor] || 0) + 1;
-      }
+      let selectedProposal;
 
-      if (Object.keys(voteCounts).length > 0) {
-        const maxVotes = Math.max(...Object.values(voteCounts));
-
-        const topCandidates = Object.entries(voteCounts)
-          .filter(([_, count]) => count === maxVotes)
-          .map(([userId]) => userId);
-
-        const winnerUserId =
-          topCandidates[Math.floor(Math.random() * topCandidates.length)];
-
-        selectedProposal = proposals.find((p) => p.userId === winnerUserId)!;
+      if (proposals.length === 0) {
+        const randomTopic = await this.repositoryService.getRandomTopic();
+        selectedProposal = randomTopic
+          ? {
+              userId: null,
+              topicTitle: randomTopic.title,
+              difficulty: 'EASY',
+            }
+          : {
+              userId: null,
+              topicTitle: STATIC_FALLBACK_TOPIC.topicTitle,
+              difficulty: STATIC_FALLBACK_TOPIC.difficulty,
+            };
       } else {
-        selectedProposal =
-          proposals[Math.floor(Math.random() * proposals.length)];
+        const rawVotes = await this.redis.client.hgetall(
+          GameKeys.roundVotes(lobbyId, round),
+        );
+
+        const voteCounts: Record<string, number> = {};
+        Object.values(rawVotes).forEach((v) => {
+          voteCounts[v] = (voteCounts[v] ?? 0) + 1;
+        });
+
+        const maxVotes = Math.max(0, ...Object.values(voteCounts));
+        const winners = Object.entries(voteCounts)
+          .filter(([, c]) => c === maxVotes)
+          .map(([id]) => id);
+
+        const winnerId =
+          winners.length > 0
+            ? winners[Math.floor(Math.random() * winners.length)]
+            : proposals[Math.floor(Math.random() * proposals.length)].userId;
+
+        selectedProposal = proposals.find((p) => p.userId === winnerId)!;
       }
+
+      /* ---------- FETCH QUESTIONS (ONCE) ---------- */
+
+      const members = await this.redis.client.smembers(
+        LobbyKeys.members(lobbyId),
+      );
+
+      const configRaw = await this.redis.client.hgetall(
+        GameKeys.matchConfig(lobbyId),
+      );
+
+      const difficultyMap = { EASY: 1, MEDIUM: 2, HARD: 3 };
+
+      const questions = await this.quizService.getQuestionSet(
+        {
+          topic: selectedProposal.topicTitle,
+          difficulty: difficultyMap[selectedProposal.difficulty],
+          qnum: Number(configRaw.questionsPerRound),
+        },
+        members,
+      );
+
+      /* ---------- STORE ---------- */
+
+      await this.redis.client.hset(GameKeys.selected(lobbyId, round), {
+        topicTitle: selectedProposal.topicTitle,
+        difficulty: selectedProposal.difficulty,
+        proposerId: selectedProposal.userId ?? '',
+      });
+
+      await this.redis.client.set(
+        GameKeys.questions(lobbyId, round),
+        JSON.stringify(questions),
+      );
+
+      /* ---------- TRANSITION ---------- */
+
+      await this.redis.client.hset(GameKeys.roundMeta(lobbyId, round), {
+        phase: 'ANSWERING',
+        phaseStartedAt: Date.now().toString(),
+      });
+
+      await this.emitGameUpdate(lobbyId);
+    } finally {
     }
-    const members = await this.redis.client.smembers(
-      LobbyKeys.members(lobbyId),
-    );
-
-    const configRaw = await this.redis.client.hgetall(
-      GameKeys.matchConfig(lobbyId),
-    );
-
-    let difficultyNumber = 1;
-
-    switch (selectedProposal.difficulty) {
-      case 'EASY':
-        difficultyNumber = 1;
-        break;
-      case 'MEDIUM':
-        difficultyNumber = 2;
-        break;
-      case 'HARD':
-        difficultyNumber = 3;
-        break;
-      default:
-        break;
-    }
-
-    const questions = await this.quizService.getQuestionSet(
-      {
-        topic: selectedProposal.topicTitle,
-        difficulty: difficultyNumber,
-        qnum: Number(configRaw.questionsPerRound),
-      },
-      members,
-    );
-
-    await this.redis.client.hset(GameKeys.selected(lobbyId, round), {
-      topicTitle: selectedProposal.topicTitle,
-      difficulty: selectedProposal.difficulty,
-      proposerId: selectedProposal.userId ?? '',
-    });
-
-    await this.redis.client.set(
-      GameKeys.questions(lobbyId, round),
-      JSON.stringify(questions),
-    );
-
-    await this.redis.client.hset(GameKeys.roundMeta(lobbyId, round), {
-      phase: 'ANSWERING',
-      phaseStartedAt: Date.now().toString(),
-    });
   }
 
   async submitAnswer(
@@ -701,117 +642,135 @@ export class GameService {
     userId: string,
     payload: { questionId: string; answerId: string },
   ): Promise<void> {
-    const matchMeta = await this.redis.client.hgetall(
-      GameKeys.matchMeta(lobbyId),
-    );
-    if (!matchMeta?.state || matchMeta.state !== 'IN_PROGRESS') {
-      throw new ForbiddenException('Match is not in progress');
+    try {
+      const matchMeta = await this.redis.client.hgetall(
+        GameKeys.matchMeta(lobbyId),
+      );
+      if (!matchMeta?.state || matchMeta.state !== 'IN_PROGRESS') {
+        throw new ForbiddenException('Match is not in progress');
+      }
+
+      console.log('🟢 submitAnswer()', {
+        lobbyId,
+        userId,
+        payload,
+      });
+
+      const round = Number(matchMeta.currentRound);
+
+      const roundMeta = await this.redis.client.hgetall(
+        GameKeys.roundMeta(lobbyId, round),
+      );
+      if (roundMeta.phase !== 'ANSWERING') {
+        throw new ForbiddenException('Not in answering phase');
+      }
+
+      const isMember = await this.redis.client.sismember(
+        LobbyKeys.members(lobbyId),
+        userId,
+      );
+      if (!isMember) {
+        throw new ForbiddenException('User not in lobby');
+      }
+
+      const questionsData = await this.redis.client.get(
+        GameKeys.questions(lobbyId, round),
+      );
+      if (!questionsData) {
+        throw new NotFoundException('Questions not found for this round');
+      }
+
+      const questions: any[] = JSON.parse(questionsData);
+      const question = questions.find((q) => q.id === payload.questionId);
+      if (!question) {
+        throw new ForbiddenException('Invalid question');
+      }
+
+      // Validate if answer is part of question
+      const answerExists =
+        Array.isArray(question.answers) &&
+        question.answers.some((a) => a.id === payload.answerId);
+      if (!answerExists) {
+        throw new ForbiddenException('Invalid answer');
+      }
+
+      // load user answers
+      const rawUserAnswers = await this.redis.client.hget(
+        GameKeys.answers(lobbyId, round),
+        userId,
+      );
+      const userAnswers = rawUserAnswers
+        ? JSON.parse(rawUserAnswers)
+        : { answers: {} };
+
+      if (userAnswers.answers[payload.questionId]) {
+        throw new ForbiddenException('Already answered');
+      }
+
+      // save answers
+      userAnswers.answers[payload.questionId] = {
+        answerId: payload.answerId,
+        answeredAt: Date.now(),
+      };
+
+      await this.redis.client.hset(
+        GameKeys.answers(lobbyId, round),
+        userId,
+        JSON.stringify(userAnswers),
+      );
+
+      // check if all players have answered ALL questions
+      const members = await this.redis.client.smembers(
+        LobbyKeys.members(lobbyId),
+      );
+
+      const questionsDataNew = await this.redis.client.get(
+        GameKeys.questions(lobbyId, round),
+      );
+      if (!questionsDataNew) return;
+
+      const questionsNew: any[] = JSON.parse(questionsDataNew);
+
+      const allAnsweredAllQuestions = (
+        await Promise.all(
+          members.map(async (memberId) => {
+            const raw = await this.redis.client.hget(
+              GameKeys.answers(lobbyId, round),
+              memberId,
+            );
+            if (!raw) return false;
+
+            const parsed = JSON.parse(raw);
+            return questionsNew.every((q) => parsed.answers?.[q.id]);
+          }),
+        )
+      ).every(Boolean);
+
+      if (!allAnsweredAllQuestions) return;
+
+      const latestRoundMeta = await this.redis.client.hgetall(
+        GameKeys.roundMeta(lobbyId, round),
+      );
+
+      if (latestRoundMeta.phase !== 'ANSWERING') {
+        return;
+      }
+
+      await this.finalizeAnsweringRound(lobbyId, round);
+    } catch (err) {
+      console.error('🔥 submitAnswer crash:', err);
+      console.error(err.stack);
+      throw err;
     }
-
-    const round = Number(matchMeta.currentRound);
-
-    const roundMeta = await this.redis.client.hgetall(
-      GameKeys.roundMeta(lobbyId, round),
-    );
-    if (roundMeta.phase !== 'ANSWERING') {
-      throw new ForbiddenException('Not in answering phase');
-    }
-
-    const isMember = await this.redis.client.sismember(
-      LobbyKeys.members(lobbyId),
-      userId,
-    );
-    if (!isMember) {
-      throw new ForbiddenException('User not in lobby');
-    }
-
-    const questionsData = await this.redis.client.get(
-      GameKeys.questions(lobbyId, round),
-    );
-    if (!questionsData) {
-      throw new NotFoundException('Questions not found for this round');
-    }
-
-    const questions: any[] = JSON.parse(questionsData);
-    const question = questions.find((q) => q.id === payload.questionId);
-    if (!question) {
-      throw new ForbiddenException('Invalid question');
-    }
-
-    // Validate if answer is part of question
-    const answerExists =
-      Array.isArray(question.answers) &&
-      question.answers.some((a) => a.id === payload.answerId);
-    if (!answerExists) {
-      throw new ForbiddenException('Invalid answer');
-    }
-
-    // load user answers
-    const rawUserAnswers = await this.redis.client.hget(
-      GameKeys.answers(lobbyId, round),
-      userId,
-    );
-    const userAnswers = rawUserAnswers
-      ? JSON.parse(rawUserAnswers)
-      : { answers: {} };
-
-    if (userAnswers.answers[payload.questionId]) {
-      throw new ForbiddenException('Already answered');
-    }
-
-    // save answers
-    userAnswers.answers[payload.questionId] = {
-      answerId: payload.answerId,
-      answeredAt: Date.now(),
-    };
-
-    await this.redis.client.hset(
-      GameKeys.answers(lobbyId, round),
-      userId,
-      JSON.stringify(userAnswers),
-    );
-
-    // check if all players have answered the question
-    const members = await this.redis.client.smembers(
-      LobbyKeys.members(lobbyId),
-    );
-
-    const allAnswered = (
-      await Promise.all(
-        members.map(async (memberId) => {
-          const raw = await this.redis.client.hget(
-            GameKeys.answers(lobbyId, round),
-            memberId,
-          );
-          if (!raw) return false;
-          const parsed = JSON.parse(raw);
-          return Object.keys(parsed.answers ?? {}).length === questions.length;
-        }),
-      )
-    ).every(Boolean);
-
-    if (!allAnswered) {
-      return;
-    }
-
-    const latestRoundMeta = await this.redis.client.hgetall(
-      GameKeys.roundMeta(lobbyId, round),
-    );
-
-    if (latestRoundMeta.phase !== 'ANSWERING') {
-      return;
-    }
-
-    await this.finalizeAnsweringRound(lobbyId, round);
   }
 
-  async checkPhaseTimeout(lobbyId: string) {
+  async checkPhaseTimeout(lobbyId: string): Promise<boolean> {
     const matchMeta = await this.redis.client.hgetall(
       GameKeys.matchMeta(lobbyId),
     );
 
     if (!matchMeta?.state || matchMeta.state !== 'IN_PROGRESS') {
-      return;
+      return false;
     }
 
     const currentRound = Number(matchMeta.currentRound);
@@ -821,12 +780,17 @@ export class GameService {
     );
 
     if (!roundMeta.phase || !roundMeta.phaseStartedAt) {
-      return;
+      return false;
     }
 
     const phase = roundMeta.phase as PhaseState;
     const phaseStartedAt = Number(roundMeta.phaseStartedAt);
     const now = Date.now();
+
+    if (phase === 'SELECT_TOPIC') {
+      await this.selectQuestion(lobbyId);
+      return false;
+    }
 
     const configRaw = await this.redis.client.hgetall(
       GameKeys.matchConfig(lobbyId),
@@ -834,14 +798,14 @@ export class GameService {
 
     const timePerQuestion = Number(configRaw.timePerQuestion);
 
-    let timeout: number;
+    let timeout: number | null = null;
 
     switch (phase) {
       case 'TOPIC_INPUT':
-        timeout = 30;
+        timeout = 300;
         break;
       case 'VOTING':
-        timeout = 20;
+        timeout = 150;
         break;
       case 'ANSWERING':
         timeout = timePerQuestion;
@@ -849,14 +813,17 @@ export class GameService {
       case 'ROUND_END':
         timeout = 5;
         break;
-
-      default:
-        return;
     }
 
-    if (now - phaseStartedAt < timeout * 1000) return;
+    if (!timeout || now - phaseStartedAt < timeout * 1000) {
+      return false;
+    }
 
     await this.handlePhaseTimeout(lobbyId, currentRound, phase);
+
+    await this.emitGameUpdate(lobbyId);
+
+    return true;
   }
 
   private async handlePhaseTimeout(
@@ -874,32 +841,23 @@ export class GameService {
           GameKeys.roundInputs(lobbyId, round),
         );
 
-        if (submittedCount === 0) {
-          await this.redis.client.hset(GameKeys.roundMeta(lobbyId, round), {
-            phase: 'SELECT_QUESTION',
-            phaseStartedAt: Date.now().toString(),
-          });
-          return;
-        }
-
-        if (members.length === 2) {
-          await this.redis.client.hset(GameKeys.roundMeta(lobbyId, round), {
-            phase: 'SELECT_QUESTION',
-            phaseStartedAt: Date.now().toString(),
-          });
-          return;
-        }
+        const nextPhase =
+          submittedCount === 0 || members.length === 2
+            ? 'SELECT_TOPIC'
+            : 'VOTING';
 
         await this.redis.client.hset(GameKeys.roundMeta(lobbyId, round), {
-          phase: 'VOTING',
+          phase: nextPhase,
           phaseStartedAt: Date.now().toString(),
         });
         return;
       }
 
       case 'VOTING': {
+        await this.redis.client.del(GameKeys.questions(lobbyId, round));
+
         await this.redis.client.hset(GameKeys.roundMeta(lobbyId, round), {
-          phase: 'SELECT_QUESTION',
+          phase: 'SELECT_TOPIC',
           phaseStartedAt: Date.now().toString(),
         });
         return;
@@ -914,9 +872,6 @@ export class GameService {
         await this.advanceRound(lobbyId);
         return;
       }
-
-      default:
-        return;
     }
   }
 
@@ -1002,6 +957,7 @@ export class GameService {
       phaseStartedAt: Date.now().toString(),
     });
 
+    await this.emitGameUpdate(lobbyId);
     return;
   }
 
@@ -1051,11 +1007,29 @@ export class GameService {
       currentRound: nextRound.toString(),
     });
 
-    await this.redis.client.hset(GameKeys.roundMeta(lobbyId, nextRound), {
-      phase: 'TOPIC_INPUT',
-      phaseStartedAt: Date.now().toString(),
-    });
+    const lobbyMeta = await this.redis.client.hgetall(LobbyKeys.meta(lobbyId));
 
+    if (lobbyMeta?.topic && lobbyMeta.topic.trim().length > 0) {
+      // Pre-fill next round topic
+      await this.redis.client.hset(GameKeys.roundInputs(lobbyId, nextRound), {
+        [lobbyMeta.ownerId]: JSON.stringify({
+          topicTitle: lobbyMeta.topic,
+          difficulty: lobbyMeta.difficulty || 'EASY',
+        }),
+      });
+
+      await this.redis.client.hset(GameKeys.roundMeta(lobbyId, nextRound), {
+        phase: 'SELECT_TOPIC',
+        phaseStartedAt: Date.now().toString(),
+      });
+    } else {
+      await this.redis.client.hset(GameKeys.roundMeta(lobbyId, nextRound), {
+        phase: 'TOPIC_INPUT',
+        phaseStartedAt: Date.now().toString(),
+      });
+    }
+
+    await this.emitGameUpdate(lobbyId);
     return;
   }
 
@@ -1066,36 +1040,104 @@ export class GameService {
 
     if (members.length === 0) return;
 
+    // Get match info for topic
+    const matchMeta = await this.redis.client.hgetall(GameKeys.matchMeta(lobbyId));
+    const currentRound = Number(matchMeta.currentRound || 1);
+
+    // Get topic from the last round played
+    const selected = await this.redis.client.hgetall(GameKeys.selected(lobbyId, currentRound));
+    const topicTitle = selected?.topicTitle || 'General Knowledge';
+
+    // Find or create topic
+    let topic = await this.prisma.quizTopic.findUnique({
+      where: { title: topicTitle },
+    });
+
+    if (!topic) {
+      topic = await this.prisma.quizTopic.create({
+        data: { title: topicTitle },
+      });
+    }
+
     const rawScores = await this.redis.client.hgetall(GameKeys.scores(lobbyId));
 
     const scores: Record<string, number> = {};
+    const correctCounts: Record<string, number> = {};
+    const totalQuestions: Record<string, number> = {};
+
     for (const userId of members) {
       scores[userId] = Number(rawScores[userId] ?? 0);
+      correctCounts[userId] = 0;
+      totalQuestions[userId] = 0;
     }
 
-    const maxScore = Math.max(...Object.values(scores));
+    // Aggregate correct answers across all rounds
+    for (let r = 1; r <= currentRound; r++) {
+      const qRaw = await this.redis.client.get(GameKeys.questions(lobbyId, r));
+      if (!qRaw) continue;
+      const questions = JSON.parse(qRaw) as any[];
+
+      for (const userId of members) {
+        totalQuestions[userId] += questions.length;
+        const ansRaw = await this.redis.client.hget(GameKeys.answers(lobbyId, r), userId);
+        if (!ansRaw) continue;
+        const parsed = JSON.parse(ansRaw);
+
+        for (const q of questions) {
+          const userAnswer = parsed.answers?.[q.id];
+          if (!userAnswer) continue;
+          const correct = q.answers?.find((a: any) => a.isCorrect);
+          if (correct && userAnswer.answerId === correct.id) {
+            correctCounts[userId]++;
+          }
+        }
+      }
+    }
+
+    const maxScore = Math.max(...Object.values(scores), -1);
 
     const winners = new Set(
       Object.entries(scores)
-        .filter(([_, score]) => score === maxScore)
+        .filter(([_, score]) => score === maxScore && score > 0)
         .map(([userId]) => userId),
     );
 
     for (const userId of members) {
+      const isWinner = winners.has(userId);
+      const userScore = scores[userId];
+
       await this.prisma.userStats.upsert({
         where: { userId },
         update: {
           gamesPlayed: { increment: 1 },
-          gamesWon: winners.has(userId) ? { increment: 1 } : undefined,
-          gamesLost: !winners.has(userId) ? { increment: 1 } : undefined,
+          gamesWon: isWinner ? { increment: 1 } : undefined,
+          gamesLost: !isWinner ? { increment: 1 } : undefined,
+          totalQuestions: { increment: totalQuestions[userId] },
+          correctAnswers: { increment: correctCounts[userId] },
         },
         create: {
           userId,
           gamesPlayed: 1,
-          gamesWon: winners.has(userId) ? 1 : 0,
-          gamesLost: winners.has(userId) ? 0 : 1,
+          gamesWon: isWinner ? 1 : 0,
+          gamesLost: isWinner ? 0 : 1,
+          totalQuestions: totalQuestions[userId],
+          correctAnswers: correctCounts[userId],
         },
       });
+
+      // Save individual game result for history
+      try {
+        await this.prisma.gameResult.create({
+          data: {
+            userId,
+            topicId: topic.id,
+            score: userScore,
+            won: isWinner,
+          },
+        });
+      } catch (e) {
+        console.error(`Failed to save game result for user ${userId}:`, e);
+      }
     }
   }
 
@@ -1115,5 +1157,99 @@ export class GameService {
       default:
         return null;
     }
+  }
+
+  async createMatchFromLobby(lobby: LobbyView) {
+    await this.redis.client.hset(GameKeys.matchMeta(lobby.lobbyId), {
+      state: 'IN_PROGRESS',
+      currentRound: '1',
+    });
+
+    await this.redis.client.hset(GameKeys.matchConfig(lobby.lobbyId), {
+      roundsTotal: lobby.config.roundsTotal.toString(),
+      timePerQuestion: lobby.config.timePerQuestion.toString(),
+      questionsPerRound: lobby.config.questionsPerRound.toString(),
+    });
+
+    const lobbyMeta = await this.redis.client.hgetall(
+      LobbyKeys.meta(lobby.lobbyId),
+    );
+
+    if (lobbyMeta?.topic && lobbyMeta.topic.trim().length > 0) {
+      // Pre-fill round 1 topic
+      await this.redis.client.hset(GameKeys.roundInputs(lobby.lobbyId, 1), {
+        [lobby.ownerId]: JSON.stringify({
+          topicTitle: lobbyMeta.topic,
+          difficulty: lobbyMeta.difficulty || 'EASY',
+        }),
+      });
+
+      await this.redis.client.hset(GameKeys.roundMeta(lobby.lobbyId, 1), {
+        phase: 'SELECT_TOPIC',
+        phaseStartedAt: Date.now().toString(),
+      });
+    } else {
+      await this.redis.client.hset(GameKeys.roundMeta(lobby.lobbyId, 1), {
+        phase: 'TOPIC_INPUT',
+        phaseStartedAt: Date.now().toString(),
+      });
+    }
+
+    await this.redis.client.sadd(GameKeys.activeMatches(), lobby.lobbyId);
+  }
+
+  async quitGame(lobbyId: string, userId: string) {
+    await this.redis.client.srem(LobbyKeys.members(lobbyId), userId);
+    await this.redis.client.del(LobbyKeys.userLobby(userId));
+
+    await this.redis.client.hdel(GameKeys.scores(lobbyId), userId);
+
+    const remaining = await this.redis.client.smembers(
+      LobbyKeys.members(lobbyId),
+    );
+
+    if (remaining.length <= 1) {
+      await this.redis.client.hset(GameKeys.matchMeta(lobbyId), {
+        state: 'FINISHED',
+      });
+
+      await this.redis.client.hset(LobbyKeys.meta(lobbyId), {
+        state: 'FINISHED',
+      });
+
+      await this.redis.client.hset(
+        GameKeys.roundMeta(
+          lobbyId,
+          Number(
+            (await this.redis.client.hgetall(GameKeys.matchMeta(lobbyId)))
+              .currentRound,
+          ),
+        ),
+        {
+          phase: 'MATCH_END',
+          phaseStartedAt: Date.now().toString(),
+        },
+      );
+
+      const view = await this.getGameView(lobbyId);
+      if (view) {
+        await this.redis.client.publish(
+          'game-events',
+          JSON.stringify({ lobbyId }),
+        );
+      }
+
+      return;
+    }
+
+    const view = await this.getGameView(lobbyId);
+    if (!view) return;
+  }
+
+  private async emitGameUpdate(lobbyId: string) {
+    const view = await this.getGameView(lobbyId);
+    if (!view) return;
+
+    this.gameGateway.server.to(lobbyId).emit('game:state', view);
   }
 }

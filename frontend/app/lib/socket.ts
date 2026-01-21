@@ -4,10 +4,11 @@ let socket: Socket | null = null;
 
 export function getSocket(): Socket {
   if (!socket) {
+    // Backend LobbyGateway listens on '/quiz' namespace
     socket = io('https://localhost/quiz', {
-      transports: ['websocket'],
+      transports: ['polling', 'websocket'],
       withCredentials: true,
-      upgrade: false,
+      autoConnect: false,
     });
   }
   return socket;

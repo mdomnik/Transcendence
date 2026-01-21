@@ -11,7 +11,7 @@ export enum FriendStatus {
 export interface FriendUser {
 	id: string;
 	username: string;
-	avatar?: string;
+	avatarPath?: string;
 	status?: 'online' | 'offline' | 'in-game'; // maybe we need more options later
 }
 
@@ -28,7 +28,7 @@ export interface Friendship {
 
 //This functions is to get my list if accepted friends
 export async function getFriends(): Promise<Friendship[]> {
-	const res = await fetch('http://localhost/api/friends', {
+	const res = await fetch('/api/friendship/list', {
 		credentials: 'include',
 		cache: 'no-store',
 	});
@@ -38,7 +38,7 @@ export async function getFriends(): Promise<Friendship[]> {
 
 // Function to get pending requests (people who added me)
 export async function getFriendRequests(): Promise<Friendship[]> {
-  const res = await fetch('http://localhost/api/friends/requests', {
+  const res = await fetch('/api/friendship/requests', {
     credentials: 'include',
     cache: 'no-store',
   });
@@ -46,27 +46,39 @@ export async function getFriendRequests(): Promise<Friendship[]> {
   return res.json();
 }
 
-// Function to send a request to someone by username
-export async function sendFriendRequest(username: string) {
-  const res = await fetch('http://localhost/api/friends/request', {
+// Function to send a request to someone by userId
+export async function sendFriendRequest(userId: string) {
+  const res = await fetch(`/api/friendship/request/${userId}`, {
     method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ username }),
     credentials: 'include',
   });
   if (!res.ok) throw new Error('Failed to send request');
   return res.json();
 }
 
-// Function to Accept or Reject a request
-export async function respondToRequest(requestId: string, status: FriendStatus.ACCEPTED | FriendStatus.REJECTED) {
-  const res = await fetch(`http://localhost/api/friends/${requestId}/respond`, {
-    method: 'PATCH',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ status }),
+// Function to Accept a request
+export async function acceptRequest(friendshipId: string) {
+  const res = await fetch(`/api/friendship/accept/${friendshipId}`, {
+    method: 'POST',
     credentials: 'include',
   });
-  if (!res.ok) throw new Error('Failed to respond');
+  if (!res.ok) throw new Error('Failed to accept');
   return res.json();
+}
+
+// Function to Reject a request
+export async function rejectRequest(friendshipId: string) {
+  const res = await fetch(`/api/friendship/reject/${friendshipId}`, {
+    method: 'POST',
+    credentials: 'include',
+  });
+  if (!res.ok) throw new Error('Failed to reject');
+  return res.json();
+}
+
+// Helper to respond (compatible with some UIs)
+export async function respondToRequest(requestId: string, status: FriendStatus.ACCEPTED | FriendStatus.REJECTED) {
+  if (status === FriendStatus.ACCEPTED) return acceptRequest(requestId);
+  return rejectRequest(requestId);
 }
 

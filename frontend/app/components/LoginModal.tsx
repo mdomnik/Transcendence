@@ -15,6 +15,7 @@ const handleGoogleSignup = () => {
 export default function LoginModal({ isOpen, onClose, onSwitchToSignUp, onLoginSuccess }: LoginModalProps) {
   const [identifier, setIdentifier] = useState("");
   const [password, setPassword] = useState("");
+  const [remember, setRemember] = useState(false);
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState("");
 
@@ -31,7 +32,7 @@ export default function LoginModal({ isOpen, onClose, onSwitchToSignUp, onLoginS
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         credentials: 'include',
-        body: JSON.stringify({ identifier, password }),
+        body: JSON.stringify({ identifier, password, remember }),
       });
 
 
@@ -93,6 +94,20 @@ export default function LoginModal({ isOpen, onClose, onSwitchToSignUp, onLoginS
             onChange={(e) => setPassword(e.target.value)}
             className="w-full px-4 py-3 rounded-xl bg-[#0A192F] border border-[#64FFDA]/30 text-[#CCD6F6] placeholder-[#8892B0] focus:outline-none focus:border-[#64FFDA] transition-colors"
           />
+
+          <div className="flex items-center gap-2 px-1">
+            <input
+              type="checkbox"
+              id="remember"
+              checked={remember}
+              onChange={(e) => setRemember(e.target.checked)}
+              className="w-4 h-4 rounded border-[#64FFDA]/30 bg-[#0A192F] text-[#64FFDA] focus:ring-offset-[#112240] focus:ring-[#64FFDA]"
+            />
+            <label htmlFor="remember" className="text-sm text-[#8892B0] cursor-pointer hover:text-[#CCD6F6] transition-colors">
+              Remember me
+            </label>
+          </div>
+
           <button
             type="submit"
             disabled={isLoading}
