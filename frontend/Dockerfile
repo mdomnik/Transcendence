@@ -1,5 +1,5 @@
 # Latest NodeJS image
-FROM node:20-bookworm
+FROM node:20-alpine
 
 # root directory
 WORKDIR /app

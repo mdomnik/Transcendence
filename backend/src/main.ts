@@ -11,8 +11,13 @@ async function bootstrap() {
   app.getHttpAdapter().getInstance().set('trust proxy', true);
   app.use(cookieParser());
 
+  app.set('trust proxy', 1);
+
   app.enableCors({
-    origin: 'https://localhost',
+    origin: [
+      'https://localhost',
+      'https://quiz.quizeverything.tech',
+    ],
     credentials: true,
   });
 

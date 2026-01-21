@@ -15,22 +15,23 @@ import { User } from 'src/common/decorators/user.decorator';
 
 @Controller('auth')
 export class AuthController {
-  constructor(private authService: AuthService) {}
+  constructor(private authService: AuthService) { }
 
   @Post('signup')
   async signup(@Body() dto: AuthDto,
     @Res({ passthrough: true }) res: Response,
-    ) {
+  ) {
     const accessToken = await this.authService.signup(dto); // or return token from service
 
     const maxAge = dto.remember ? 7 * 24 * 60 * 60 * 1000 : 24 * 60 * 60 * 1000;
 
     res.cookie('access_token', accessToken, {
-      httpOnly: false,
-      sameSite: 'lax',
+      httpOnly: true,
       secure: true,
+      sameSite: 'none',
+      domain: 'quiz.quizeverything.tech',
       path: '/',
-      maxAge: maxAge,
+      maxAge,
     });
 
     return { ok: true };
@@ -46,11 +47,12 @@ export class AuthController {
     const maxAge = dto.remember ? 7 * 24 * 60 * 60 * 1000 : 24 * 60 * 60 * 1000;
 
     res.cookie('access_token', accessToken, {
-      httpOnly: false,
-      sameSite: 'lax',
+      httpOnly: true,
       secure: true,
+      sameSite: 'none',
+      domain: 'quiz.quizeverything.tech',
       path: '/',
-      maxAge: maxAge,
+      maxAge,
     });
 
     return { ok: true };
@@ -60,16 +62,18 @@ export class AuthController {
   logout(@Res() res: Response) {
     res.clearCookie('access_token', {
       httpOnly: true,
-      sameSite: 'lax',
       secure: true,
+      sameSite: 'none',
+      domain: 'quiz.quizeverything.tech',
       path: '/',
     });
+
     return res.status(200).json({ message: 'Logged out successfully' });
   }
 
   @Get('google/login')
   @UseGuards(GoogleAuthGuard)
-  handleLogin() {}
+  handleLogin() { }
 
   @Get('google/redirect')
   @UseGuards(GoogleAuthGuard)
@@ -81,9 +85,10 @@ export class AuthController {
       user.email,
     );
     res.cookie('access_token', accessToken, {
-      httpOnly: false,
-      sameSite: 'lax',
-      secure: true, // true in production
+      httpOnly: true,
+      secure: true,
+      sameSite: 'none',
+      domain: 'quiz.quizeverything.tech',
       path: '/',
       maxAge: 24 * 60 * 60 * 1000,
     });
