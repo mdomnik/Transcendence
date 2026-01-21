@@ -12,10 +12,14 @@ import { AuthDto, SignInDto } from './dto';
 import { GoogleAuthGuard } from './strategy/Guards';
 import type { Request, Response } from 'express';
 import { User } from 'src/common/decorators/user.decorator';
+import { ConfigService } from '@nestjs/config';
 
 @Controller('auth')
 export class AuthController {
-  constructor(private authService: AuthService) { }
+  constructor(
+    private authService: AuthService,
+    private configService: ConfigService,
+  ) { }
 
   @Post('signup')
   async signup(@Body() dto: AuthDto,
@@ -24,12 +28,13 @@ export class AuthController {
     const accessToken = await this.authService.signup(dto); // or return token from service
 
     const maxAge = dto.remember ? 7 * 24 * 60 * 60 * 1000 : 24 * 60 * 60 * 1000;
+    const domain = this.configService.get<string>('DOMAIN');
 
     res.cookie('access_token', accessToken, {
       httpOnly: true,
       secure: true,
       sameSite: 'none',
-      domain: 'quiz.quizeverything.tech',
+      domain,
       path: '/',
       maxAge,
     });
@@ -45,12 +50,13 @@ export class AuthController {
     const accessToken = await this.authService.signin(dto); // or return token from service
 
     const maxAge = dto.remember ? 7 * 24 * 60 * 60 * 1000 : 24 * 60 * 60 * 1000;
+    const domain = this.configService.get<string>('DOMAIN');
 
     res.cookie('access_token', accessToken, {
       httpOnly: true,
       secure: true,
       sameSite: 'none',
-      domain: 'quiz.quizeverything.tech',
+      domain,
       path: '/',
       maxAge,
     });
@@ -60,11 +66,13 @@ export class AuthController {
 
   @Post('logout')
   logout(@Res() res: Response) {
+    const domain = this.configService.get<string>('DOMAIN');
+    
     res.clearCookie('access_token', {
       httpOnly: true,
       secure: true,
       sameSite: 'none',
-      domain: 'quiz.quizeverything.tech',
+      domain,
       path: '/',
     });
 
@@ -84,11 +92,13 @@ export class AuthController {
       user.id,
       user.email,
     );
+    const domain = this.configService.get<string>('DOMAIN');
+    
     res.cookie('access_token', accessToken, {
       httpOnly: true,
       secure: true,
       sameSite: 'none',
-      domain: 'quiz.quizeverything.tech',
+      domain,
       path: '/',
       maxAge: 24 * 60 * 60 * 1000,
     });
