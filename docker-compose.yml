@@ -12,7 +12,7 @@ services:
     ports:
       - "5432:5432"
     env_file:
-      - database/.env
+      - .env
     volumes:
       - postgresDBVolume:/var/lib/postgresql/data
     healthcheck:
@@ -33,7 +33,7 @@ services:
     networks:
       - internalNetwork
     env_file:
-      - backend/.env
+      - .env
     volumes:
       - ./backend:/app
       - /app/node_modules
@@ -50,7 +50,7 @@ services:
     networks:
       - internalNetwork
     env_file:
-      - frontend/.env
+      - .env
     volumes:
       - ./frontend:/app
       - /app/node_modules
@@ -74,7 +74,9 @@ services:
     restart: unless-stopped
     networks:
       - internalNetwork
-    command: tunnel --no-autoupdate run --token eyJhIjoiMjc4ZjY2OWNhMzVmYWE3YzM3NGE5ODIzNTMxNDc0M2IiLCJ0IjoiNDE1ODE4ZGMtODVhZS00YjM5LTgwYWMtOWFkYmM3N2UzZWFlIiwicyI6IlpqQm1NR1poTTJVdFpXSm1OaTAwWmpOa0xUZzJOekF0TVRkallUVmtNek14WWpSayJ9 
+    env_file:
+      - .env
+    command: tunnel --no-autoupdate run --token ${CLOUDFLARE_TUNNEL_TOKEN} 
 
 volumes:
     postgresDBVolume:
