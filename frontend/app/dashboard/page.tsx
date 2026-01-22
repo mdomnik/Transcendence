@@ -465,7 +465,7 @@ export default function Dashboard() {
                 ) : (
                   <>
                     {leaderboardPreview.map((entry, idx) => (
-                      <div key={`leaderboard-${idx}-${entry.id}`} className={`flex items-center justify-between group p-1.5 rounded-lg transition-colors ${
+                      <div key={entry.id ?? `leaderboard-${idx}`} className={`flex items-center justify-between group p-1.5 rounded-lg transition-colors ${
                         entry.id === user.id ? 'bg-[#64FFDA]/5 border border-[#64FFDA]/20' : 'hover:bg-[#64FFDA]/5'
                       }`}>
                         <div className="flex items-center gap-2">

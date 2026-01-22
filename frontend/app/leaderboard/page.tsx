@@ -12,7 +12,6 @@ export default function LeaderboardPage() {
   const { user, loading } = useAuth();
   const [entries, setEntries] = useState<LeaderboardEntry[]>([]);
   const [isFetching, setIsFetching] = useState(true);
-  const socket = getSocket();
 
   useEffect(() => {
     if (!loading && !user) {
@@ -31,6 +30,15 @@ export default function LeaderboardPage() {
 
   }, [user]);
 
+  useEffect(() => {
+  console.log(
+    entries.map(e => ({
+      userId: e.userId,
+      username: e.username
+    }))
+  );
+}, [entries]);
+
   if (loading || isFetching) {
     return (
       <main className="relative min-h-screen bg-[#0A192F] flex items-center justify-center">
@@ -40,6 +48,7 @@ export default function LeaderboardPage() {
   }
 
   if (!user) return null;
+
 
   return (
     <main className="relative min-h-screen bg-[#0A192F] overflow-hidden">
@@ -90,9 +99,9 @@ export default function LeaderboardPage() {
             ) : (
               entries.map((entry, index) => (
                 <div 
-                  key={entry.id} 
+                  key={entry.userId} 
                   className={`grid grid-cols-12 gap-4 px-6 py-4 items-center transition-colors hover:bg-[#64FFDA]/5 group ${
-                    entry.id === user.id ? 'bg-[#64FFDA]/5' : ''
+                    entry.userId === user.userId ? 'bg-[#64FFDA]/5' : ''
                   }`}
                 >
                   <div className="col-span-1 flex justify-center">
@@ -118,9 +127,9 @@ export default function LeaderboardPage() {
                     </div>
                     <div>
                       <div className={`font-bold transition-colors ${
-                        entry.id === user.id ? 'text-[#64FFDA]' : 'text-[#CCD6F6] group-hover:text-white'
+                        entry.userId === user.userId ? 'text-[#64FFDA]' : 'text-[#CCD6F6] group-hover:text-white'
                       }`}>
-                        {entry.username} {entry.id === user.id && "(You)"}
+                        {entry.username} {entry.userId === user.userId && "(You)"}
                       </div>
                       <div className="text-[10px] text-[#8892B0]">
                         {entry.gamesPlayed} games played

@@ -1,7 +1,7 @@
 import { getSocket } from "./socket";
 
 export interface LeaderboardEntry {
-  id: string;
+  userId: string;
   username: string;
   avatarPath?: string;
   gamesWon: number;
