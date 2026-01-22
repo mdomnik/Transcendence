@@ -67,6 +67,8 @@ type GameState = {
     questions: Question[];
     answeredBy?: Record<string, string[]>;
     correctnessMap?: Record<string, Record<string, boolean>>;
+    scoreDeltas?: Record<string, number>;
+    totalScores?: Record<string, number>;
     finalScores?: Record<string, number>;
     winners?: string[];
   };
@@ -391,6 +393,91 @@ useEffect(() => {
             </div>
             <div className="text-[#8892B0] text-lg">
               Get ready...
+            </div>
+          </div>
+        </div>
+      ) : phase === "ROUND_END" ? (
+        /* ---------- ROUND END RESULTS ---------- */
+        <div className="flex-1 flex items-center justify-center p-12">
+          <div className="max-w-3xl w-full bg-[#112240] border border-[#64FFDA]/30 rounded-3xl p-10 shadow-2xl">
+            <div className="text-center mb-8">
+              <div className="text-[#64FFDA] text-sm font-bold uppercase tracking-widest mb-2">
+                Round {round} Complete
+              </div>
+              <h2 className="text-white text-4xl font-black">Results</h2>
+            </div>
+
+            <div className="space-y-4">
+              {players
+                .slice()
+                .sort((a, b) => {
+                  const deltaA = game?.roundData?.scoreDeltas?.[a.userId] ?? 0;
+                  const deltaB = game?.roundData?.scoreDeltas?.[b.userId] ?? 0;
+                  return deltaB - deltaA;
+                })
+                .map((p, i) => {
+                  const delta = game?.roundData?.scoreDeltas?.[p.userId] ?? 0;
+                  const total = game?.roundData?.totalScores?.[p.userId] ?? 0;
+                  const previous = total - delta;
+
+                  return (
+                    <div
+                      key={p.userId}
+                      className={`flex items-center justify-between p-5 rounded-2xl border transition-all ${
+                        i === 0 && delta > 0
+                          ? "bg-[#64FFDA]/10 border-[#64FFDA] shadow-lg shadow-[#64FFDA]/5"
+                          : "bg-[#0A192F]/50 border-white/10"
+                      }`}
+                    >
+                      <div className="flex items-center gap-4">
+                        <div
+                          className={`w-10 h-10 rounded-full flex items-center justify-center font-black ${
+                            i === 0
+                              ? "bg-yellow-500 text-[#0A192F]"
+                              : i === 1
+                              ? "bg-slate-300 text-[#0A192F]"
+                              : i === 2
+                              ? "bg-amber-600 text-[#0A192F]"
+                              : "bg-white/10 text-[#8892B0]"
+                          }`}
+                        >
+                          {i + 1}
+                        </div>
+                        <div>
+                          <div
+                            className={`text-lg font-bold ${
+                              p.userId === userId ? "text-white" : "text-[#CCD6F6]"
+                            }`}
+                          >
+                            {p.username} {p.userId === userId && "(You)"}
+                          </div>
+                          <div className="text-xs text-[#8892B0]">
+                            Previous: {previous}
+                          </div>
+                        </div>
+                      </div>
+
+                      <div className="text-right">
+                        <div
+                          className={`text-2xl font-black font-mono ${
+                            delta > 0 ? "text-green-400" : "text-[#8892B0]"
+                          }`}
+                        >
+                          {delta > 0 ? "+" : ""}{delta}
+                        </div>
+                        <div className="text-sm text-[#64FFDA] font-mono font-bold">
+                          Total: {total}
+                        </div>
+                      </div>
+                    </div>
+                  );
+                })}
+            </div>
+
+            <div className="mt-8 text-center">
+              <div className="text-[#8892B0] text-sm animate-pulse">
+                Next round starting soon...
+              </div>
             </div>
           </div>
         </div>

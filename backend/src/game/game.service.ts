@@ -1053,44 +1053,18 @@ export class GameService {
       GameKeys.matchMeta(lobbyId),
     );
 
-    if (!matchMeta?.state || matchMeta.state !== 'IN_PROGRESS') {
+    if (matchMeta.state !== 'IN_PROGRESS') {
       return;
     }
 
     const currentRound = Number(matchMeta.currentRound);
-
-    const configRaw = await this.redis.client.hgetall(
+    const config = await this.redis.client.hgetall(
       GameKeys.matchConfig(lobbyId),
     );
+    const roundsTotal = Number(config.roundsTotal);
 
-    const totalRounds = Number(configRaw.roundsTotal);
-
-    if (!totalRounds || currentRound > totalRounds) {
-      throw new Error('Invalid match configuration');
-    }
-
-    if (currentRound >= totalRounds) {
-      await this.redis.client.hset(GameKeys.matchMeta(lobbyId), {
-        state: 'FINISHED',
-      });
-
-      await this.redis.client.hset(LobbyKeys.meta(lobbyId), {
-        state: 'FINISHED',
-      });
-
-      const matchMeta = await this.redis.client.hgetall(GameKeys.matchMeta(lobbyId));
-      const currentRound = Number(matchMeta.currentRound);
-
-      await this.redis.client.hset(
-        GameKeys.roundMeta(lobbyId, currentRound),
-        {
-          phase: 'MATCH_END',
-          phaseStartedAt: Date.now().toString(),
-        },
-      );
-
-      await this.finalizeMatchStats(lobbyId);
-
+    if (currentRound >= roundsTotal) {
+      await this.finalizeMatch(lobbyId);
       return;
     }
 
@@ -1100,9 +1074,13 @@ export class GameService {
       currentRound: nextRound.toString(),
     });
 
-    const lobbyMeta = await this.redis.client.hgetall(
-      LobbyKeys.meta(lobbyId),
-    );
+    // Clear NEW round data (in case of restart)
+    await this.redis.client.del(GameKeys.roundInputs(lobbyId, nextRound));
+    await this.redis.client.del(GameKeys.roundVotes(lobbyId, nextRound));
+    await this.redis.client.del(GameKeys.questions(lobbyId, nextRound));
+    await this.redis.client.del(GameKeys.answers(lobbyId, nextRound));
+    await this.redis.client.del(GameKeys.selected(lobbyId, nextRound));
+    await this.redis.client.del(GameKeys.selectLock(lobbyId, nextRound));
 
     // Always start with ROUND_START transition
     await this.redis.client.hset(GameKeys.roundMeta(lobbyId, nextRound), {
@@ -1114,7 +1092,7 @@ export class GameService {
     return;
   }
 
-  private async finalizeMatchStats(lobbyId: string) {
+  private async finalizeMatch(lobbyId: string) {
     const members = await this.redis.client.smembers(
       LobbyKeys.members(lobbyId),
     );
