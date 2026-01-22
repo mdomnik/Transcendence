@@ -64,6 +64,7 @@ export class AiService {
         return response.data;
       });
     } catch (error) {
+      console.warn('AI sendchat() error caught', error);
       // if rate limit reached return error
       if (error?.response?.status === 429) {
         throw new AiResponseException('AI rate limit reached');

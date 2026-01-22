@@ -17,3 +17,5 @@ build/
 /uploads/*
 !/uploads/.gitkeep
 !/uploads/avatars/.gitkeep
+
+/caddy/certs/*
