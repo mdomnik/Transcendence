@@ -465,8 +465,8 @@ export default function Dashboard() {
                 ) : (
                   <>
                     {leaderboardPreview.map((entry, idx) => (
-                      <div key={entry.id ?? `leaderboard-${idx}`} className={`flex items-center justify-between group p-1.5 rounded-lg transition-colors ${
-                        entry.id === user.id ? 'bg-[#64FFDA]/5 border border-[#64FFDA]/20' : 'hover:bg-[#64FFDA]/5'
+                      <div key={entry.userId ?? `leaderboard-${idx}`} className={`flex items-center justify-between group p-1.5 rounded-lg transition-colors ${
+                        entry.userId === user.id ? 'bg-[#64FFDA]/5 border border-[#64FFDA]/20' : 'hover:bg-[#64FFDA]/5'
                       }`}>
                         <div className="flex items-center gap-2">
                           <div className={`text-[11px] font-bold w-4 h-4 rounded-full flex items-center justify-center ${
@@ -487,7 +487,7 @@ export default function Dashboard() {
                           </div>
                           <div className="flex flex-col">
                             <span className={`text-[13px] font-bold truncate max-w-[70px] ${
-                              entry.id === user.id ? 'text-[#64FFDA]' : 'text-[#CCD6F6]'
+                              entry.userId === user.id ? 'text-[#64FFDA]' : 'text-[#CCD6F6]'
                             }`}>
                               {entry.username}
                             </span>
@@ -501,7 +501,7 @@ export default function Dashboard() {
                       </div>
                     ))}
                     
-                    {!leaderboardPreview.find(e => e.id === user.id) && (
+                    {!leaderboardPreview.find(e => e.userId === user.id) && (
                       <div className="mt-1 pt-1 border-t border-[#64FFDA]/5 text-center">
                         <button 
                           onClick={() => router.push("/leaderboard")}
