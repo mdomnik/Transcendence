@@ -156,14 +156,6 @@ export default function Dashboard() {
     );
   }
 
-<<<<<<< HEAD
-  // Don't show dashboard if not authenticated (will redirect)
-  if (!user) {
-    return null;
-  }
-
-  const userName = user.username || "Player";
-=======
   if (!user) return null;
   const userName = user.username || "Player";
 
@@ -264,7 +256,6 @@ export default function Dashboard() {
       setIsJoining(false);
     }
   };
->>>>>>> merging-latest-branch-to-/dev-branch
 
   return (
     <main className="relative min-h-screen bg-[#0A192F] overflow-hidden">
