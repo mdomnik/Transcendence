@@ -32,12 +32,23 @@ const STATIC_FALLBACK_TOPIC = {
 type MatchState = 'SETUP' | 'IN_PROGRESS' | 'FINISHED';
 
 type PhaseState =
+  | 'ROUND_START'
   | 'TOPIC_INPUT'
+  | 'VOTING_START'
   | 'VOTING'
   | 'SELECT_TOPIC'
   | 'ANSWERING'
   | 'ROUND_END'
   | 'MATCH_END';
+
+interface RoundStartView {
+  phase: 'ROUND_START';
+  round: number;
+}
+
+interface VotingStartView {
+  phase: 'VOTING_START';
+}
 
 interface TopicInputView {
   phase: 'TOPIC_INPUT';
@@ -62,6 +73,12 @@ interface VotingView {
 
 interface QuestionSelectionView {
   phase: 'SELECT_TOPIC';
+  proposals: Array<{
+    userId: string;
+    topicTitle: string;
+    difficulty: 'EASY' | 'MEDIUM' | 'HARD';
+    votes: number;
+  }>;
 }
 
 interface AnsweringView {
@@ -75,6 +92,7 @@ interface AnsweringView {
     }>;
   }>;
   answeredBy: Record<string, string[]>;
+  correctnessMap?: Record<string, Record<string, boolean>>; // userId -> questionId -> isCorrect
 }
 
 interface RoundEndView {
@@ -90,7 +108,9 @@ interface MatchEndView {
 }
 
 export type RoundView =
+  | RoundStartView
   | TopicInputView
+  | VotingStartView
   | VotingView
   | QuestionSelectionView
   | AnsweringView
@@ -196,7 +216,12 @@ export class GameService {
 
     let roundData: GameView['roundData'] = null;
 
-    if (phase === 'TOPIC_INPUT') {
+    if (phase === 'ROUND_START') {
+      roundData = {
+        phase: 'ROUND_START',
+        round: currentRound,
+      };
+    } else if (phase === 'TOPIC_INPUT') {
       const rawInputs = await this.redis.client.hgetall(
         GameKeys.roundInputs(lobbyId, currentRound),
       );
@@ -213,6 +238,10 @@ export class GameService {
           };
         }),
       };
+    } else if (phase === 'VOTING_START') {
+      roundData = {
+        phase: 'VOTING_START',
+      };
     } else if (phase === 'VOTING') {
       const rawInputs = await this.redis.client.hgetall(
         GameKeys.roundInputs(lobbyId, currentRound),
@@ -222,7 +251,6 @@ export class GameService {
         GameKeys.roundVotes(lobbyId, currentRound),
       );
 
-      // voterId -> votedForUserId
       const voteCounts: Record<string, number> = {};
       for (const votedForUserId of Object.values(rawVotes)) {
         voteCounts[votedForUserId] = (voteCounts[votedForUserId] ?? 0) + 1;
@@ -233,7 +261,7 @@ export class GameService {
         proposals: Object.entries(rawInputs).map(([userId, raw]) => {
           const parsed = JSON.parse(raw);
           return {
-            userId, // proposer id
+            userId,
             topicTitle: parsed.topicTitle,
             difficulty: parsed.difficulty,
             votes: voteCounts[userId] ?? 0,
@@ -242,8 +270,30 @@ export class GameService {
         votedBy: Object.keys(rawVotes),
       };
     } else if (phase === 'SELECT_TOPIC') {
+      const rawInputs = await this.redis.client.hgetall(
+        GameKeys.roundInputs(lobbyId, currentRound),
+      );
+
+      const rawVotes = await this.redis.client.hgetall(
+        GameKeys.roundVotes(lobbyId, currentRound),
+      );
+
+      const voteCounts: Record<string, number> = {};
+      for (const votedForUserId of Object.values(rawVotes)) {
+        voteCounts[votedForUserId] = (voteCounts[votedForUserId] ?? 0) + 1;
+      }
+
       roundData = {
         phase: 'SELECT_TOPIC',
+        proposals: Object.entries(rawInputs).map(([userId, raw]) => {
+          const parsed = JSON.parse(raw);
+          return {
+            userId,
+            topicTitle: parsed.topicTitle,
+            difficulty: parsed.difficulty,
+            votes: voteCounts[userId] ?? 0,
+          };
+        }),
       };
     } else if (phase === 'ANSWERING') {
       const questionsRaw = await this.redis.client.get(
@@ -266,16 +316,29 @@ export class GameService {
       );
 
       const answeredBy: Record<string, string[]> = {};
+      const correctnessMap: Record<string, Record<string, boolean>> = {};
+
+      const fullQuestions = questionsRaw ? JSON.parse(questionsRaw) : [];
 
       for (const [userId, raw] of Object.entries(rawAnswers)) {
         const parsed = JSON.parse(raw);
         answeredBy[userId] = Object.keys(parsed.answers ?? {});
+        correctnessMap[userId] = {};
+
+        for (const q of fullQuestions) {
+          const userAnswer = parsed.answers?.[q.id];
+          if (userAnswer) {
+            const correct = q.answers?.find((a) => a.isCorrect);
+            correctnessMap[userId][q.id] = userAnswer.answerId === correct?.id;
+          }
+        }
       }
 
       roundData = {
         phase: 'ANSWERING',
         questions,
         answeredBy,
+        correctnessMap,
       };
     } else if (phase === 'ROUND_END') {
       const rawScoresNow = await this.redis.client.hgetall(
@@ -427,8 +490,9 @@ export class GameService {
       return;
     }
 
+    // Show VOTING_START transition
     await this.redis.client.hset(GameKeys.roundMeta(lobbyId, currentRound), {
-      phase: 'VOTING',
+      phase: 'VOTING_START',
       phaseStartedAt: Date.now().toString(),
     });
 
@@ -797,18 +861,25 @@ export class GameService {
     );
 
     const timePerQuestion = Number(configRaw.timePerQuestion);
+    const questionsPerRound = Number(configRaw.questionsPerRound);
 
     let timeout: number | null = null;
 
     switch (phase) {
+      case 'ROUND_START':
+        timeout = 3;
+        break;
       case 'TOPIC_INPUT':
-        timeout = 300;
+        timeout = 30;
+        break;
+      case 'VOTING_START':
+        timeout = 3;
         break;
       case 'VOTING':
-        timeout = 150;
+        timeout = 20;
         break;
       case 'ANSWERING':
-        timeout = timePerQuestion;
+        timeout = timePerQuestion * questionsPerRound;
         break;
       case 'ROUND_END':
         timeout = 5;
@@ -836,6 +907,14 @@ export class GameService {
     );
 
     switch (phase) {
+      case 'ROUND_START': {
+        await this.redis.client.hset(GameKeys.roundMeta(lobbyId, round), {
+          phase: 'TOPIC_INPUT',
+          phaseStartedAt: Date.now().toString(),
+        });
+        return;
+      }
+
       case 'TOPIC_INPUT': {
         const submittedCount = await this.redis.client.hlen(
           GameKeys.roundInputs(lobbyId, round),
@@ -844,10 +923,18 @@ export class GameService {
         const nextPhase =
           submittedCount === 0 || members.length === 2
             ? 'SELECT_TOPIC'
-            : 'VOTING';
+            : 'VOTING_START';
 
         await this.redis.client.hset(GameKeys.roundMeta(lobbyId, round), {
           phase: nextPhase,
+          phaseStartedAt: Date.now().toString(),
+        });
+        return;
+      }
+
+      case 'VOTING_START': {
+        await this.redis.client.hset(GameKeys.roundMeta(lobbyId, round), {
+          phase: 'VOTING',
           phaseStartedAt: Date.now().toString(),
         });
         return;
@@ -991,10 +1078,16 @@ export class GameService {
         state: 'FINISHED',
       });
 
-      await this.redis.client.hset(GameKeys.roundMeta(lobbyId, currentRound), {
-        phase: 'MATCH_END',
-        phaseStartedAt: Date.now().toString(),
-      });
+      const matchMeta = await this.redis.client.hgetall(GameKeys.matchMeta(lobbyId));
+      const currentRound = Number(matchMeta.currentRound);
+
+      await this.redis.client.hset(
+        GameKeys.roundMeta(lobbyId, currentRound),
+        {
+          phase: 'MATCH_END',
+          phaseStartedAt: Date.now().toString(),
+        },
+      );
 
       await this.finalizeMatchStats(lobbyId);
 
@@ -1007,27 +1100,15 @@ export class GameService {
       currentRound: nextRound.toString(),
     });
 
-    const lobbyMeta = await this.redis.client.hgetall(LobbyKeys.meta(lobbyId));
+    const lobbyMeta = await this.redis.client.hgetall(
+      LobbyKeys.meta(lobbyId),
+    );
 
-    if (lobbyMeta?.topic && lobbyMeta.topic.trim().length > 0) {
-      // Pre-fill next round topic
-      await this.redis.client.hset(GameKeys.roundInputs(lobbyId, nextRound), {
-        [lobbyMeta.ownerId]: JSON.stringify({
-          topicTitle: lobbyMeta.topic,
-          difficulty: lobbyMeta.difficulty || 'EASY',
-        }),
-      });
-
-      await this.redis.client.hset(GameKeys.roundMeta(lobbyId, nextRound), {
-        phase: 'SELECT_TOPIC',
-        phaseStartedAt: Date.now().toString(),
-      });
-    } else {
-      await this.redis.client.hset(GameKeys.roundMeta(lobbyId, nextRound), {
-        phase: 'TOPIC_INPUT',
-        phaseStartedAt: Date.now().toString(),
-      });
-    }
+    // Always start with ROUND_START transition
+    await this.redis.client.hset(GameKeys.roundMeta(lobbyId, nextRound), {
+      phase: 'ROUND_START',
+      phaseStartedAt: Date.now().toString(),
+    });
 
     await this.emitGameUpdate(lobbyId);
     return;
@@ -1040,7 +1121,6 @@ export class GameService {
 
     if (members.length === 0) return;
 
-    // Get match info for topic
     const matchMeta = await this.redis.client.hgetall(GameKeys.matchMeta(lobbyId));
     const currentRound = Number(matchMeta.currentRound || 1);
 
@@ -1143,15 +1223,19 @@ export class GameService {
 
   private getPhaseTimeoutSeconds(
     phase: PhaseState,
-    config: { timePerQuestion: number },
+    config: { timePerQuestion: number; questionsPerRound?: number },
   ): number | null {
     switch (phase) {
+      case 'ROUND_START':
+        return 3;
       case 'TOPIC_INPUT':
         return 30;
+      case 'VOTING_START':
+        return 3;
       case 'VOTING':
         return 20;
       case 'ANSWERING':
-        return config.timePerQuestion;
+        return config.timePerQuestion * (config.questionsPerRound || 10);
       case 'ROUND_END':
         return 5;
       default:
@@ -1175,25 +1259,11 @@ export class GameService {
       LobbyKeys.meta(lobby.lobbyId),
     );
 
-    if (lobbyMeta?.topic && lobbyMeta.topic.trim().length > 0) {
-      // Pre-fill round 1 topic
-      await this.redis.client.hset(GameKeys.roundInputs(lobby.lobbyId, 1), {
-        [lobby.ownerId]: JSON.stringify({
-          topicTitle: lobbyMeta.topic,
-          difficulty: lobbyMeta.difficulty || 'EASY',
-        }),
-      });
-
-      await this.redis.client.hset(GameKeys.roundMeta(lobby.lobbyId, 1), {
-        phase: 'SELECT_TOPIC',
-        phaseStartedAt: Date.now().toString(),
-      });
-    } else {
-      await this.redis.client.hset(GameKeys.roundMeta(lobby.lobbyId, 1), {
-        phase: 'TOPIC_INPUT',
-        phaseStartedAt: Date.now().toString(),
-      });
-    }
+    // Always start with ROUND_START
+    await this.redis.client.hset(GameKeys.roundMeta(lobby.lobbyId, 1), {
+      phase: 'ROUND_START',
+      phaseStartedAt: Date.now().toString(),
+    });
 
     await this.redis.client.sadd(GameKeys.activeMatches(), lobby.lobbyId);
   }
@@ -1217,14 +1287,11 @@ export class GameService {
         state: 'FINISHED',
       });
 
+      const matchMeta = await this.redis.client.hgetall(GameKeys.matchMeta(lobbyId));
+      const currentRound = Number(matchMeta.currentRound);
+
       await this.redis.client.hset(
-        GameKeys.roundMeta(
-          lobbyId,
-          Number(
-            (await this.redis.client.hgetall(GameKeys.matchMeta(lobbyId)))
-              .currentRound,
-          ),
-        ),
+        GameKeys.roundMeta(lobbyId, currentRound),
         {
           phase: 'MATCH_END',
           phaseStartedAt: Date.now().toString(),
