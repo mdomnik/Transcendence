@@ -57,7 +57,7 @@ export class AiService {
               Authorization: `Bearer ${this.configService.getOrThrow('AI_API_KEY')}`,
               'Content-Type': 'application/json',
             },
-            timeout: 20_000,
+            timeout: 60_000,
           },
         );
 
@@ -85,7 +85,7 @@ export class AiService {
               Authorization: `Bearer ${this.configService.getOrThrow('AI_API_KEY')}`,
               'Content-Type': 'application/json',
             },
-            timeout: 20_000,
+            timeout: 60_000,
           },
         );
 
