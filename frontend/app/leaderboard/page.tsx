@@ -101,7 +101,7 @@ export default function LeaderboardPage() {
                 <div 
                   key={entry.userId} 
                   className={`grid grid-cols-12 gap-4 px-6 py-4 items-center transition-colors hover:bg-[#64FFDA]/5 group ${
-                    entry.userId === user.userId ? 'bg-[#64FFDA]/5' : ''
+                    entry.userId === user.id ? 'bg-[#64FFDA]/5' : ''
                   }`}
                 >
                   <div className="col-span-1 flex justify-center">
@@ -127,9 +127,9 @@ export default function LeaderboardPage() {
                     </div>
                     <div>
                       <div className={`font-bold transition-colors ${
-                        entry.userId === user.userId ? 'text-[#64FFDA]' : 'text-[#CCD6F6] group-hover:text-white'
+                        entry.userId === user.id ? 'text-[#64FFDA]' : 'text-[#CCD6F6] group-hover:text-white'
                       }`}>
-                        {entry.username} {entry.userId === user.userId && "(You)"}
+                        {entry.username} {entry.userId === user.id && "(You)"}
                       </div>
                       <div className="text-[10px] text-[#8892B0]">
                         {entry.gamesPlayed} games played
