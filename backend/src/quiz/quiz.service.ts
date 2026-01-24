@@ -88,20 +88,77 @@ export class QuizService {
       );
 
       // run a generation call
-      const newGeneratedQuestions = await this.aiService.generateQuestions(
-        {
-          topic,
-          difficulty,
-          qnum: amountToGenerate,
-        },
-        ListOfExcludedQuestions,
-      );
+      let newGeneratedQuestions: Array<{
+        question: string;
+        answers: any;
+        difficulty: any;
+        subject_icon: any;
+      }> = [];
 
-      // print questions to console
-      console.log('GENERATED QUESTIONS: ');
-      newGeneratedQuestions.forEach((q, index) => {
-        console.log(`${index + 1}. ${q.question}`);
-      });
+      try {
+        // first attempt
+        newGeneratedQuestions = await this.aiService.generateQuestions(
+          {
+            topic,
+            difficulty,
+            qnum: amountToGenerate,
+          },
+          ListOfExcludedQuestions,
+          60_000, // initial timeout
+        );
+
+        console.log('GENERATED QUESTIONS (first attempt):');
+        newGeneratedQuestions.forEach((q, index) => {
+          console.log(`${index + 1}. ${q.question}`);
+        });
+      } catch (err) {
+        console.warn(
+          'AI generation failed, retrying with longer timeout...',
+          err,
+        );
+
+        // Trying with longer timeout first?
+        try {
+          newGeneratedQuestions = await this.aiService.generateQuestions(
+            {
+              topic,
+              difficulty,
+              qnum: amountToGenerate,
+            },
+            ListOfExcludedQuestions,
+            120_000, // longer timeout
+          );
+
+          console.log('GENERATED QUESTIONS (retry):');
+          newGeneratedQuestions.forEach((q, index) => {
+            console.log(`${index + 1}. ${q.question}`);
+          });
+        } catch (retryErr) {
+          console.error(
+            'AI generation failed again, falling back to database questions.',
+            retryErr,
+          );
+
+          const allQuestions =
+            await this.repositoryService.getAllQuestionsByTopicAndDifficutly(
+              topicId,
+              difficulty,
+            );
+
+          const fallbackQuestions = this.pickRandom(
+            allQuestions,
+            amountToGenerate,
+          );
+
+          // TODO! I don't know what subject_icon is might need fixing later
+          newGeneratedQuestions = fallbackQuestions.map((q) => ({
+            question: q.text,
+            answers: q.answers,
+            difficulty: q.difficulty,
+            subject_icon: '',
+          }));
+        }
+      }
 
       // check for duplicated
       const filteredGeneratedQuestions = newGeneratedQuestions.filter(
