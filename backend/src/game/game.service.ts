@@ -378,7 +378,6 @@ export class GameService {
         winners,
       };
 
-      this.eventEmitter.emit('leaderboard.updated');
       // console.log('Game has finshed, initiating cleanup!');
     }
 
@@ -697,7 +696,8 @@ export class GameService {
       });
 
       await this.emitGameUpdate(lobbyId);
-    } finally {
+    } catch (err) {
+      console.log('Error caught in selectQuestion: ', err);
     }
   }
 
@@ -1099,11 +1099,15 @@ export class GameService {
 
     if (members.length === 0) return;
 
-    const matchMeta = await this.redis.client.hgetall(GameKeys.matchMeta(lobbyId));
+    const matchMeta = await this.redis.client.hgetall(
+      GameKeys.matchMeta(lobbyId),
+    );
     const currentRound = Number(matchMeta.currentRound || 1);
 
     // Get topic from the last round played
-    const selected = await this.redis.client.hgetall(GameKeys.selected(lobbyId, currentRound));
+    const selected = await this.redis.client.hgetall(
+      GameKeys.selected(lobbyId, currentRound),
+    );
     const topicTitle = selected?.topicTitle || 'General Knowledge';
 
     // Find or create topic
@@ -1137,7 +1141,10 @@ export class GameService {
 
       for (const userId of members) {
         totalQuestions[userId] += questions.length;
-        const ansRaw = await this.redis.client.hget(GameKeys.answers(lobbyId, r), userId);
+        const ansRaw = await this.redis.client.hget(
+          GameKeys.answers(lobbyId, r),
+          userId,
+        );
         if (!ansRaw) continue;
         const parsed = JSON.parse(ansRaw);
 
@@ -1182,7 +1189,6 @@ export class GameService {
           correctAnswers: correctCounts[userId],
         },
       });
-
       // Save individual game result for history
       try {
         await this.prisma.gameResult.create({
@@ -1197,6 +1203,17 @@ export class GameService {
         console.error(`Failed to save game result for user ${userId}:`, e);
       }
     }
+    // Sending an event to the leaderboard backend to update leaderboard for everyone
+    this.eventEmitter.emit('leaderboard.updated');
+    // Finalizing of match was missing, added here~ :)
+    await this.redis.client.hset(GameKeys.matchMeta(lobbyId), {
+      state: 'FINISHED',
+    });
+
+    await this.redis.client.hset(GameKeys.roundMeta(lobbyId, currentRound), {
+      phase: 'MATCH_END',
+      phaseStartedAt: Date.now().toString(),
+    });
   }
 
   private getPhaseTimeoutSeconds(
@@ -1265,16 +1282,15 @@ export class GameService {
         state: 'FINISHED',
       });
 
-      const matchMeta = await this.redis.client.hgetall(GameKeys.matchMeta(lobbyId));
+      const matchMeta = await this.redis.client.hgetall(
+        GameKeys.matchMeta(lobbyId),
+      );
       const currentRound = Number(matchMeta.currentRound);
 
-      await this.redis.client.hset(
-        GameKeys.roundMeta(lobbyId, currentRound),
-        {
-          phase: 'MATCH_END',
-          phaseStartedAt: Date.now().toString(),
-        },
-      );
+      await this.redis.client.hset(GameKeys.roundMeta(lobbyId, currentRound), {
+        phase: 'MATCH_END',
+        phaseStartedAt: Date.now().toString(),
+      });
 
       const view = await this.getGameView(lobbyId);
       if (view) {
