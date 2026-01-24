@@ -2,7 +2,6 @@
 
 import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
-import Dropdown from "../components/DropDown";
 import FloatingShapes from "../components/FloatingShapes";
 import Toast from "../components/Toast";
 import ChatBox from "../components/ChatBox";
@@ -279,26 +278,26 @@ export default function Dashboard() {
 
           <div className="flex items-center gap-4">
             <span className="text-[#CCD6F6]">Welcome, {userName}!</span>
-            <Dropdown
-              trigger={
-                <div className="w-10 h-10 rounded-full bg-gradient-to-r from-[#64FFDA] to-[#5EEAD4] flex items-center justify-center text-[#0A192F] font-bold cursor-pointer overflow-hidden">
-                  {user.avatarPath ? (
-                    <img src={`${user.avatarPath}?v=${Date.now()}`} alt={userName} className="w-full h-full object-cover" />
-                  ) : (
-                    userName.charAt(0).toUpperCase()
-                  )}
-                </div>
-              }
-              userName={userName}
-              userEmail={user.email || ""}
-              avatarPath={user.avatarPath}
-              items={[
-                { label: "Profile", onClick: () => router.push("/profile") },
-                { label: "Friends", onClick: () => router.push("/friends") },
-                { label: "Settings", onClick: () => router.push("/settings") },
-                { label: "Logout", onClick: handleLogout },
-              ]}
-            />
+            
+            {/* Avatar as Profile Button */}
+            <button
+              onClick={() => router.push("/profile")}
+              className="w-10 h-10 rounded-full bg-gradient-to-r from-[#64FFDA] to-[#5EEAD4] flex items-center justify-center text-[#0A192F] font-bold overflow-hidden hover:scale-110 transition-transform cursor-pointer border-2 border-transparent hover:border-[#64FFDA]/50"
+            >
+              {user.avatarPath ? (
+                <img src={`${user.avatarPath}?v=${Date.now()}`} alt={userName} className="w-full h-full object-cover" />
+              ) : (
+                userName.charAt(0).toUpperCase()
+              )}
+            </button>
+
+            {/* Just Logout button */}
+            <button
+              onClick={handleLogout}
+              className="px-3 py-1.5 bg-[#64FFDA] text-[#0A192F] rounded hover:bg-[#4ECDC4] transition-colors text-sm font-medium"
+            >
+              Logout
+            </button>
           </div>
         </header>
 
