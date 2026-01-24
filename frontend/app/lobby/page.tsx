@@ -50,6 +50,22 @@ export default function LobbyPage() {
   const displayedCode = showCode ? lobby?.lobbyCode : "********";
 
   useEffect(() => {
+    if (!authLoading && !user) {
+      router.push("/");
+    }
+  }, [user, authLoading, router]);
+
+  if (authLoading) {
+    return (
+      <main className="relative min-h-screen bg-[#0A192F] flex items-center justify-center">
+        <div className="text-[#64FFDA] text-xl">Loading...</div>
+      </main>
+    );
+  }
+
+  if (!user) return null;
+
+  useEffect(() => {
     if (authLoading || !user) return;
 
     const socket = getSocket();

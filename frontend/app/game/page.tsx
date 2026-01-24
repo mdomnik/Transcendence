@@ -124,6 +124,25 @@ export default function GamePage() {
   const [lastAnsweredCorrect, setLastAnsweredCorrect] = useState<boolean | null>(null);
   const [showingFeedback, setShowingFeedback] = useState(false);
 
+  // Track round changes to reset feedback state
+  const prevRoundRef = useRef<number | null>(null);
+
+  useEffect(() => {
+    if (!loading && !user) {
+      router.push("/");
+    }
+  }, [user, loading, router]);
+
+  if (loading) {
+    return (
+      <main className="relative min-h-screen bg-[#0A192F] flex items-center justify-center">
+        <div className="text-[#64FFDA] text-xl">Loading...</div>
+      </main>
+    );
+  }
+
+  if (!user) return null;
+
   /* ===================== CLOCK ===================== */
 
   useEffect(() => {
@@ -348,6 +367,21 @@ useEffect(() => {
     return () => clearTimeout(timer);
   }
 }, [game?.roundData?.correctnessMap, user, lastAnsweredQuestionId]);
+
+// Reset feedback state when entering a new ANSWERING phase (for round transitions)
+useEffect(() => {
+  const currentRound = game?.match?.round ?? 1;
+  const currentPhase = game?.phase?.state ?? null;
+  
+  // When we enter ANSWERING phase for a new round, reset feedback states
+  if (currentPhase === "ANSWERING" && prevRoundRef.current !== currentRound) {
+    setLastAnsweredQuestionId(null);
+    setLastAnsweredAnswerId(null);
+    setLastAnsweredCorrect(null);
+    setShowingFeedback(false);
+    prevRoundRef.current = currentRound;
+  }
+}, [game?.match?.round, game?.phase?.state]);
 
   /* ===================== RENDER ===================== */
 

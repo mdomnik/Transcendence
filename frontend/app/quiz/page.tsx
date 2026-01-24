@@ -21,7 +21,7 @@ interface PlayerScore {
 
 export default function QuizPage() {
   const router = useRouter();
-  const { user } = useAuth();
+  const { user, loading } = useAuth();
   
   const [currentQuestion, setCurrentQuestion] = useState<Question | null>(null);
   const [selectedAnswer, setSelectedAnswer] = useState<number | null>(null);
@@ -31,6 +31,22 @@ export default function QuizPage() {
   const [isCorrect, setIsCorrect] = useState<boolean | null>(null);
   const [gameOver, setGameOver] = useState(false);
   const [finalScores, setFinalScores] = useState<PlayerScore[]>([]);
+
+  useEffect(() => {
+    if (!loading && !user) {
+      router.push("/");
+    }
+  }, [user, loading, router]);
+
+  if (loading) {
+    return (
+      <main className="relative min-h-screen bg-[#0A192F] flex items-center justify-center">
+        <div className="text-[#64FFDA] text-xl">Loading...</div>
+      </main>
+    );
+  }
+
+  if (!user) return null;
 
   useEffect(() => {
     const socket = getSocket();
