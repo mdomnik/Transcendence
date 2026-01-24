@@ -4,20 +4,33 @@ import {
   SubscribeMessage,
   WebSocketGateway,
   WebSocketServer,
+  OnGatewayInit,
 } from '@nestjs/websockets';
 import { Server, Socket } from 'socket.io';
 import { FriendshipService } from './friendship.service';
+import { JwtService } from '@nestjs/jwt';
+import { initWsAuth } from 'src/websocket/websocket.init';
 
 @WebSocketGateway({
   namespace: '/quiz',
-  cors: { origin: 'https://ferni.quizeverything.tech', credentials: true },
+  cors: {
+    origin: process.env.NODE_ENV === 'production' 
+      ? `https://${process.env.DOMAIN || 'localhost'}`
+      : ['http://localhost:3000', 'http://localhost:3001'],
+    credentials: true,
+  },
 })
-export class FriendshipGateway {
+export class FriendshipGateway implements OnGatewayInit {
   @WebSocketServer() server: Server;
 
   constructor(
     private readonly friendshipService: FriendshipService,
+    private readonly jwtService: JwtService,
   ) {}
+
+  afterInit(server: Server) {
+    initWsAuth(server, this.jwtService);
+  }
 
   @SubscribeMessage('friendship:request')
   async request(
@@ -128,7 +141,6 @@ export class FriendshipGateway {
       const row = await this.friendshipService.block(myId, body.userId);
       const otherId = this.otherFromRow(myId, row.userA.id, row.userB.id);
 
-      // You may choose to only notify the blocker’s UI; typically both should update.
       this.emitToUser(myId, 'friendship:updated', { type: 'BLOCKED', row });
       this.emitToUser(otherId, 'friendship:updated', { type: 'BLOCKED', row });
 

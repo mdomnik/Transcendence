@@ -6,6 +6,7 @@ import {
   SubscribeMessage,
   ConnectedSocket,
   MessageBody,
+  OnGatewayInit,
 } from '@nestjs/websockets';
 import { Server, Socket } from 'socket.io';
 import { GameService } from './game.service';
@@ -18,15 +19,20 @@ import {
 import { LobbyService } from 'src/lobby/lobby.service';
 import { forwardRef, Inject } from '@nestjs/common';
 import { finished } from 'stream';
+import { ConfigService } from '@nestjs/config';
+import { JwtService } from '@nestjs/jwt';
+import { initWsAuth } from 'src/websocket/websocket.init';
 
 @WebSocketGateway({
   namespace: '/quiz',
   cors: {
-    origin: 'https://ferni.quizeverything.tech',
+    origin: process.env.NODE_ENV === 'production' 
+      ? `https://${process.env.DOMAIN || 'localhost'}`
+      : ['http://localhost:3000', 'http://localhost:3001'],
     credentials: true,
   },
 })
-export class GameGateway {
+export class GameGateway implements OnGatewayInit {
   @WebSocketServer()
   server: Server;
 
@@ -35,7 +41,12 @@ export class GameGateway {
     private readonly gameService: GameService,
     @Inject(forwardRef(() => LobbyService))
     private readonly lobbyService: LobbyService,
+    private readonly jwtService: JwtService,
   ) {}
+
+  afterInit(server: Server) {
+    initWsAuth(server, this.jwtService);
+  }
 
   @SubscribeMessage('game:submit-topic')
   async handleSubmitTopic(
@@ -131,8 +142,10 @@ export class GameGateway {
       return;
     }
 
-    if (view.match.state == 'FINISHED')
+    if (view.match.state == 'FINISHED') {
       this.server.to(lobbyId).emit('game:terminated', view);
-    this.server.to(lobbyId).emit('game:state', view);
+    } else {
+      this.server.to(lobbyId).emit('game:state', view);
+    }
   }
 }

@@ -24,6 +24,7 @@ export class LeaderboardService {
         user: {
           select: {
             username: true,
+            avatarPath: true,
           },
         },
       },
@@ -32,6 +33,7 @@ export class LeaderboardService {
     return stats.map((s) => ({
       userId: s.userId,
       username: s.user.username,
+      avatarPath: s.user.avatarPath,
       gamesPlayed: s.gamesPlayed,
       gamesWon: s.gamesWon,
       gamesLost: s.gamesLost,
