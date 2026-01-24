@@ -6,6 +6,7 @@ import {
   ConnectedSocket,
   MessageBody,
   WebSocketServer,
+  OnGatewayInit,
 } from '@nestjs/websockets';
 import { Server, Socket } from 'socket.io';
 import { LobbyDto, LobbyJoinDto, LobbyKickDto, LobbyConfigDto } from './dto';
@@ -14,15 +15,19 @@ import { LobbyKeys } from './lobby.keys';
 import { GameService } from 'src/game/game.service';
 import { RedisService } from 'src/redis/redis.service';
 import { forwardRef, Inject } from '@nestjs/common';
+import { JwtService } from '@nestjs/jwt';
+import { initWsAuth } from 'src/websocket/websocket.init';
 
 @WebSocketGateway({
   namespace: '/quiz',
   cors: {
-    origin: 'https://ferni.quizeverything.tech',
+    origin: process.env.NODE_ENV === 'production' 
+      ? `https://${process.env.DOMAIN || 'localhost'}`
+      : ['http://localhost:3000', 'http://localhost:3001'],
     credentials: true,
   },
 })
-export class LobbyGateway {
+export class LobbyGateway implements OnGatewayInit {
   @WebSocketServer()
   private server: Server;
 
@@ -31,7 +36,12 @@ export class LobbyGateway {
     private readonly redisService: RedisService,
     @Inject(forwardRef(() => GameService))
     private readonly gameService: GameService,
+    private readonly jwtService: JwtService,
   ) {}
+
+  afterInit(server: Server) {
+    initWsAuth(server, this.jwtService);
+  }
 
   private async broadcastStatus(userId: string) {
     const online = await this.redisService.isUserOnline(userId);

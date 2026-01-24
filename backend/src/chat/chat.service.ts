@@ -62,4 +62,15 @@ export class ChatService {
       count: c._count.id,
     }));
   }
+
+  async deleteMessagesBetween(userId1: string, userId2: string) {
+    return this.prisma.chatMessage.deleteMany({
+      where: {
+        OR: [
+          { senderId: userId1, receiverId: userId2 },
+          { senderId: userId2, receiverId: userId1 },
+        ],
+      },
+    });
+  }
 }

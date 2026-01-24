@@ -7,6 +7,8 @@ import { GameGateway } from './game.gateway';
 import { LobbyModule } from 'src/lobby/lobby.module';
 import { GameTicker } from './game.ticker';
 import { LeaderboardModule } from 'src/leaderboard/leaderboard.module';
+import { JwtModule } from '@nestjs/jwt';
+import { AuthModule } from 'src/auth/auth.module';
 
 @Module({
   imports: [
@@ -14,7 +16,9 @@ import { LeaderboardModule } from 'src/leaderboard/leaderboard.module';
     PrismaModule,
     QuizModule,
     LeaderboardModule,
+    JwtModule.register({}),
     forwardRef(() => LobbyModule),
+    forwardRef(() => AuthModule),
   ],
   providers: [GameService, GameTicker, GameGateway],
   exports: [GameService],

@@ -6,9 +6,10 @@ import { PrismaService } from 'src/prisma/prisma.service';
 import { LobbyGateway } from './lobby.gateway';
 import { AuthModule } from 'src/auth/auth.module';
 import { GameModule } from 'src/game/game.module';
+import { JwtModule } from '@nestjs/jwt';
 
 @Module({
-  imports: [RedisModule, AuthModule, forwardRef(() => GameModule)],
+  imports: [RedisModule, AuthModule, JwtModule.register({}), forwardRef(() => GameModule)],
   providers: [LobbyService, LobbyGateway, PrismaService],
   controllers: [LobbyController],
   exports: [LobbyService],

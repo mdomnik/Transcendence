@@ -39,6 +39,8 @@ export class ConnectionGateway
     const userId = client.data.userId as string;
     if (userId) {
       console.log(`[WS] User ${userId} connected (ID: ${client.id})`);
+      // Join user-specific room for targeted messaging
+      client.join(`user:${userId}`);
       await this.redisService.trackSocket(userId, client.id);
       await this.broadcastPresence(userId);
     } else {

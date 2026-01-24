@@ -6,6 +6,7 @@ import Dropdown from "../components/DropDown";
 import FloatingShapes from "../components/FloatingShapes";
 import Toast from "../components/Toast";
 import ChatBox from "../components/ChatBox";
+import FriendRequestModal from "../components/FriendRequestModal";
 import { useAuth } from "../context/AuthContext";
 import { getSocket } from "../lib/socket";
 import { emitWithAck } from "../lib/socketEmit";
@@ -262,6 +263,7 @@ export default function Dashboard() {
     <div className="min-h-screen flex flex-col">
       <main className="relative flex-1 overflow-hidden bg-[#0A192F]">
         <FloatingShapes />
+        <FriendRequestModal onRequestHandled={() => setFriends([])} />
 
         {toast && (
           <Toast 
@@ -402,7 +404,7 @@ export default function Dashboard() {
                   </h3>
                 </div>
                 
-                <div className="space-y-1.5 mb-3 max-h-[200px] overflow-y-auto pr-1 scrollbar-thin scrollbar-thumb-[#64FFDA]/10 scrollbar-track-transparent">
+                <div className="space-y-1.5 mb-3 max-h-[200px] overflow-y-auto pr-1 hide-scrollbar">
                   {friends.length === 0 ? (
                     <p className="text-[12px] text-[#8892B0] text-center py-4">No friends</p>
                   ) : (

@@ -97,6 +97,32 @@ export default function ChatBox({ currentUser, friends }: ChatBoxProps) {
     messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
   }, [messages]);
 
+  // Listen for friendship updates and clear chat if friend is removed/blocked
+  useEffect(() => {
+    const socket = getSocket();
+
+    const handleFriendshipUpdate = (data: any) => {
+      // When a friend is removed or blocked, clear the active chat
+      if (data.type === 'CANCELED' || data.type === 'BLOCKED' || data.type === 'UNBLOCKED') {
+        setMessages([]);
+        setActiveFriendId(null);
+        // Clear unread count for this friend when friendship changes
+        if (data.otherUserId) {
+          setUnreadCounts(prev => {
+            const updated = { ...prev };
+            delete updated[data.otherUserId];
+            return updated;
+          });
+        }
+      }
+    };
+
+    socket.on("friendship:updated", handleFriendshipUpdate);
+    return () => {
+      socket.off("friendship:updated", handleFriendshipUpdate);
+    };
+  }, []);
+
   const handleSendMessage = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!inputValue.trim() || !activeFriendId) return;
