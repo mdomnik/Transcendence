@@ -101,7 +101,7 @@ export default function Home() {
           Welcome to
           <br />
           <span className="bg-gradient-to-r from-[#64FFDA] to-[#38BDF8] bg-clip-text text-transparent">
-            AI Quiz Master
+            QuizEverything
           </span>
         </h1>
 

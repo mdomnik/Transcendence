@@ -272,7 +272,7 @@ export default function Dashboard() {
       {/* Header */}
       <header className="relative z-50 flex items-center justify-between px-6 py-4 border-b border-[#64FFDA]/20">
         <h1 className="text-2xl font-bold bg-gradient-to-r from-[#64FFDA] to-[#38BDF8] bg-clip-text text-transparent">
-          AI Quiz Master
+          QuizEverything
         </h1>
 
         <div className="flex items-center gap-4">
