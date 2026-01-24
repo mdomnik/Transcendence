@@ -6,181 +6,176 @@ import { DIFFICULTY_FROM_INT } from '../domain/difficulty';
 // Service for repository queries
 @Injectable()
 export class RepositoryService {
-    constructor(private readonly prisma: PrismaService) { }
+  constructor(private readonly prisma: PrismaService) {}
 
-    // finds questions given user did not see under topic per difficulty
-    async findUnseenQuestionsForUsers(
-        topicId: string,
-        difficulty: number,
-        userIds: string[],
-    ) {
-        return this.prisma.question.findMany({
-            where: {
-                difficulty: DIFFICULTY_FROM_INT[difficulty] ?? 'MEDIUM',
-                topicId: topicId,
-                seenBy: {
-                    none: {
-                        userId: {
-                            in: userIds,
-                        }
-                    },
-                },
+  // finds questions given user did not see under topic per difficulty
+  async findUnseenQuestionsForUsers(
+    topicId: string,
+    difficulty: number,
+    userIds: string[],
+  ) {
+    return this.prisma.question.findMany({
+      where: {
+        difficulty: DIFFICULTY_FROM_INT[difficulty] ?? 'MEDIUM',
+        topicId: topicId,
+        seenBy: {
+          none: {
+            userId: {
+              in: userIds,
             },
-            include: {
-                answers: true,
-            },
-        });
-    }
+          },
+        },
+      },
+      include: {
+        answers: true,
+      },
+    });
+  }
 
-    // create a question entry under a certain topic
-async createQuestionsWithAnswers(
-  questions: QuestionDto[],
-  topicId: string,
-) {
-  return this.prisma.$transaction(
-    questions.map((q) =>
-      this.prisma.question.upsert({
-        where: {
-          topicId_text: {
-            topicId,
+  // create a question entry under a certain topic
+  async createQuestionsWithAnswers(questions: QuestionDto[], topicId: string) {
+    return this.prisma.$transaction(
+      questions.map((q) =>
+        this.prisma.question.upsert({
+          where: {
+            topicId_text: {
+              topicId,
+              text: q.question.trim(),
+            },
+          },
+          update: {}, // do nothing if question already exists
+          create: {
             text: q.question.trim(),
+            difficulty: DIFFICULTY_FROM_INT[q.difficulty],
+            topicId,
+
+            answers: {
+              create: q.answers.map((a) => ({
+                text: a.text,
+                isCorrect: a.isCorrect,
+                position: a.position,
+              })),
+            },
           },
-        },
-        update: {}, // do nothing if question already exists
-        create: {
-          text: q.question.trim(),
-          difficulty: DIFFICULTY_FROM_INT[q.difficulty],
+          include: {
+            answers: true,
+          },
+        }),
+      ),
+    );
+  }
+
+  // find topic with matching title, else create it
+  async findOrCreateTopic(title: string) {
+    return this.prisma.quizTopic.upsert({
+      where: { title },
+      update: {},
+      create: { title },
+    });
+  }
+
+  // mark question as seen in a user question in a user/question map
+  async markQuestionAsSeenForUsers(userIds: string[], questionIds: string[]) {
+    if (questionIds.length === 0) return;
+
+    await this.prisma.userQuestion.createMany({
+      data: userIds.flatMap((userId) =>
+        questionIds.map((questionId) => ({
+          userId,
+          questionId,
+        })),
+      ),
+      skipDuplicates: true,
+    });
+  }
+
+  // returns all questions with a given topic and difficulty and returns their questions text
+  async findQuestionTextsByTopicAndDifficulty(
+    topicId: string,
+    difficulty: number,
+  ): Promise<string[]> {
+    const rows = await this.prisma.question.findMany({
+      where: { topicId, difficulty: DIFFICULTY_FROM_INT[difficulty] },
+      select: { text: true },
+    });
+
+    return rows.map((r) => r.text);
+  }
+
+  // returns the count of questions under a topic
+  async countQuestionsByTopic(topicId: string): Promise<number> {
+    return this.prisma.question.count({
+      where: { topicId },
+    });
+  }
+
+  // resets the question/user mapping for a given user
+  async resetSeenQuesitonsForUserAndTopicAndDifficulty(
+    userId: string,
+    topicId: string,
+    difficulty: number,
+  ) {
+    await this.prisma.userQuestion.deleteMany({
+      where: {
+        userId,
+        question: {
           topicId,
+          difficulty: DIFFICULTY_FROM_INT[difficulty],
+        },
+      },
+    });
+  }
 
-          answers: {
-            create: q.answers.map((a) => ({
-              text: a.text,
-              isCorrect: a.isCorrect,
-              position: a.position,
-            })),
+  // count amount of questions per topic per difficulty
+  async countQuestionsByTopicAndDifficulty(
+    topicId: string,
+    difficulty: number,
+  ): Promise<number> {
+    return this.prisma.question.count({
+      where: {
+        topicId,
+        difficulty: DIFFICULTY_FROM_INT[difficulty],
+      },
+    });
+  }
+
+  // increment a variable which tracks the amount of times a topic has been played
+  async incrementTopicRequestCount(topicId: string) {
+    await this.prisma.quizTopic.update({
+      where: { id: topicId },
+      data: {
+        requestCount: {
+          increment: 1,
+        },
+      },
+    });
+  }
+
+  // return all questions with a certain topic and difficulty
+  async getAllQuestionsByTopicAndDifficutly(
+    topicId: string,
+    difficulty: number,
+  ) {
+    return this.prisma.question.findMany({
+      where: {
+        difficulty: DIFFICULTY_FROM_INT[difficulty] ?? 'MEDIUM',
+        topicId,
+      },
+      include: {
+        answers: {
+          orderBy: {
+            position: 'asc',
           },
         },
-        include: {
-          answers: true,
-        },
-      }),
-    ),
-  );
-}
+      },
+    });
+  }
 
+  // runs a sql query which finds vector distance between 2 vector embedded topics
+  async findClosestTopic(embedding: number[]) {
+    const vectorLiteral = `[${embedding.join(',')}]`;
 
-    // find topic with matching title, else create it
-    async findOrCreateTopic(title: string) {
-        return this.prisma.quizTopic.upsert({
-            where: { title },
-            update: {},
-            create: { title },
-        });
-    }
-
-    // mark question as seen in a user question in a user/question map
-    async markQuestionAsSeenForUsers(
-        userIds: string[],
-        questionIds: string[],
-    ) {
-        if (questionIds.length === 0) return;
-
-        await this.prisma.userQuestion.createMany({
-            data: userIds.flatMap(userId =>
-                questionIds.map(questionId => ({
-                userId,
-                questionId,
-            })),
-        ),
-            skipDuplicates: true,
-        });
-    }
-
-    // returns all questions with a given topic and difficulty and returns their questions text
-    async findQuestionTextsByTopicAndDifficulty(topicId: string, difficulty: number): Promise<string[]> {
-        const rows = await this.prisma.question.findMany({
-            where: { topicId, difficulty: DIFFICULTY_FROM_INT[difficulty] },
-            select: { text: true },
-        });
-
-        return rows.map((r) => r.text);
-    }
-
-    // returns the count of questions under a topic
-    async countQuestionsByTopic(topicId: string): Promise<number> {
-        return this.prisma.question.count({
-            where: { topicId },
-        });
-    }
-
-
-    // resets the question/user mapping for a given user
-    async resetSeenQuesitonsForUserAndTopicAndDifficulty(
-        userId: string,
-        topicId: string,
-        difficulty: number,
-    ) {
-        await this.prisma.userQuestion.deleteMany({
-            where: {
-                userId,
-                question: {
-                    topicId,
-                    difficulty: DIFFICULTY_FROM_INT[difficulty],
-                },
-            },
-        });
-    }
-
-    // count amount of questions per topic per difficulty
-    async countQuestionsByTopicAndDifficulty(
-        topicId: string,
-        difficulty: number,
-    ): Promise<number> {
-        return this.prisma.question.count({
-            where: {
-                topicId,
-                difficulty: DIFFICULTY_FROM_INT[difficulty],
-            },
-        });
-    }
-
-    // increment a variable which tracks the amount of times a topic has been played
-    async incrementTopicRequestCount(topicId: string) {
-        await this.prisma.quizTopic.update({
-            where: { id: topicId },
-            data: {
-                requestCount: {
-                    increment: 1,
-                },
-            },
-        });
-    }
-
-    // return all questions with a certain topic and difficulty
-    async getAllQuestionsByTopicAndDifficutly(
-        topicId: string,
-        difficulty: number,
-    ) {
-        return this.prisma.question.findMany({
-            where: {
-                difficulty: DIFFICULTY_FROM_INT[difficulty] ?? 'MEDIUM',
-                topicId,
-            },
-            include: {
-                answers: {
-                    orderBy: {
-                        position: 'asc',
-                    },
-                },
-            },
-        });
-    }
-
-    // runs a sql query which finds vector distance between 2 vector embedded topics
-    async findClosestTopic(embedding: number[]) {
-        const vectorLiteral = `[${embedding.join(',')}]`;
-
-        const sql = `
+    const sql = `
     SELECT
       id,
       title,
@@ -191,18 +186,19 @@ async createQuestionsWithAnswers(
     LIMIT 1
   `;
 
-        const result = await this.prisma.$queryRawUnsafe<
-            { id: string; title: string; distance: number }[]
-        >(sql);
+    const result =
+      await this.prisma.$queryRawUnsafe<
+        { id: string; title: string; distance: number }[]
+      >(sql);
 
-        return result[0] ?? null;
-    }
+    return result[0] ?? null;
+  }
 
-    // creates a topic entry with a vector embedded array 
-    async createTopic(data: { title: string; embedding: number[] }) {
-        const vectorLiteral = `[${data.embedding.join(',')}]`;
+  // creates a topic entry with a vector embedded array
+  async createTopic(data: { title: string; embedding: number[] }) {
+    const vectorLiteral = `[${data.embedding.join(',')}]`;
 
-        const sql = `
+    const sql = `
     INSERT INTO "QuizTopic" (id, title, embedding, "createdAt", "updatedAt")
     VALUES (
       gen_random_uuid(),
@@ -214,27 +210,25 @@ async createQuestionsWithAnswers(
     RETURNING id, title
   `;
 
-        const result = await this.prisma.$queryRawUnsafe<
-            { id: string; title: string }[]
-        >(sql, data.title);
+    const result = await this.prisma.$queryRawUnsafe<
+      { id: string; title: string }[]
+    >(sql, data.title);
 
-        return result[0];
-    }
+    return result[0];
+  }
 
-    async getRandomTopic(): Promise<any> {
-        const count = await this.prisma.quizTopic.count();
+  async getRandomTopic(): Promise<any> {
+    const count = await this.prisma.quizTopic.count();
 
-        if (count === 0)
-            return null;
+    if (count === 0) return null;
 
-        const skip = Math.floor(Math.random() * count);
+    const skip = Math.floor(Math.random() * count);
 
-        return this.prisma.quizTopic.findFirst({
-            skip,
-            orderBy: {
-                createdAt: 'asc',
-            },
-        });
-    }
-
+    return this.prisma.quizTopic.findFirst({
+      skip,
+      orderBy: {
+        createdAt: 'asc',
+      },
+    });
+  }
 }

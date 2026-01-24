@@ -1,3 +1,4 @@
+/* eslint-disable @typescript-eslint/no-unsafe-assignment */
 import { Injectable } from '@nestjs/common';
 import { HttpService } from '@nestjs/axios';
 import { ConfigService } from '@nestjs/config';
@@ -20,6 +21,7 @@ export class AiService {
   async generateQuestions(
     dto: TopicDto,
     excludeQuestions: string[],
+    timer: number,
   ): Promise<QuestionDto[]> {
     // reformat exclusion into single string
     const formattedExclusionQuestions = excludeQuestions.join('\n');
@@ -33,7 +35,7 @@ export class AiService {
 
     // console.log(payload);
     // send payload to the coresponding api
-    const response = await this.sendChat(payload);
+    const response = await this.sendChat(payload, timer);
 
     // parse recieved array
     const generatedArray = await this.parserService.parse(
@@ -45,7 +47,7 @@ export class AiService {
   }
 
   // send payload to an ai endpoint and recieves a newly generated JSON output
-  async sendChat(payload: unknown): Promise<any> {
+  async sendChat(payload: unknown, timeoutTimer: number): Promise<any> {
     // make a post request using axios to the api
     try {
       return await aiLimiter.schedule(async () => {
@@ -57,7 +59,7 @@ export class AiService {
               Authorization: `Bearer ${this.configService.getOrThrow('AI_API_KEY')}`,
               'Content-Type': 'application/json',
             },
-            timeout: 60_000,
+            timeout: timeoutTimer,
           },
         );
 
