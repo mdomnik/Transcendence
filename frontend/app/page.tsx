@@ -75,23 +75,6 @@ export default function Home() {
           <Button onClick={() => setIsLoginOpen(true)}>
             Sign in
           </Button>
-
-          {/* Hamburger Menu */}
-          <Dropdown
-            trigger={
-              <button className="flex flex-col justify-center items-center gap-1.5 p-2 rounded-lg hover:bg-[#64FFDA]/10 transition-colors">
-                <span className="w-6 h-0.5 bg-[#8892B0] rounded-full"></span>
-                <span className="w-6 h-0.5 bg-[#8892B0] rounded-full"></span>
-                <span className="w-6 h-0.5 bg-[#8892B0] rounded-full"></span>
-              </button>
-            }
-            items={[
-              { label: "Home", onClick: () => console.log("Home") },
-              { label: "About", onClick: () => console.log("About") },
-              { label: "Settings", onClick: () => console.log("Settings") },
-              { label: "Help", onClick: () => console.log("Help") },
-            ]}
-          />
         </div>
 
         
