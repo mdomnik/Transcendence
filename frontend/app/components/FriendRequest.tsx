@@ -14,8 +14,13 @@ export default function FriendRequests({ onAction }: FriendRequestsProps) {
   const [requests, setRequests] = useState<Friendship[]>([]);
   const { isConnected } = useSocketConnection();
 
-  const refreshRequests = () => {
-    getFriendRequests().then(setRequests);
+  const refreshRequests = async () => {
+    try {
+      const allRequests = await getFriendRequests();
+      setRequests(allRequests);
+    } catch (error) {
+      console.error('Error fetching requests:', error);
+    }
   };
 
   useEffect(() => {
@@ -23,10 +28,16 @@ export default function FriendRequests({ onAction }: FriendRequestsProps) {
 
     if (isConnected) {
       const socket = getSocket();
-      socket.on("friendship:updated", refreshRequests);
+      
+      // Refresh requests on ANY friendship update - all events should trigger a refresh
+      const handleFriendshipUpdate = () => {
+        refreshRequests();
+      };
+
+      socket.on("friendship:updated", handleFriendshipUpdate);
 
       return () => {
-        socket.off("friendship:updated", refreshRequests);
+        socket.off("friendship:updated", handleFriendshipUpdate);
       };
     }
   }, [isConnected]);

@@ -11,12 +11,14 @@ import { PrismaService } from 'src/prisma/prisma.service';
 import { FriendStatus } from 'generated/prisma/enums';
 import { RedisService } from 'src/redis/redis.service';
 import { LobbyService } from 'src/lobby/lobby.service';
+import { ChatService } from 'src/chat/chat.service';
 
 @Injectable()
 export class FriendshipService {
   constructor(
     private readonly prisma: PrismaService,
     private readonly redisService: RedisService,
+    private readonly chatService: ChatService,
     @Inject(forwardRef(() => LobbyService))
     private readonly lobbyService: LobbyService,
   ) {}
@@ -143,13 +145,26 @@ export class FriendshipService {
       select: { id: true, status: true, requesterId: true, blockerId: true },
     });
 
-    if (!row || row.status !== FriendStatus.PENDING) {
-      throw new NotFoundException('Pending request not found');
+    if (!row) {
+      throw new NotFoundException('Friendship not found');
     }
-    if (row.requesterId !== myId) throw new ForbiddenException('Only requester can cancel');
 
-    await this.prisma.friendship.delete({ where: { id: row.id } });
-    return { ok: true };
+    // If PENDING: only requester can cancel
+    if (row.status === FriendStatus.PENDING) {
+      if (row.requesterId !== myId) throw new ForbiddenException('Only requester can cancel pending request');
+      await this.prisma.friendship.delete({ where: { id: row.id } });
+      return { ok: true };
+    }
+
+    // If ACCEPTED: either party can remove the friend
+    if (row.status === FriendStatus.ACCEPTED) {
+      await this.prisma.friendship.delete({ where: { id: row.id } });
+      // Delete all messages between these two users
+      await this.chatService.deleteMessagesBetween(myId, otherId);
+      return { ok: true };
+    }
+
+    throw new BadRequestException(`Cannot cancel friendship with status: ${row.status}`);
   }
 
   async block(myId: string, otherId: string) {
@@ -162,6 +177,9 @@ export class FriendshipService {
     if (!other) throw new BadRequestException('Cannot find user');
 
     const { userAId, userBId } = this.pair(myId, otherId);
+
+    // Delete all messages between these two users before blocking
+    await this.chatService.deleteMessagesBetween(myId, otherId);
 
     return this.prisma.friendship.upsert({
       where: { userAId_userBId: { userAId, userBId } },
@@ -269,6 +287,41 @@ export class FriendshipService {
           updatedAt: r.updatedAt,
           requesterId: r.requesterId,
           isRequester,
+          friend: {
+            ...friend,
+            status,
+          },
+        };
+      }),
+    );
+  }
+
+  async blockedUsers(myId: string) {
+    const rows = await this.prisma.friendship.findMany({
+      where: {
+        status: FriendStatus.BLOCKED,
+        OR: [{ userAId: myId }, { userBId: myId }],
+      },
+      select: this.selectRow(myId),
+      orderBy: { updatedAt: 'desc' },
+    });
+
+    return Promise.all(
+      rows.map(async (r) => {
+        const friend = (r.userA.id === myId ? r.userB : r.userA) as any;
+        const online = await this.redisService.isUserOnline(friend.id);
+        const lobbyId = await this.lobbyService.getLobbyIdForUser(friend.id);
+
+        let status = online ? 'online' : 'offline';
+        if (online && lobbyId) status = 'in-game';
+
+        return {
+          id: r.id,
+          status: r.status,
+          createdAt: r.createdAt,
+          updatedAt: r.updatedAt,
+          blockerId: r.blockerId,
+          isBlocker: r.blockerId === myId,
           friend: {
             ...friend,
             status,

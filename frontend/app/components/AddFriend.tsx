@@ -29,7 +29,12 @@ export default function AddFriend({ onAction }: AddFriendProps) {
       }
 
       // 2. Send request by ID
-      await sendFriendRequest(target.id);
+      const result = await sendFriendRequest(target.id);
+      if (!result.ok) {
+        setMessage(`Error: ${result.error}`);
+        return;
+      }
+      
       setMessage(`Request sent to ${target.username}!`);
       setUsername('');
       

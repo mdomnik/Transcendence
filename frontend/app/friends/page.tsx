@@ -6,6 +6,8 @@ import FloatingShapes from "../components/FloatingShapes";
 import AddFriend from "../components/AddFriend";
 import FriendList from "../components/FriendList";
 import FriendRequests from "../components/FriendRequest";
+import BlockedUsers from "../components/BlockedUsers";
+import FriendRequestModal from "../components/FriendRequestModal";
 import { useAuth } from "../context/AuthContext";
 
 export default function FriendsPage() {
@@ -34,6 +36,7 @@ export default function FriendsPage() {
   return (
     <main className="relative min-h-screen bg-[#0A192F] overflow-hidden">
       <FloatingShapes />
+      <FriendRequestModal />
 
       {/* Header */}
       <header className="relative z-20 flex items-center justify-between px-6 py-4 border-b border-[#64FFDA]/20">
@@ -69,7 +72,7 @@ export default function FriendsPage() {
           {/* Social Grid */}
           <div className="grid grid-cols-1 lg:grid-cols-12 gap-8">
             
-            {/* Left Column: Add Friend & Requests */}
+            {/* Left Column: Add Friend & Requests & Blocked */}
             <div className="lg:col-span-5 space-y-6">
               
               {/* Add Friend */}
@@ -80,6 +83,14 @@ export default function FriendsPage() {
               {/* Friend Requests */}
               <div className="bg-[#112240]/80 backdrop-blur rounded-2xl p-6 border border-[#64FFDA]/10 min-h-[300px]">
                 <FriendRequests onAction={handleRefresh} />
+              </div>
+
+              {/* Blocked Users */}
+              <div className="bg-[#112240]/80 backdrop-blur rounded-2xl p-6 border border-red-500/10 min-h-[200px]">
+                <h2 className="text-xl font-bold mb-4 text-red-400 flex items-center gap-2">
+                  <span>🚫</span> Blocked Users
+                </h2>
+                <BlockedUsers refreshTrigger={refreshTrigger} />
               </div>
               
             </div>

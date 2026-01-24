@@ -2,7 +2,7 @@
 'use client';
 
 import { useEffect, useState } from 'react';
-import { getFriends, Friendship } from '../lib/friends';
+import { getFriends, Friendship, blockUser, unblockUser, removeFriend } from '../lib/friends';
 import { useSocketConnection } from '../context/SocketContext';
 import { getSocket } from '../lib/socket';
 
@@ -12,21 +12,76 @@ interface FriendListProps {
 
 export default function FriendList({ refreshTrigger = 0 }: FriendListProps) {
   const [friends, setFriends] = useState<Friendship[]>([]);
+  const [actionLoading, setActionLoading] = useState<string | null>(null);
   const { isConnected } = useSocketConnection();
 
-  const fetchFriends = () => getFriends().then(setFriends).catch(console.error);
+  const fetchFriends = async () => {
+    try {
+      const friendsList = await getFriends();
+      // Filter to show only accepted friendships
+      const accepted = friendsList.filter(f => f.status === 'ACCEPTED');
+      setFriends(accepted);
+    } catch (error) {
+      console.error('Error fetching friends:', error);
+    }
+  };
+
+  const handleRemoveFriend = async (friendshipId: string, userId: string) => {
+    setActionLoading(friendshipId);
+    try {
+      await removeFriend(userId);
+      // friendship:updated event will refresh the list automatically
+    } catch (error) {
+      console.error('Failed to remove friend:', error);
+    } finally {
+      setActionLoading(null);
+    }
+  };
+
+  const handleBlockFriend = async (friendshipId: string, userId: string) => {
+    setActionLoading(friendshipId);
+    try {
+      await blockUser(userId);
+      // friendship:updated event will refresh the list automatically
+    } catch (error) {
+      console.error('Failed to block friend:', error);
+    } finally {
+      setActionLoading(null);
+    }
+  };
+
+  const handleUnblockFriend = async (friendshipId: string, userId: string) => {
+    setActionLoading(friendshipId);
+    try {
+      await unblockUser(userId);
+      // friendship:updated event will refresh the list automatically
+    } catch (error) {
+      console.error('Failed to unblock friend:', error);
+    } finally {
+      setActionLoading(null);
+    }
+  };
 
   useEffect(() => {
     fetchFriends();
 
     if (isConnected) {
       const socket = getSocket();
-      socket.on("presence:updated", fetchFriends);
-      socket.on("friendship:updated", fetchFriends);
+      
+      // Refresh on presence updates (status changes)
+      const handlePresenceUpdate = () => fetchFriends();
+      
+      // Refresh on ANY friendship update - all events should trigger a refresh
+      const handleFriendshipUpdate = () => {
+        fetchFriends();
+      };
+
+      socket.on("presence:updated", handlePresenceUpdate);
+      socket.on("friendship:updated", handleFriendshipUpdate);
 
       return () => {
-        socket.off("presence:updated", fetchFriends);
-        socket.off("friendship:updated", fetchFriends);
+        socket.off("presence:updated", handlePresenceUpdate);
+        socket.off("friendship:updated", handleFriendshipUpdate);
       }
     }
   }, [refreshTrigger, isConnected]);
@@ -81,7 +136,7 @@ export default function FriendList({ refreshTrigger = 0 }: FriendListProps) {
                   {friendship.friend.username}
                 </span>
               </div>
-              <div className="flex items-center gap-2">
+              <div className="flex items-center gap-3">
                 <span className={`text-xs px-3 py-1 rounded-full font-medium ${
                   friendship.friend.status === 'online' 
                     ? 'bg-green-500/20 text-green-300 border border-green-500/30' 
@@ -91,6 +146,24 @@ export default function FriendList({ refreshTrigger = 0 }: FriendListProps) {
                 }`}>
                   {friendship.friend.status || 'offline'}
                 </span>
+                <div className="flex gap-2 opacity-0 group-hover:opacity-100 transition-opacity">
+                  <button
+                    onClick={() => handleRemoveFriend(friendship.id, friendship.friend.id)}
+                    disabled={actionLoading === friendship.id}
+                    title="Remove friend"
+                    className="p-2 hover:bg-red-600/20 text-red-300 rounded-lg transition-colors disabled:opacity-50"
+                  >
+                    ✕
+                  </button>
+                  <button
+                    onClick={() => handleBlockFriend(friendship.id, friendship.friend.id)}
+                    disabled={actionLoading === friendship.id}
+                    title="Block friend"
+                    className="p-2 hover:bg-orange-600/20 text-orange-300 rounded-lg transition-colors disabled:opacity-50"
+                  >
+                    🚫
+                  </button>
+                </div>
               </div>
             </div>
           ))}

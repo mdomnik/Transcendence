@@ -31,14 +31,19 @@ export class FriendshipGateway {
       // Notify both parties that friendship state changed
       const otherId = this.otherFromRow(myId, row.userA.id, row.userB.id);
       
-      // Find my username to send to the other user
-      const myUsername = row.userA.id === myId ? row.userA.username : row.userB.username;
+      // Transform data for each user
+      const myFriendData = this.transformRowToFriend(myId, row);
+      const otherFriendData = this.transformRowToFriend(otherId, row);
 
-      this.emitToUser(myId, 'friendship:updated', { type: 'REQUEST_SENT', row });
+      this.emitToUser(myId, 'friendship:updated', { 
+        type: 'REQUEST_SENT', 
+        row: myFriendData 
+      });
       this.emitToUser(otherId, 'friendship:updated', { 
         type: 'REQUEST_RECEIVED', 
-        row,
-        fromUsername: myUsername 
+        row: otherFriendData,
+        fromUsername: myFriendData.friend.username,
+        fromAvatarPath: myFriendData.friend.avatarPath
       });
 
       return { ok: true, data: row };
@@ -165,6 +170,18 @@ export class FriendshipGateway {
     }
   }
 
+  @SubscribeMessage('friendship:blocked')
+  async blocked(@ConnectedSocket() client: Socket) {
+    const myId = client.data.userId as string;
+
+    try {
+      const blocked = await this.friendshipService.blockedUsers(myId);
+      return { ok: true, data: blocked };
+    } catch (e: any) {
+      return this.err(e);
+    }
+  }
+
   // ---------------------------
   // Helpers
   // ---------------------------
@@ -179,6 +196,25 @@ export class FriendshipGateway {
 
   private otherFromRow(myId: string, userAId: string, userBId: string) {
     return userAId === myId ? userBId : userAId;
+  }
+
+  private transformRowToFriend(userId: string, row: any) {
+    // Extract the friend (other user) from the row
+    const friend = row.userA.id === userId ? row.userB : row.userA;
+    
+    return {
+      id: row.id,
+      status: row.status,
+      requesterId: row.requesterId,
+      blockerId: row.blockerId,
+      isRequester: row.requesterId === userId,
+      friend: {
+        id: friend.id,
+        username: friend.username,
+        avatarPath: friend.avatarPath,
+        status: 'offline', // Will be updated by presence events
+      },
+    };
   }
 
   private err(e: any) {
