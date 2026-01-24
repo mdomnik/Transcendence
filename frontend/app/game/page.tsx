@@ -328,6 +328,16 @@ const submitAnswer = async (qid: string, aid: string) => {
   }
 };
 
+useEffect(() => {
+  if (!game?.roundData?.questions) return;
+
+  // reset per-round UI state
+  setLastAnsweredQuestionId(null);
+  setLastAnsweredAnswerId(null);
+  setLastAnsweredCorrect(null);
+  setShowingFeedback(false);
+}, [game?.roundData?.questions]);
+
 // Listen for correctness updates
 useEffect(() => {
   if (!user || !lastAnsweredQuestionId || !game?.roundData?.correctnessMap) return;
@@ -351,6 +361,7 @@ useEffect(() => {
 
   /* ===================== RENDER ===================== */
 
+  console.log('phase', phase);
   return (
     <main className="min-h-screen bg-[#0A192F] flex flex-col">
 
@@ -545,15 +556,27 @@ useEffect(() => {
 
           <div className="flex-1 rounded-2xl border border-white/10 bg-[#0F223D] p-8 shadow-2xl flex flex-col">
             {(() => {
+              // console.log('Does game data exist?', game);
               const qs: Question[] = game?.roundData?.questions ?? [];
-              if (!user) return null;
+              // console.log('Questions', qs);
+              if (!user) {
+                console.warn('User not found!');
+                return null;
+              }
               const myA = game?.roundData?.answeredBy?.[user.id] ?? [];
-              
-              // Show the question we're showing feedback for, OR the next unanswered one
-              const q = showingFeedback && lastAnsweredQuestionId
-                ? qs.find(q => q.id === lastAnsweredQuestionId)
-                : qs.find((q) => !myA.includes(q.id));
+              console.trace('My answers:', myA);
+              console.trace('Last answered question:', lastAnsweredAnswerId);
+              console.trace('Showing feedback', showingFeedback);
 
+              // Show the question we're showing feedback for, OR the next unanswered one
+              const q = (() => {
+                if (showingFeedback && lastAnsweredQuestionId) {
+                  // Only show feedback if that question still exists
+                  return qs.find(q => q.id === lastAnsweredQuestionId) ?? qs.find(q => !myA.includes(q.id));
+                }
+                return qs.find(q => !myA.includes(q.id));
+              })();
+              // console.log('Was question fetched?', q);
               if (!q)
                 return (
                   <div className="flex-1 flex flex-col items-center justify-center text-center space-y-4">
