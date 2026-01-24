@@ -14,7 +14,7 @@ import { FriendshipService } from 'src/friendship/friendship.service';
 @WebSocketGateway({
   namespace: '/quiz',
   cors: {
-    origin: 'https://localhost',
+    origin: 'https://ferni.quizeverything.tech',
     credentials: true,
   },
 })

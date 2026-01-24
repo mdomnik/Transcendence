@@ -10,7 +10,7 @@ import { FriendshipService } from './friendship.service';
 
 @WebSocketGateway({
   namespace: '/quiz',
-  cors: { origin: 'https://localhost', credentials: true },
+  cors: { origin: 'https://ferni.quizeverything.tech', credentials: true },
 })
 export class FriendshipGateway {
   @WebSocketServer() server: Server;

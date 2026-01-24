@@ -9,12 +9,18 @@ export interface User {
 export async function fetchCurrentUser(): Promise<User | null> {
   try {
     console.log('Fetching current user...');
+    
+    const controller = new AbortController();
+    const timeoutId = setTimeout(() => controller.abort(), 10000); // 10 second timeout
+    
     const res = await fetch('/api/users/me', {
       method: 'GET',
       credentials: 'include', // Important: sends httpOnly cookies
       cache: 'no-store',
+      signal: controller.signal,
     });
 
+    clearTimeout(timeoutId);
     console.log('Response status:', res.status);
     
     if (!res.ok) {

@@ -66,18 +66,35 @@ type GameState = {
     votedBy?: string[];
     questions: Question[];
     answeredBy?: Record<string, string[]>;
+    correctnessMap?: Record<string, Record<string, boolean>>;
+    scoreDeltas?: Record<string, number>;
+    totalScores?: Record<string, number>;
     finalScores?: Record<string, number>;
     winners?: string[];
   };
 };
 
+type QuestionSelectionView = {
+  phase: "SELECT_TOPIC";
+  proposals: Array<{
+    userId: string;
+    topicTitle: string;
+    difficulty: "EASY" | "MEDIUM" | "HARD";
+    votes: number;
+  }>;
+};
+
 /* ===================== ANSWER BALL ===================== */
 
-function AnswerBall({ filled }: { filled: boolean }) {
+function AnswerBall({ filled, isCorrect }: { filled: boolean; isCorrect?: boolean }) {
   return (
     <div
       className={`w-3 h-3 rounded-full transition ${
-        filled ? "bg-[#64FFDA]" : "border border-white/20"
+        filled
+          ? isCorrect === false
+            ? "bg-red-500"
+            : "bg-[#64FFDA]"
+          : "border border-white/20"
       }`}
     />
   );
@@ -100,6 +117,12 @@ export default function GamePage() {
 
   const [votePulse, setVotePulse] = useState<Record<string, boolean>>({});
   const [animateAppear, setAnimateAppear] = useState(false);
+
+  // Track last answered question for feedback animation
+  const [lastAnsweredQuestionId, setLastAnsweredQuestionId] = useState<string | null>(null);
+  const [lastAnsweredAnswerId, setLastAnsweredAnswerId] = useState<string | null>(null);
+  const [lastAnsweredCorrect, setLastAnsweredCorrect] = useState<boolean | null>(null);
+  const [showingFeedback, setShowingFeedback] = useState(false);
 
   /* ===================== CLOCK ===================== */
 
@@ -181,6 +204,13 @@ export default function GamePage() {
 
   const phaseLabel = phase?.replaceAll("_", " ") ?? "";
 
+  // Calculate winning proposal
+  const winningProposal = proposals.length > 0 
+    ? proposals.reduce((prev, curr) => 
+        (curr.votes ?? 0) > (prev.votes ?? 0) ? curr : prev
+      , proposals[0])
+    : null;
+
   /* ===================== APPEAR ANIMATION ===================== */
 
   useEffect(() => {
@@ -228,6 +258,17 @@ export default function GamePage() {
     }
   };
 
+  const quitGame = async () => {
+    if (!game?.lobbyId) return;
+    try {
+      await emitWithAck(getSocket(), "game:quit", {
+        lobbyId: game.lobbyId,
+      });
+    } catch (err) {
+      console.error("Failed to quit game:", err);
+    }
+  };
+
   const handlePlayAgain = async () => {
     if (!game?.lobbyId) return;
     try {
@@ -269,29 +310,58 @@ export default function GamePage() {
   };
 
 const submitAnswer = async (qid: string, aid: string) => {
+  if (showingFeedback) return; // Prevent clicking during feedback
+  
   try {
     console.log('🟢 submitting answer', { qid, aid });
-      await emitWithAck(getSocket(), "game:submit-answer", {
-        lobbyId: game?.lobbyId,
-        questionId: qid,
-        answerId: aid,
-      });
+    await emitWithAck(getSocket(), "game:submit-answer", {
+      lobbyId: game?.lobbyId,
+      questionId: qid,
+      answerId: aid,
+    });
+    
+    setLastAnsweredQuestionId(qid);
+    setLastAnsweredAnswerId(aid);
+    setShowingFeedback(true);
   } catch (e) {
     console.error("submitAnswer failed", e);
   }
 };
 
+useEffect(() => {
+  if (!game?.roundData?.questions) return;
 
-  const quitGame = async () => {
-    try {
-      await emitWithAck(getSocket(), "game:quit");
-    } catch (err) {
-      console.warn('Emit failed:', err);
-    }
-  };
+  // reset per-round UI state
+  setLastAnsweredQuestionId(null);
+  setLastAnsweredAnswerId(null);
+  setLastAnsweredCorrect(null);
+  setShowingFeedback(false);
+}, [game?.roundData?.questions]);
+
+// Listen for correctness updates
+useEffect(() => {
+  if (!user || !lastAnsweredQuestionId || !game?.roundData?.correctnessMap) return;
+  
+  const correctness = game.roundData.correctnessMap[user.id]?.[lastAnsweredQuestionId];
+  
+  if (correctness !== undefined) {
+    setLastAnsweredCorrect(correctness);
+    
+    // Clear feedback and allow next question after 1.5s
+    const timer = setTimeout(() => {
+      setLastAnsweredQuestionId(null);
+      setLastAnsweredAnswerId(null);
+      setLastAnsweredCorrect(null);
+      setShowingFeedback(false);
+    }, 1500);
+    
+    return () => clearTimeout(timer);
+  }
+}, [game?.roundData?.correctnessMap, user, lastAnsweredQuestionId]);
 
   /* ===================== RENDER ===================== */
 
+  console.log('phase', phase);
   return (
     <main className="min-h-screen bg-[#0A192F] flex flex-col">
 
@@ -322,15 +392,145 @@ const submitAnswer = async (qid: string, aid: string) => {
 
       {/* ================= CENTER ================= */}
 
-      {phase === "ANSWERING" ? (
+      {phase === "ROUND_START" ? (
+        /* ---------- ROUND START TRANSITION ---------- */
+        <div className="flex-1 flex items-center justify-center">
+          <div className="text-center space-y-8 animate-in fade-in zoom-in duration-500">
+            <div className="text-[#64FFDA] text-2xl font-bold uppercase tracking-widest">
+              Round
+            </div>
+            <div className="text-white text-9xl font-black animate-pulse">
+              {round}
+            </div>
+            <div className="text-[#8892B0] text-lg">
+              Get ready...
+            </div>
+          </div>
+        </div>
+      ) : phase === "ROUND_END" ? (
+        /* ---------- ROUND END RESULTS ---------- */
+        <div className="flex-1 flex items-center justify-center p-12">
+          <div className="max-w-3xl w-full bg-[#112240] border border-[#64FFDA]/30 rounded-3xl p-10 shadow-2xl">
+            <div className="text-center mb-8">
+              <div className="text-[#64FFDA] text-sm font-bold uppercase tracking-widest mb-2">
+                Round {round} Complete
+              </div>
+              <h2 className="text-white text-4xl font-black">Results</h2>
+            </div>
+
+            <div className="space-y-4">
+              {players
+                .slice()
+                .sort((a, b) => {
+                  const deltaA = game?.roundData?.scoreDeltas?.[a.userId] ?? 0;
+                  const deltaB = game?.roundData?.scoreDeltas?.[b.userId] ?? 0;
+                  return deltaB - deltaA;
+                })
+                .map((p, i) => {
+                  const delta = game?.roundData?.scoreDeltas?.[p.userId] ?? 0;
+                  const total = game?.roundData?.totalScores?.[p.userId] ?? 0;
+                  const previous = total - delta;
+
+                  return (
+                    <div
+                      key={p.userId}
+                      className={`flex items-center justify-between p-5 rounded-2xl border transition-all ${
+                        i === 0 && delta > 0
+                          ? "bg-[#64FFDA]/10 border-[#64FFDA] shadow-lg shadow-[#64FFDA]/5"
+                          : "bg-[#0A192F]/50 border-white/10"
+                      }`}
+                    >
+                      <div className="flex items-center gap-4">
+                        <div
+                          className={`w-10 h-10 rounded-full flex items-center justify-center font-black ${
+                            i === 0
+                              ? "bg-yellow-500 text-[#0A192F]"
+                              : i === 1
+                              ? "bg-slate-300 text-[#0A192F]"
+                              : i === 2
+                              ? "bg-amber-600 text-[#0A192F]"
+                              : "bg-white/10 text-[#8892B0]"
+                          }`}
+                        >
+                          {i + 1}
+                        </div>
+                        <div>
+                          <div
+                            className={`text-lg font-bold ${
+                              p.userId === userId ? "text-white" : "text-[#CCD6F6]"
+                            }`}
+                          >
+                            {p.username} {p.userId === userId && "(You)"}
+                          </div>
+                          <div className="text-xs text-[#8892B0]">
+                            Previous: {previous}
+                          </div>
+                        </div>
+                      </div>
+
+                      <div className="text-right">
+                        <div
+                          className={`text-2xl font-black font-mono ${
+                            delta > 0 ? "text-green-400" : "text-[#8892B0]"
+                          }`}
+                        >
+                          {delta > 0 ? "+" : ""}{delta}
+                        </div>
+                        <div className="text-sm text-[#64FFDA] font-mono font-bold">
+                          Total: {total}
+                        </div>
+                      </div>
+                    </div>
+                  );
+                })}
+            </div>
+
+            <div className="mt-8 text-center">
+              <div className="text-[#8892B0] text-sm animate-pulse">
+                Next round starting soon...
+              </div>
+            </div>
+          </div>
+        </div>
+      ) : phase === "VOTING_START" ? (
+        /* ---------- VOTING START TRANSITION ---------- */
+        <div className="flex-1 flex items-center justify-center">
+          <div className="text-center space-y-8 animate-in fade-in zoom-in duration-500">
+            <div className="text-6xl animate-bounce">🗳️</div>
+            <div className="text-white text-6xl font-black tracking-tight">
+              Voting Phase
+            </div>
+            <div className="text-[#64FFDA] text-xl uppercase tracking-widest animate-pulse">
+              Choose your favorite topic
+            </div>
+          </div>
+        </div>
+      ) : phase === "ANSWERING" ? (
         /* ---------- ANSWERING ---------- */
         <div className="flex-1 flex gap-8 p-12 overflow-hidden">
           <div className="w-1/3 rounded-2xl border border-white/10 bg-[#0F223D] p-6 shadow-2xl">
+            {winningProposal && (
+              <div className="mb-6 pb-6 border-b border-[#64FFDA]/20">
+                <div className="text-[#64FFDA] font-bold uppercase tracking-wider text-xs mb-3">
+                  Current Topic
+                </div>
+                <div className="text-white text-xl font-bold mb-1">
+                  {winningProposal.topicTitle}
+                </div>
+                <div className="text-[#64FFDA]/60 text-xs uppercase tracking-widest">
+                  {winningProposal.difficulty}
+                </div>
+              </div>
+            )}
+            
             <div className="text-[#64FFDA] font-bold uppercase tracking-wider text-xs mb-6 border-b border-[#64FFDA]/20 pb-2">
               Live Progress
             </div>
+
             {players.map((p) => {
               const answered = game?.roundData?.answeredBy?.[p.userId] ?? [];
+              const correctness = game?.roundData?.correctnessMap?.[p.userId] ?? {};
+              
               return (
                 <div key={p.userId} className="mb-6 last:mb-0">
                   <div className="flex justify-between items-center mb-2">
@@ -341,21 +541,42 @@ const submitAnswer = async (qid: string, aid: string) => {
                   </div>
                   <div className="flex gap-1.5 flex-wrap">
                     {game?.roundData?.questions.map((q: Question) => (
-                      <AnswerBall key={q.id} filled={answered.includes(q.id)} />
+                      <AnswerBall 
+                        key={q.id} 
+                        filled={answered.includes(q.id)}
+                        isCorrect={correctness[q.id]}
+                      />
                     ))}
                   </div>
                 </div>
               );
             })}
+
           </div>
 
           <div className="flex-1 rounded-2xl border border-white/10 bg-[#0F223D] p-8 shadow-2xl flex flex-col">
             {(() => {
+              // console.log('Does game data exist?', game);
               const qs: Question[] = game?.roundData?.questions ?? [];
-              if (!user) return null;
+              // console.log('Questions', qs);
+              if (!user) {
+                console.warn('User not found!');
+                return null;
+              }
               const myA = game?.roundData?.answeredBy?.[user.id] ?? [];
-              const q = qs.find((q) => !myA.includes(q.id));
+              console.trace('My answers:', myA);
+              console.trace('Last answered question:', lastAnsweredAnswerId);
+              console.trace('Showing feedback', showingFeedback);
 
+              // Show the question we're showing feedback for, OR the next unanswered one
+              const q = (() => {
+                if (showingFeedback && lastAnsweredQuestionId) {
+                  // Only show feedback if that question still exists
+                  return qs.find(q => q.id === lastAnsweredQuestionId) ?? qs.find(q => !myA.includes(q.id));
+                }
+                return qs.find(q => !myA.includes(q.id));
+              })();
+              // console.log('Was question fetched?', q);
               if (!q)
                 return (
                   <div className="flex-1 flex flex-col items-center justify-center text-center space-y-4">
@@ -381,23 +602,60 @@ const submitAnswer = async (qid: string, aid: string) => {
                   </div>
 
                   <div className="grid grid-cols-1 gap-4">
-                    {q.answers.map((a) => (
-                      <button
-                        key={a.id}
-                        onClick={() => submitAnswer(q.id, a.id)}
-                        className="group relative p-5 rounded-xl border border-white/10 bg-[#112240] 
-                                   hover:border-[#64FFDA]/50 hover:bg-[#112240]/80 transition-all text-left"
-                      >
-                        <div className="flex justify-between items-center">
-                          <span className="text-[#CCD6F6] group-hover:text-white transition-colors">
-                            {a.text}
-                          </span>
-                          <span className="opacity-0 group-hover:opacity-100 transition-opacity text-[#64FFDA] text-lg">
-                            →
-                          </span>
-                        </div>
-                      </button>
-                    ))}
+                    {q.answers.map((a) => {
+                      const correctness = game?.roundData?.correctnessMap?.[user.id] ?? {};
+                      
+                      const wasAnswered = myA.includes(q.id);
+                      const wasCorrect = correctness[q.id];
+                      
+                      // Show feedback only for the specific answer that was clicked
+                      const isThisAnswer = a.id === lastAnsweredAnswerId;
+                      const showFeedback = showingFeedback && lastAnsweredQuestionId === q.id && isThisAnswer;
+                      const isCorrect = showFeedback && wasCorrect === true;
+                      const isWrong = showFeedback && wasCorrect === false;
+
+                      return (
+                        <button
+                          key={a.id}
+                          onClick={() => submitAnswer(q.id, a.id)}
+                          disabled={wasAnswered || showingFeedback}
+                          className={`group relative p-5 rounded-xl border transition-all text-left
+                                     ${isCorrect 
+                                       ? "border-green-500/70 bg-green-500/20 animate-shake-correct shadow-lg shadow-green-500/20" 
+                                       : isWrong 
+                                       ? "border-red-500/70 bg-red-500/20 animate-shake shadow-lg shadow-red-500/20" 
+                                       : showingFeedback && !isThisAnswer
+                                       ? "border-white/5 bg-white/5 opacity-30"
+                                       : "border-white/10 bg-[#112240] hover:border-[#64FFDA]/50 hover:bg-[#112240]/80 cursor-pointer"
+                                     }`}
+                        >
+                          <div className="flex justify-between items-center">
+                            <span className={`transition-colors ${
+                              isCorrect 
+                                ? "text-green-400 font-bold" 
+                                : isWrong 
+                                ? "text-red-400 font-bold" 
+                                : showingFeedback && !isThisAnswer
+                                ? "text-[#8892B0]"
+                                : "text-[#CCD6F6] group-hover:text-white"
+                            }`}>
+                              {a.text}
+                            </span>
+                            <span className={`text-2xl transition-all ${
+                              isCorrect 
+                                ? "opacity-100 scale-125 text-green-500" 
+                                : isWrong 
+                                ? "opacity-100 scale-125 text-red-500" 
+                                : showingFeedback && !isThisAnswer
+                                ? "opacity-0"
+                                : "opacity-0 group-hover:opacity-100 text-[#64FFDA]"
+                            }`}>
+                              {isCorrect ? "✓" : isWrong ? "✗" : "→"}
+                            </span>
+                          </div>
+                        </button>
+                      );
+                    })}
                   </div>
                 </div>
               );
@@ -541,11 +799,37 @@ const submitAnswer = async (qid: string, aid: string) => {
 
           {phase === "SELECT_TOPIC" && (
             <div className="absolute inset-0 bg-[#0A192F]/80 backdrop-blur-sm flex items-center justify-center z-50">
-              <div className="flex flex-col items-center gap-4">
-                <div className="text-5xl animate-spin-slow">⏳</div>
-                <div className="text-[#64FFDA] text-2xl font-black uppercase tracking-widest animate-pulse">
-                  Selecting Winning Topic...
-                </div>
+              <div className="flex flex-col items-center gap-6">
+                {(() => {
+                  const winningProposal = proposals.length > 0 
+                    ? proposals.reduce((prev, curr) => 
+                        (curr.votes ?? 0) > (prev.votes ?? 0) ? curr : prev
+                      , proposals[0])
+                    : null;
+
+                  return (
+                    <>
+                      <div className="text-center space-y-4">
+                        <div className="text-[#64FFDA] text-sm font-bold uppercase tracking-widest opacity-70">
+                          Winning Topic
+                        </div>
+                        <div className="text-white text-4xl font-black tracking-tight px-8 py-4 rounded-2xl bg-[#112240]/80 border border-[#64FFDA]/30 shadow-xl">
+                          {winningProposal?.topicTitle || "Loading..."}
+                        </div>
+                        <div className="text-xs text-[#64FFDA]/60 uppercase tracking-widest">
+                          {winningProposal?.difficulty}
+                        </div>
+                      </div>
+                      
+                      <div className="flex flex-col items-center gap-3 mt-4">
+                        <div className="w-12 h-12 border-2 border-[#64FFDA]/20 border-t-[#64FFDA] rounded-full animate-spin" />
+                        <div className="text-[#8892B0] text-lg font-medium animate-pulse">
+                          Generating questions...
+                        </div>
+                      </div>
+                    </>
+                  );
+                })()}
               </div>
             </div>
           )}

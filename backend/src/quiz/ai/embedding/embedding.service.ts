@@ -1,4 +1,5 @@
 import { Injectable } from '@nestjs/common';
+import { ConfigService } from '@nestjs/config';
 import { AiService } from '../ai.service';
 import { RepositoryService } from 'src/quiz/repository/repository.service';
 
@@ -10,6 +11,7 @@ const TOPIC_SIMILARITY_THRESHOLD = 0.25;
 export class EmbeddingService {
     constructor(private readonly aiService: AiService,
         private readonly repositoryService: RepositoryService,
+        private readonly configService: ConfigService,
     ) { }
 
     // running the vector embedding logic
@@ -59,7 +61,7 @@ export class EmbeddingService {
 
         // form payload from model and topic
         const payload = {
-            model: 'text-embedding-3-small',
+            model: this.configService.getOrThrow('AI_EMBEDDING_MODEL'),
             input,
         };
 

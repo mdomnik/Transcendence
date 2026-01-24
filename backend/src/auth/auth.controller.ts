@@ -12,25 +12,31 @@ import { AuthDto, SignInDto } from './dto';
 import { GoogleAuthGuard } from './strategy/Guards';
 import type { Request, Response } from 'express';
 import { User } from 'src/common/decorators/user.decorator';
+import { ConfigService } from '@nestjs/config';
 
 @Controller('auth')
 export class AuthController {
-  constructor(private authService: AuthService) {}
+  constructor(
+    private authService: AuthService,
+    private configService: ConfigService,
+  ) { }
 
   @Post('signup')
   async signup(@Body() dto: AuthDto,
     @Res({ passthrough: true }) res: Response,
-    ) {
+  ) {
     const accessToken = await this.authService.signup(dto); // or return token from service
 
     const maxAge = dto.remember ? 7 * 24 * 60 * 60 * 1000 : 24 * 60 * 60 * 1000;
+    const domain = this.configService.get<string>('DOMAIN');
 
     res.cookie('access_token', accessToken, {
-      httpOnly: false,
-      sameSite: 'lax',
+      httpOnly: true,
       secure: true,
+      sameSite: 'none',
+      domain,
       path: '/',
-      maxAge: maxAge,
+      maxAge,
     });
 
     return { ok: true };
@@ -44,13 +50,15 @@ export class AuthController {
     const accessToken = await this.authService.signin(dto); // or return token from service
 
     const maxAge = dto.remember ? 7 * 24 * 60 * 60 * 1000 : 24 * 60 * 60 * 1000;
+    const domain = this.configService.get<string>('DOMAIN');
 
     res.cookie('access_token', accessToken, {
-      httpOnly: false,
-      sameSite: 'lax',
+      httpOnly: true,
       secure: true,
+      sameSite: 'none',
+      domain,
       path: '/',
-      maxAge: maxAge,
+      maxAge,
     });
 
     return { ok: true };
@@ -58,18 +66,22 @@ export class AuthController {
 
   @Post('logout')
   logout(@Res() res: Response) {
+    const domain = this.configService.get<string>('DOMAIN');
+    
     res.clearCookie('access_token', {
       httpOnly: true,
-      sameSite: 'lax',
       secure: true,
+      sameSite: 'none',
+      domain,
       path: '/',
     });
+
     return res.status(200).json({ message: 'Logged out successfully' });
   }
 
   @Get('google/login')
   @UseGuards(GoogleAuthGuard)
-  handleLogin() {}
+  handleLogin() { }
 
   @Get('google/redirect')
   @UseGuards(GoogleAuthGuard)
@@ -80,10 +92,13 @@ export class AuthController {
       user.id,
       user.email,
     );
+    const domain = this.configService.get<string>('DOMAIN');
+    
     res.cookie('access_token', accessToken, {
-      httpOnly: false,
-      sameSite: 'lax',
-      secure: true, // true in production
+      httpOnly: true,
+      secure: true,
+      sameSite: 'none',
+      domain,
       path: '/',
       maxAge: 24 * 60 * 60 * 1000,
     });

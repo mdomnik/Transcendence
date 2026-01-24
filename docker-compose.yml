@@ -12,7 +12,7 @@ services:
     ports:
       - "5432:5432"
     env_file:
-      - database/.env
+      - .env
     volumes:
       - postgresDBVolume:/var/lib/postgresql/data
     healthcheck:
@@ -33,7 +33,7 @@ services:
     networks:
       - internalNetwork
     env_file:
-      - backend/.env
+      - .env
     volumes:
       - ./backend:/app
       - /app/node_modules
@@ -50,7 +50,7 @@ services:
     networks:
       - internalNetwork
     env_file:
-      - frontend/.env
+      - .env
     volumes:
       - ./frontend:/app
       - /app/node_modules
@@ -62,13 +62,22 @@ services:
     restart: unless-stopped
     networks:
       - internalNetwork
-    ports:
-      - "80:80"
-      - "443:443"
     volumes:
       - ./caddy/Caddyfile:/etc/caddy/Caddyfile:ro
+      - ./caddy/certs:/etc/caddy/certs:ro
     depends_on:
       - frontend_nextjs
       - backend_nestjs
+  tunnel_cloudflare:
+    image: cloudflare/cloudflared:latest
+    container_name: tunnel_cloudflare
+    restart: unless-stopped
+    networks:
+      - internalNetwork
+    env_file:
+      - .env
+    command: tunnel --no-autoupdate run --token ${CLOUDFLARE_TUNNEL_TOKEN} 
+
 volumes:
     postgresDBVolume:
+    caddy_data:

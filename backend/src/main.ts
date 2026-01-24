@@ -4,15 +4,23 @@ import { ValidationPipe } from '@nestjs/common';
 import cookieParser from 'cookie-parser';
 import { NestExpressApplication } from '@nestjs/platform-express';
 import { join } from 'path';
+import { ConfigService } from '@nestjs/config';
 
 async function bootstrap() {
   const app = await NestFactory.create<NestExpressApplication>(AppModule);
+  const configService = app.get(ConfigService);
+  const domain = configService.get<string>('DOMAIN');
 
   app.getHttpAdapter().getInstance().set('trust proxy', true);
   app.use(cookieParser());
 
+  app.set('trust proxy', 1);
+
   app.enableCors({
-    origin: 'https://localhost',
+    origin: [
+      'https://localhost',
+      `https://${domain}`,
+    ],
     credentials: true,
   });
 
