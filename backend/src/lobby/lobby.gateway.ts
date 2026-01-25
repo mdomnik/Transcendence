@@ -14,7 +14,6 @@ import { LobbyService } from './lobby.service';
 import { LobbyKeys } from './lobby.keys';
 import { GameService } from 'src/game/game.service';
 import { RedisService } from 'src/redis/redis.service';
-import { PrismaService } from 'src/prisma/prisma.service';
 import { forwardRef, Inject } from '@nestjs/common';
 import { JwtService } from '@nestjs/jwt';
 import { initWsAuth } from 'src/websocket/websocket.init';
@@ -22,7 +21,9 @@ import { initWsAuth } from 'src/websocket/websocket.init';
 @WebSocketGateway({
   namespace: '/quiz',
   cors: {
-    origin: 'https://shehani.quizeverything.tech',
+    origin: process.env.NODE_ENV === 'production' 
+      ? `https://${process.env.DOMAIN || 'localhost'}`
+      : ['http://localhost:3000', 'http://localhost:3001'],
     credentials: true,
   },
 })
@@ -33,7 +34,6 @@ export class LobbyGateway implements OnGatewayInit {
   constructor(
     private readonly lobbyService: LobbyService,
     private readonly redisService: RedisService,
-    private readonly prisma: PrismaService,
     @Inject(forwardRef(() => GameService))
     private readonly gameService: GameService,
     private readonly jwtService: JwtService,
@@ -302,40 +302,5 @@ export class LobbyGateway implements OnGatewayInit {
         maxPlayers: meta.maxPlayers,
       },
     };
-  }
-
-  @SubscribeMessage('lobby:send_message')
-  async onLobbyChat(
-    @ConnectedSocket() client: Socket,
-    @MessageBody() dto: { lobbyId: string; content: string },
-  ) {
-    const userId = client.data.userId;
-    
-    // Safety check: ensure user is actually in this lobby
-    const lobbyIdForUser = await this.lobbyService.getLobbyIdForUser(userId);
-    if (lobbyIdForUser !== dto.lobbyId) {
-      return { ok: false, error: 'NOT_IN_LOBBY' };
-    }
-
-    console.log(`[LobbyChat] userId=${userId} lobbyId=${dto.lobbyId} content=${dto.content}`);
-    
-    // Get user from DB instead of non-existent Redis method
-    const user = await this.prisma.user.findUnique({
-      where: { id: userId },
-      select: { username: true }
-    });
-    
-    if (!user) return { ok: false, error: 'USER_NOT_FOUND' };
-
-    const payload = {
-      senderId: userId,
-      username: user.username,
-      content: dto.content,
-      createdAt: new Date().toISOString(),
-    };
-
-    console.log(`[LobbyChat] Broadcasting to room ${dto.lobbyId}`);
-    this.server.to(dto.lobbyId).emit('lobby:message', payload);
-    return { ok: true };
   }
 }

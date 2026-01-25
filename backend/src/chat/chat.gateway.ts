@@ -15,7 +15,9 @@ import { initWsAuth } from 'src/websocket/websocket.init';
 @WebSocketGateway({
   namespace: '/quiz',
   cors: {
-    origin: 'https://shehani.quizeverything.tech',
+    origin: process.env.NODE_ENV === 'production' 
+      ? `https://${process.env.DOMAIN || 'localhost'}`
+      : ['http://localhost:3000', 'http://localhost:3001'],
     credentials: true,
   },
 })
@@ -48,9 +50,21 @@ export class ChatGateway implements OnGatewayInit {
         data.content,
       );
 
-      // Emit to sender and receiver using user-specific rooms
-      this.server.to(`user:${senderId}`).emit('chat:receive', message);
-      this.server.to(`user:${data.receiverId}`).emit('chat:receive', message);
+      // Emit to sender (to sync multiple tabs)
+      const senderSockets = await this.redis.client.smembers(
+        `user:${senderId}:sockets`,
+      );
+      for (const sId of senderSockets) {
+        this.server.to(sId).emit('chat:receive', message);
+      }
+
+      // Emit to receiver
+      const receiverSockets = await this.redis.client.smembers(
+        `user:${data.receiverId}:sockets`,
+      );
+      for (const sId of receiverSockets) {
+        this.server.to(sId).emit('chat:receive', message);
+      }
 
       return { ok: true, data: message };
     } catch (err: any) {
