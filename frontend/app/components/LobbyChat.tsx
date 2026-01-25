@@ -42,17 +42,24 @@ export default function LobbyChat({ lobbyId, currentUser, friends }: LobbyChatPr
     const socket = getSocket();
 
     // Fetch initial unread counts for private chats
-    emitWithAck(socket, "chat:unread_counts").then(res => {
-      if (res.ok) {
-        setUnreadCounts(prev => {
-          const counts = { ...prev };
-          res.data.forEach((c: any) => {
-            counts[c.senderId] = c.count;
+    const fetchUnreads = async () => {
+      try {
+        const res = await emitWithAck(socket, "chat:unread_counts");
+        if (res.ok) {
+          setUnreadCounts(prev => {
+            const counts = { ...prev };
+            res.data.forEach((c: any) => {
+              counts[c.senderId] = c.count;
+            });
+            return counts;
           });
-          return counts;
-        });
+        }
+      } catch (err) {
+        console.error("Failed to fetch unread counts:", err);
       }
-    });
+    };
+    
+    fetchUnreads();
 
     // Lobby Listener
     const handleLobbyMessage = (msg: Message) => {
@@ -99,20 +106,31 @@ export default function LobbyChat({ lobbyId, currentUser, friends }: LobbyChatPr
 
     const socket = getSocket();
 
-    if (activeChat === "lobby") {
-      setUnreadCounts(prev => ({ ...prev, lobby: 0 }));
-    } else if (activeChat !== "list") {
-      // Clear DM unread
-      if (unreadCounts[activeChat]) {
-        emitWithAck(socket, "chat:mark_read", { friendId: activeChat });
-        setUnreadCounts(prev => ({ ...prev, [activeChat]: 0 }));
-      }
+    const loadChatData = async () => {
+      if (activeChat === "lobby") {
+        setUnreadCounts(prev => ({ ...prev, lobby: 0 }));
+      } else if (activeChat !== "list") {
+        // Clear DM unread
+        if (unreadCounts[activeChat]) {
+          try {
+            await emitWithAck(socket, "chat:mark_read", { friendId: activeChat });
+          } catch (err) {
+            console.error("Failed to mark chat as read:", err);
+          }
+          setUnreadCounts(prev => ({ ...prev, [activeChat]: 0 }));
+        }
 
-      // Load DM history
-      emitWithAck(socket, "chat:history", { friendId: activeChat }).then(res => {
-        if (res.ok) setDmMessages(res.data);
-      });
-    }
+        // Load DM history
+        try {
+          const res = await emitWithAck(socket, "chat:history", { friendId: activeChat });
+          if (res.ok) setDmMessages(res.data);
+        } catch (err) {
+          console.error("Failed to fetch chat history:", err);
+        }
+      }
+    };
+
+    loadChatData();
   }, [activeChat, isOpen, lobbyId]);
 
   useEffect(() => {
@@ -123,20 +141,24 @@ export default function LobbyChat({ lobbyId, currentUser, friends }: LobbyChatPr
     e.preventDefault();
     if (!inputValue.trim()) return;
 
-    const socket = getSocket();
-    
-    if (activeChat === "lobby") {
-      const res = await emitWithAck(socket, "lobby:send_message", {
-        lobbyId,
-        content: inputValue.trim(),
-      });
-      if (res.ok) setInputValue("");
-    } else if (activeChat !== "list") {
-      const res = await emitWithAck(socket, "chat:send", {
-        receiverId: activeChat,
-        content: inputValue.trim(),
-      });
-      if (res.ok) setInputValue("");
+    try {
+      const socket = getSocket();
+      
+      if (activeChat === "lobby") {
+        const res = await emitWithAck(socket, "lobby:send_message", {
+          lobbyId,
+          content: inputValue.trim(),
+        });
+        if (res.ok) setInputValue("");
+      } else if (activeChat !== "list") {
+        const res = await emitWithAck(socket, "chat:send", {
+          receiverId: activeChat,
+          content: inputValue.trim(),
+        });
+        if (res.ok) setInputValue("");
+      }
+    } catch (err) {
+      console.error("Failed to send message:", err);
     }
   };
 
@@ -145,10 +167,10 @@ export default function LobbyChat({ lobbyId, currentUser, friends }: LobbyChatPr
     return (
       <div 
         onClick={() => setIsOpen(true)}
-        className="fixed bottom-6 right-6 z-50 bg-[#64FFDA] text-[#0A192F] px-5 py-3 rounded-full shadow-2xl cursor-pointer hover:scale-110 transition-transform flex items-center gap-2 font-bold whitespace-nowrap"
+        className="fixed bottom-20 right-6 z-50 bg-[#64FFDA] text-[#0A192F] px-5 py-3 rounded-full shadow-2xl cursor-pointer hover:scale-110 transition-transform flex items-center gap-2 font-bold whitespace-nowrap"
       >
         <span className="text-xl">💬</span>
-        <span className="text-sm">Game Chat</span>
+        <span className="text-sm">Lobby Chat</span>
         {totalUnread > 0 && (
           <div className="absolute -top-1 -right-1 bg-red-500 text-white text-[9px] w-5 h-5 rounded-full flex items-center justify-center border-2 border-[#0A192F] animate-bounce font-bold">
             {totalUnread}
@@ -161,7 +183,7 @@ export default function LobbyChat({ lobbyId, currentUser, friends }: LobbyChatPr
   const currentMessages = activeChat === "lobby" ? lobbyMessages : dmMessages;
 
   return (
-    <div className="fixed bottom-6 right-6 z-50 w-full max-w-sm md:max-w-md bg-[#112240] border border-[#64FFDA]/30 rounded-2xl shadow-2xl flex flex-col h-[520px] overflow-hidden">
+    <div className="fixed bottom-20 right-6 z-50 w-full max-w-sm md:max-w-md bg-[#112240] border border-[#64FFDA]/30 rounded-2xl shadow-2xl flex flex-col h-[520px] overflow-hidden">
       {/* Header */}
       <div className="bg-[#1D2D50] p-4 border-b border-[#64FFDA]/20 flex items-center justify-between">
         <div className="flex items-center gap-3">
@@ -173,7 +195,7 @@ export default function LobbyChat({ lobbyId, currentUser, friends }: LobbyChatPr
                     {activeChat === "lobby" ? (
                       <div className="w-full h-full flex items-center justify-center text-[#64FFDA]">🏰</div>
                     ) : activeFriend?.avatarPath ? (
-                      <img src={activeFriend.avatarPath} alt={activeFriend.username} className="w-full h-full object-cover" />
+                      <img src={`${activeFriend.avatarPath}?v=${Date.now()}`} alt={activeFriend.username} className="w-full h-full object-cover" />
                     ) : (
                       <div className="w-full h-full flex items-center justify-center text-[10px] font-bold text-[#64FFDA]">
                         {activeFriend?.username.charAt(0).toUpperCase()}
@@ -233,7 +255,7 @@ export default function LobbyChat({ lobbyId, currentUser, friends }: LobbyChatPr
                 <div className="relative">
                   <div className="w-10 h-10 rounded-full bg-[#112240] border border-[#64FFDA]/20 overflow-hidden">
                     {f.friend.avatarPath ? (
-                      <img src={f.friend.avatarPath} alt={f.friend.username} className="w-full h-full object-cover" />
+                      <img src={`${f.friend.avatarPath}?v=${Date.now()}`} alt={f.friend.username} className="w-full h-full object-cover" />
                     ) : (
                       <div className="w-full h-full flex items-center justify-center text-sm font-bold text-[#64FFDA]">
                         {f.friend.username.charAt(0).toUpperCase()}

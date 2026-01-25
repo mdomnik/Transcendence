@@ -5,6 +5,8 @@ import { useRouter } from "next/navigation";
 import { getSocket } from "../lib/socket";
 import { emitWithAck } from "../lib/socketEmit";
 import { useAuth } from "../context/AuthContext";
+import { getFriends, Friendship } from "../lib/friends";
+import LobbyChat from "../components/LobbyChat";
 
 /* ===================== TYPES ===================== */
 
@@ -110,6 +112,7 @@ export default function GamePage() {
   const [topic, setTopic] = useState("");
   const [difficulty, setDifficulty] = useState<Difficulty>("EASY");
   const [now, setNow] = useState(Date.now());
+  const [friends, setFriends] = useState<Friendship[]>([]);
 
   /* ---------- animation helpers ---------- */
   const prevVotesRef = useRef<Record<string, number>>({});
@@ -142,6 +145,27 @@ export default function GamePage() {
   }
 
   if (!user) return null;
+
+  /* ===================== FRIENDS FETCHING ===================== */
+  useEffect(() => {
+    if (!user) return;
+    const fetchFriendsData = () => getFriends().then(setFriends).catch(console.error);
+    fetchFriendsData();
+
+    const socket = getSocket();
+    socket.on("presence:updated", fetchFriendsData);
+    socket.on("friendship:updated", fetchFriendsData);
+    socket.on("connect", fetchFriendsData);
+
+    const interval = setInterval(fetchFriendsData, 10000);
+
+    return () => {
+      clearInterval(interval);
+      socket.off("presence:updated", fetchFriendsData);
+      socket.off("friendship:updated", fetchFriendsData);
+      socket.off("connect", fetchFriendsData);
+    };
+  }, [user]);
 
   /* ===================== CLOCK ===================== */
 
@@ -1001,6 +1025,9 @@ useEffect(() => {
           </div>
         </div>
       </div>
+      {game?.lobbyId && (
+        <LobbyChat lobbyId={game.lobbyId} currentUser={user} friends={friends} />
+      )}
     </main>
   );
 }

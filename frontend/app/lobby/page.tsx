@@ -222,7 +222,7 @@ export default function LobbyPage() {
     }
   };
 
-  const updateSetting = (
+  const updateSetting = async (
     key: keyof GameSettings | "maxPlayers",
     delta?: number,
     value?: string
@@ -230,7 +230,7 @@ export default function LobbyPage() {
     if (!lobby || !isHost || allReady) return;
 
     try {
-      emitWithAck(getSocket(), "lobby:config", {
+      await emitWithAck(getSocket(), "lobby:config", {
         lobbyId: lobby.lobbyId,
         key,
         delta,

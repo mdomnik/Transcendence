@@ -18,12 +18,14 @@ export default function LoginModal({ isOpen, onClose, onSwitchToSignUp, onLoginS
   const [remember, setRemember] = useState(false);
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState("");
+  const [errorFields, setErrorFields] = useState<string[]>([]);
 
   if (!isOpen) return null;
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setError("");
+    setErrorFields([]);
     setIsLoading(true);
 
     try {
@@ -38,6 +40,7 @@ export default function LoginModal({ isOpen, onClose, onSwitchToSignUp, onLoginS
 
       if (!response.ok) {
         const errorData = await response.json();
+        setErrorFields(["identifier", "password"]);
         throw new Error(errorData.message || 'Login failed');
       }
 
@@ -72,7 +75,7 @@ export default function LoginModal({ isOpen, onClose, onSwitchToSignUp, onLoginS
         <h2 className="text-3xl font-bold text-[#CCD6F6] text-center">Log In</h2>
 
         {error && (
-          <div className="text-red-400 text-sm text-center bg-red-400/10 py-2 px-4 rounded-lg">
+          <div className="text-red-400 text-sm text-center bg-red-400/10 py-2 px-4 rounded-lg border border-red-500/50">
             {error}
           </div>
         )}
@@ -83,16 +86,22 @@ export default function LoginModal({ isOpen, onClose, onSwitchToSignUp, onLoginS
             placeholder="Email or Username"
             required
             value={identifier}
-            onChange={(e) => setIdentifier(e.target.value)}
-            className="w-full px-4 py-3 rounded-xl bg-[#0A192F] border border-[#64FFDA]/30 text-[#CCD6F6] placeholder-[#8892B0] focus:outline-none focus:border-[#64FFDA] transition-colors"
+            onChange={(e) => {
+                setIdentifier(e.target.value);
+                setErrorFields([]);
+            }}
+            className={`w-full px-4 py-3 rounded-xl bg-[#0A192F] border ${errorFields.includes("identifier") ? 'border-red-500' : 'border-[#64FFDA]/30'} text-[#CCD6F6] placeholder-[#8892B0] focus:outline-none focus:border-[#64FFDA] transition-colors`}
           />
           <input
             type="password"
             placeholder="Password"
             required
             value={password}
-            onChange={(e) => setPassword(e.target.value)}
-            className="w-full px-4 py-3 rounded-xl bg-[#0A192F] border border-[#64FFDA]/30 text-[#CCD6F6] placeholder-[#8892B0] focus:outline-none focus:border-[#64FFDA] transition-colors"
+            onChange={(e) => {
+                setPassword(e.target.value);
+                setErrorFields([]);
+            }}
+            className={`w-full px-4 py-3 rounded-xl bg-[#0A192F] border ${errorFields.includes("password") ? 'border-red-500' : 'border-[#64FFDA]/30'} text-[#CCD6F6] placeholder-[#8892B0] focus:outline-none focus:border-[#64FFDA] transition-colors`}
           />
 
           <div className="flex items-center gap-2 px-1">
