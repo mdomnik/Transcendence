@@ -110,6 +110,7 @@ export default function GamePage() {
   const [topic, setTopic] = useState("");
   const [difficulty, setDifficulty] = useState<Difficulty>("EASY");
   const [now, setNow] = useState(Date.now());
+  const [shuffledQuestions, setShuffledQuestions] = useState<Question[]>([]);
 
   /* ---------- animation helpers ---------- */
   const prevVotesRef = useRef<Record<string, number>>({});
@@ -264,6 +265,14 @@ export default function GamePage() {
   }, [proposals]);
 
   /* ===================== ACTIONS ===================== */
+  function shuffle<T>(array: T[]): T[] {
+    const copy = [...array];
+    for (let i = copy.length - 1; i > 0; i--) {
+      const j = Math.floor(Math.random() * (i + 1));
+      [copy[i], copy[j]] = [copy[j], copy[i]];
+    }
+    return copy;
+  }
 
   const handleLeaveCurrentLobby = async () => {
     if (!game?.lobbyId) return;
@@ -349,6 +358,16 @@ const submitAnswer = async (qid: string, aid: string) => {
 
 useEffect(() => {
   if (!game?.roundData?.questions) return;
+
+  const qs = game?.roundData?.questions;
+  if (!qs || qs.length === 0) return;
+
+  const shuffledQuestions = qs.map((q) => ({
+    ...q,
+    answers: shuffle(q.answers),
+  }));
+
+  setShuffledQuestions(shuffledQuestions);
 
   // reset per-round UI state
   setLastAnsweredQuestionId(null);
@@ -591,7 +610,7 @@ useEffect(() => {
           <div className="flex-1 rounded-2xl border border-white/10 bg-[#0F223D] p-8 shadow-2xl flex flex-col">
             {(() => {
               // console.log('Does game data exist?', game);
-              const qs: Question[] = game?.roundData?.questions ?? [];
+              const qs: Question[] = shuffledQuestions;
               // console.log('Questions', qs);
               if (!user) {
                 console.warn('User not found!');
