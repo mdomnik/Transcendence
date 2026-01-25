@@ -111,6 +111,7 @@ export default function GamePage() {
   const [difficulty, setDifficulty] = useState<Difficulty>("EASY");
   const [now, setNow] = useState(Date.now());
   const [shuffledQuestions, setShuffledQuestions] = useState<Question[]>([]);
+  const [previousQuestions, setPreviousQuestions] = useState<Question[]>([]);
 
   /* ---------- animation helpers ---------- */
   const prevVotesRef = useRef<Record<string, number>>({});
@@ -232,6 +233,31 @@ export default function GamePage() {
     : null;
 
   /* ===================== APPEAR ANIMATION ===================== */
+useEffect(() => {
+  const incoming = game?.roundData?.questions;
+  if (!incoming || incoming.length === 0) return;
+
+  // reset per-round UI state
+  setLastAnsweredQuestionId(null);
+  setLastAnsweredAnswerId(null);
+  setLastAnsweredCorrect(null);
+  setShowingFeedback(false);
+
+  setShuffledQuestions((prev) => {
+    const cache = new Map(prev.map((q) => [q.id, q]));
+
+    return incoming.map((q) => {
+      const cached = cache.get(q.id);
+
+      if (cached) return cached;
+      return {
+        ...q,
+        answers: shuffle(q.answers),
+      };
+    });
+  });
+}, [game?.roundData?.questions]);
+
 
   useEffect(() => {
     if (proposals.length > prevProposalCountRef.current) {
@@ -355,26 +381,6 @@ const submitAnswer = async (qid: string, aid: string) => {
     console.error("submitAnswer failed", e);
   }
 };
-
-useEffect(() => {
-  if (!game?.roundData?.questions) return;
-
-  const qs = game?.roundData?.questions;
-  if (!qs || qs.length === 0) return;
-
-  const shuffledQuestions = qs.map((q) => ({
-    ...q,
-    answers: shuffle(q.answers),
-  }));
-
-  setShuffledQuestions(shuffledQuestions);
-
-  // reset per-round UI state
-  setLastAnsweredQuestionId(null);
-  setLastAnsweredAnswerId(null);
-  setLastAnsweredCorrect(null);
-  setShowingFeedback(false);
-}, [game?.roundData?.questions]);
 
 // Listen for correctness updates
 useEffect(() => {
@@ -617,9 +623,6 @@ useEffect(() => {
                 return null;
               }
               const myA = game?.roundData?.answeredBy?.[user.id] ?? [];
-              console.trace('My answers:', myA);
-              console.trace('Last answered question:', lastAnsweredAnswerId);
-              console.trace('Showing feedback', showingFeedback);
 
               // Show the question we're showing feedback for, OR the next unanswered one
               const q = (() => {
