@@ -55,22 +55,11 @@ export default function LobbyPage() {
     }
   }, [user, authLoading, router]);
 
-  if (authLoading) {
-    return (
-      <main className="relative min-h-screen bg-[#0A192F] flex items-center justify-center">
-        <div className="text-[#64FFDA] text-xl">Loading...</div>
-      </main>
-    );
-  }
-
-  if (!user) return null;
-
   useEffect(() => {
     if (authLoading || !user) return;
 
     const socket = getSocket();
 
-    
     socket.on("lobby:update", (payload) => {
       /* if (payload.state === "FINISHED") {
         // TODO! Destroy the lobby instance and kick players out, otherwise lobby:update will be infinitely called
@@ -128,6 +117,7 @@ export default function LobbyPage() {
       socket.off("lobby:deleted");
       socket.off("lobby:kicked");
       socket.off("lobby:removed");
+      socket.off("game:state");
     };
   }, [authLoading, user, router]);
 

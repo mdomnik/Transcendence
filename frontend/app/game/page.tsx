@@ -134,16 +134,14 @@ export default function GamePage() {
       router.push("/");
     }
   }, [user, loading, router]);
+  // if (loading) {
+  //   return (
+  //     <main className="relative min-h-screen bg-[#0A192F] flex items-center justify-center">
+  //       <div className="text-[#64FFDA] text-xl">Loading...</div>
+  //     </main>
+  //   );
+  // }
 
-  if (loading) {
-    return (
-      <main className="relative min-h-screen bg-[#0A192F] flex items-center justify-center">
-        <div className="text-[#64FFDA] text-xl">Loading...</div>
-      </main>
-    );
-  }
-
-  if (!user) return null;
 
   /* ===================== CLOCK ===================== */
 
