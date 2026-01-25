@@ -14,6 +14,7 @@ interface Player {
   username: string;
   ready: boolean;
   votes: number;
+  avatarPath?: string | null;
 }
 
 interface GameSettings {
@@ -366,8 +367,18 @@ export default function LobbyPage() {
                     className="flex items-center justify-between bg-white/5 p-4 rounded-lg border border-white/10"
                   >
                     <div className="flex items-center gap-3">
-                      <div className="w-10 h-10 rounded-full bg-gradient-to-br from-[#64FFDA] to-[#38BDF8] flex items-center justify-center text-[#0A0E27] font-bold">
-                        {p.username.charAt(0).toUpperCase()}
+                      <div className="w-10 h-10 rounded-full bg-gradient-to-br from-[#64FFDA] to-[#38BDF8] flex items-center justify-center overflow-hidden">
+                        {p.avatarPath ? (
+                          <img
+                            src={`${p.avatarPath}?v=${Date.now()}`}
+                            alt={p.username}
+                            className="w-full h-full object-cover"
+                          />
+                        ) : (
+                          <span className="text-[#0A0E27] font-bold">
+                            {p.username.charAt(0).toUpperCase()}
+                          </span>
+                        )}
                       </div>
                       <span className="text-white font-medium">
                         {p.username}

@@ -167,7 +167,7 @@ export default function ChatBox({ currentUser, friends }: ChatBoxProps) {
                <div className="flex items-center gap-2">
                  <div className="w-8 h-8 rounded-full bg-[#0A192F] border border-[#64FFDA]/20 overflow-hidden">
                     {activeFriend.avatarPath ? (
-                      <img src={activeFriend.avatarPath} alt={activeFriend.username} className="w-full h-full object-cover" />
+                      <img src={`${activeFriend.avatarPath}?v=${Date.now()}`} alt={activeFriend.username} className="w-full h-full object-cover" />
                     ) : (
                       <div className="w-full h-full flex items-center justify-center text-[10px] font-bold text-[#64FFDA]">
                         {activeFriend.username.charAt(0).toUpperCase()}
@@ -218,7 +218,7 @@ export default function ChatBox({ currentUser, friends }: ChatBoxProps) {
                   <div className="relative">
                     <div className="w-10 h-10 rounded-full bg-[#112240] border border-[#64FFDA]/20 overflow-hidden">
                       {f.friend.avatarPath ? (
-                        <img src={f.friend.avatarPath} alt={f.friend.username} className="w-full h-full object-cover" />
+                        <img src={`${f.friend.avatarPath}?v=${Date.now()}`} alt={f.friend.username} className="w-full h-full object-cover" />
                       ) : (
                         <div className="w-full h-full flex items-center justify-center text-sm font-bold text-[#64FFDA]">
                           {f.friend.username.charAt(0).toUpperCase()}

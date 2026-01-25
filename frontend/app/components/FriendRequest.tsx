@@ -38,15 +38,11 @@ export default function FriendRequests({ onAction, refreshTrigger = 0 }: FriendR
         refreshRequests();
       };
 
-      socket.on("friendship:updated", handleFriendshipUpdate);
+      socket.on("friendship:updated", refreshRequests);
 
       return () => {
-<<<<<<< HEAD
-        socket.off("friendship:updated", handleFriendshipUpdate);
-=======
         clearInterval(pollInterval);
         socket.off("friendship:updated", refreshRequests);
->>>>>>> feature/lobby-gameplay-fixes
       };
     }
     return () => clearInterval(pollInterval);
@@ -105,7 +101,7 @@ export default function FriendRequests({ onAction, refreshTrigger = 0 }: FriendR
                     <div className="w-full h-full rounded-full bg-[#0A192F] flex items-center justify-center overflow-hidden">
                       {req.friend.avatarPath ? (
                         <img 
-                          src={req.friend.avatarPath}
+                          src={`${req.friend.avatarPath}?v=${Date.now()}`}
                           alt={req.friend.username}
                           className="w-full h-full object-cover"
                         />
@@ -152,7 +148,7 @@ export default function FriendRequests({ onAction, refreshTrigger = 0 }: FriendR
                 <div className="flex items-center gap-3">
                   <div className="w-8 h-8 rounded-full bg-[#112240] flex items-center justify-center overflow-hidden border border-[#8892B0]/20">
                     {req.friend.avatarPath ? (
-                      <img src={req.friend.avatarPath} alt={req.friend.username} className="w-full h-full object-cover" />
+                      <img src={`${req.friend.avatarPath}?v=${Date.now()}`} alt={req.friend.username} className="w-full h-full object-cover" />
                     ) : (
                       <span className="text-[#8892B0] text-xs font-bold">{req.friend.username.charAt(0).toUpperCase()}</span>
                     )}

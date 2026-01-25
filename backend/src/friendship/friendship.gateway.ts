@@ -13,16 +13,7 @@ import { initWsAuth } from 'src/websocket/websocket.init';
 
 @WebSocketGateway({
   namespace: '/quiz',
-<<<<<<< HEAD
-  cors: {
-    origin: process.env.NODE_ENV === 'production' 
-      ? `https://${process.env.DOMAIN || 'localhost'}`
-      : ['http://localhost:3000', 'http://localhost:3001'],
-    credentials: true,
-  },
-=======
   cors: { origin: 'https://shehani.quizeverything.tech', credentials: true },
->>>>>>> feature/lobby-gameplay-fixes
 })
 export class FriendshipGateway implements OnGatewayInit {
   @WebSocketServer() server: Server;

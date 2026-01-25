@@ -43,6 +43,7 @@ export interface LobbyView {
     userId: string;
     username: string;
     ready: boolean;
+    avatarPath?: string | null;
   }>;
 }
 
@@ -64,7 +65,7 @@ export class LobbyService {
 
     const users = await this.prisma.user.findMany({
       where: { id: { in: memberIds } },
-      select: { id: true, username: true },
+      select: { id: true, username: true, avatarPath: true },
     });
 
     const members = users
@@ -72,6 +73,7 @@ export class LobbyService {
         userId: u.id,
         username: u.username,
         ready: readyMap[u.id] === '1',
+        avatarPath: u.avatarPath,
       }))
       .sort((a, b) => (a.userId == meta.ownerId ? -1 : 1));
 

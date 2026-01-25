@@ -420,7 +420,7 @@ export default function Dashboard() {
                             <div className="relative">
                               <div className="w-7 h-7 rounded-full bg-[#0A192F] border border-[#64FFDA]/10 overflow-hidden">
                                 {friendship.friend.avatarPath ? (
-                                  <img src={friendship.friend.avatarPath} alt={friendship.friend.username} className="w-full h-full object-cover" />
+                                  <img src={`${friendship.friend.avatarPath}?v=${Date.now()}`} alt={friendship.friend.username} className="w-full h-full object-cover" />
                                 ) : (
                                   <div className="w-full h-full flex items-center justify-center text-[11px] font-bold text-[#64FFDA]">
                                     {friendship.friend.username.charAt(0).toUpperCase()}
@@ -481,7 +481,7 @@ export default function Dashboard() {
                             </div>
                             <div className="w-6 h-6 rounded-full bg-[#0A192F] border border-[#64FFDA]/10 overflow-hidden">
                               {entry.avatarPath ? (
-                                <img src={entry.avatarPath} alt={entry.username} className="w-full h-full object-cover" />
+                                <img src={`${entry.avatarPath}?v=${Date.now()}`} alt={entry.username} className="w-full h-full object-cover" />
                               ) : (
                                 <div className="w-full h-full flex items-center justify-center text-[10px] font-bold text-[#64FFDA]">
                                   {entry.username.charAt(0).toUpperCase()}

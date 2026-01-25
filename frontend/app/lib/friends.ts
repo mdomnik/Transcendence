@@ -19,16 +19,11 @@ export interface FriendUser {
 export interface Friendship {
 	id: string;
 	status: FriendStatus;
-<<<<<<< HEAD
-	requesterId?: string;
-	blockerId?: string;
-=======
 	requesterId: string;
+	blockerId?: string;
 	isRequester?: boolean;
->>>>>>> feature/lobby-gameplay-fixes
 	// We usually expand the 'friend' details so we can show their name
 	friend: FriendUser;
-	isRequester?: boolean;
 	isBlocker?: boolean;
 }
 
@@ -147,18 +142,17 @@ export async function rejectRequest(friendshipId: string) {
   }
 }
 
-<<<<<<< HEAD
 // Function to cancel a request via socket
-export async function cancelRequest(userId: string) {
+export async function cancelFriendRequest(userId: string) {
   try {
     const socket = getSocket();
     if (!socket.connected) {
       socket.connect();
       await new Promise<void>(resolve => socket.once('connect', () => resolve()));
     }
-    console.log('[cancelRequest] Emitting friendship:cancel for user:', userId);
+    console.log('[cancelFriendRequest] Emitting friendship:cancel for user:', userId);
     const result = await emitWithAck(socket, 'friendship:cancel', { userId });
-    console.log('[cancelRequest] Result:', result);
+    console.log('[cancelFriendRequest] Result:', result);
     if (!result.ok) throw new Error(result.error?.message || 'Failed to cancel');
     return result.data;
   } catch (error) {
@@ -222,18 +216,6 @@ export async function removeFriend(userId: string) {
     throw error;
   }
 }
-=======
-// Function to Cancel a sent request
-export async function cancelFriendRequest(userId: string) {
-  const res = await fetch(`/api/friendship/cancel/${userId}`, {
-    method: 'POST',
-    credentials: 'include',
-  });
-  if (!res.ok) throw new Error('Failed to cancel');
-  return res.json();
-}
-
->>>>>>> feature/lobby-gameplay-fixes
 // Helper to respond (compatible with some UIs)
 export async function respondToRequest(requestId: string, status: FriendStatus.ACCEPTED | FriendStatus.REJECTED) {
   if (status === FriendStatus.ACCEPTED) return acceptRequest(requestId);
