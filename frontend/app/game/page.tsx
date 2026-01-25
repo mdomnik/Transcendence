@@ -5,6 +5,8 @@ import { useRouter } from "next/navigation";
 import { getSocket } from "../lib/socket";
 import { emitWithAck } from "../lib/socketEmit";
 import { useAuth } from "../context/AuthContext";
+import { getFriends, Friendship } from "../lib/friends";
+import LobbyChat from "../components/LobbyChat";
 
 /* ===================== TYPES ===================== */
 
@@ -112,6 +114,7 @@ export default function GamePage() {
   const [now, setNow] = useState(Date.now());
   const [shuffledQuestions, setShuffledQuestions] = useState<Question[]>([]);
   const [previousQuestions, setPreviousQuestions] = useState<Question[]>([]);
+  const [friends, setFriends] = useState<Friendship[]>([]);
 
   /* ---------- animation helpers ---------- */
   const prevVotesRef = useRef<Record<string, number>>({});
@@ -142,6 +145,27 @@ export default function GamePage() {
   //   );
   // }
 
+
+  /* ===================== FRIENDS FETCHING ===================== */
+  useEffect(() => {
+    if (!user) return;
+    const fetchFriendsData = () => getFriends().then(setFriends).catch(console.error);
+    fetchFriendsData();
+
+    const socket = getSocket();
+    socket.on("presence:updated", fetchFriendsData);
+    socket.on("friendship:updated", fetchFriendsData);
+    socket.on("connect", fetchFriendsData);
+
+    const interval = setInterval(fetchFriendsData, 10000);
+
+    return () => {
+      clearInterval(interval);
+      socket.off("presence:updated", fetchFriendsData);
+      socket.off("friendship:updated", fetchFriendsData);
+      socket.off("connect", fetchFriendsData);
+    };
+  }, [user]);
 
   /* ===================== CLOCK ===================== */
 
@@ -318,20 +342,6 @@ useEffect(() => {
       });
     } catch (err) {
       console.error("Failed to quit game:", err);
-    }
-  };
-
-  const handlePlayAgain = async () => {
-    if (!game?.lobbyId) return;
-    try {
-      const res = await emitWithAck(getSocket(), "lobby:retry", {
-        lobbyId: game.lobbyId,
-      });
-      if (res.ok) {
-        router.replace("/lobby");
-      }
-    } catch (err) {
-      console.error("Failed to reset lobby:", err);
     }
   };
 
@@ -941,18 +951,12 @@ useEffect(() => {
                 ))}
             </div>
 
-            <div className="flex flex-col sm:flex-row gap-4 w-full">
-              <button
-                onClick={handlePlayAgain}
-                className="flex-1 py-4 rounded-2xl bg-[#64FFDA] text-[#0A192F] font-black text-lg hover:scale-[1.02] active:scale-[0.98] transition-all shadow-lg shadow-[#64FFDA]/10"
-              >
-                Play Again
-              </button>
+            <div className="w-full">
               <button
                 onClick={handleLeaveCurrentLobby}
-                className="flex-1 py-4 rounded-2xl bg-white/5 border border-white/10 text-white font-bold hover:bg-white/10 transition-all"
+                className="w-full py-4 rounded-2xl bg-[#64FFDA] text-[#0A192F] font-black text-lg hover:scale-[1.02] active:scale-[0.98] transition-all shadow-lg shadow-[#64FFDA]/10"
               >
-                Leave Game
+                Back to Dashboard
               </button>
             </div>
           </div>
@@ -1041,6 +1045,9 @@ useEffect(() => {
           </div>
         </div>
       </div>
+      {game?.lobbyId && (
+        <LobbyChat lobbyId={game.lobbyId} currentUser={user} friends={friends} />
+      )}
     </main>
   );
 }

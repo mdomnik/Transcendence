@@ -26,9 +26,7 @@ import { initWsAuth } from 'src/websocket/websocket.init';
 @WebSocketGateway({
   namespace: '/quiz',
   cors: {
-    origin: process.env.NODE_ENV === 'production' 
-      ? `https://${process.env.DOMAIN || 'localhost'}`
-      : ['http://localhost:3000', 'http://localhost:3001'],
+    origin: 'https://shehani.quizeverything.tech',
     credentials: true,
   },
 })

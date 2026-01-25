@@ -60,6 +60,7 @@ services:
     image: caddy:alpine
     container_name: server_caddy
     restart: unless-stopped
+    
     networks:
       - internalNetwork
     volumes:

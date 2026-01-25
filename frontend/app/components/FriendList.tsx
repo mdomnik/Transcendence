@@ -65,25 +65,24 @@ export default function FriendList({ refreshTrigger = 0 }: FriendListProps) {
   useEffect(() => {
     fetchFriends();
 
+    // Polling fallback every 10 seconds since sockets are unreliable
+    const pollInterval = setInterval(fetchFriends, 10000);
+
     if (isConnected) {
       const socket = getSocket();
-      
-      // Refresh on presence updates (status changes)
-      const handlePresenceUpdate = () => fetchFriends();
-      
-      // Refresh on ANY friendship update - all events should trigger a refresh
-      const handleFriendshipUpdate = () => {
-        fetchFriends();
-      };
-
-      socket.on("presence:updated", handlePresenceUpdate);
-      socket.on("friendship:updated", handleFriendshipUpdate);
+      socket.on("presence:updated", fetchFriends);
+      socket.on("friendship:updated", fetchFriends);
+      socket.on("connect", fetchFriends);
 
       return () => {
-        socket.off("presence:updated", handlePresenceUpdate);
-        socket.off("friendship:updated", handleFriendshipUpdate);
+        clearInterval(pollInterval);
+        socket.off("presence:updated", fetchFriends);
+        socket.off("friendship:updated", fetchFriends);
+        socket.off("connect", fetchFriends);
       }
     }
+
+    return () => clearInterval(pollInterval);
   }, [refreshTrigger, isConnected]);
 
   return (
@@ -121,7 +120,7 @@ export default function FriendList({ refreshTrigger = 0 }: FriendListProps) {
                   <div className="w-full h-full rounded-full bg-[#0A192F] flex items-center justify-center overflow-hidden">
                     {friendship.friend.avatarPath ? (
                       <img 
-                        src={friendship.friend.avatarPath} 
+                        src={`${friendship.friend.avatarPath}?v=${Date.now()}`} 
                         alt={friendship.friend.username}
                         className="w-full h-full object-cover"
                       />

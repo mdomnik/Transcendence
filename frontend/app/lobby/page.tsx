@@ -5,13 +5,16 @@ import { useRouter } from "next/navigation";
 import { getSocket } from "../lib/socket";
 import { emitWithAck } from "../lib/socketEmit";
 import { useAuth } from "../context/AuthContext";
+import { getFriends, Friendship } from "../lib/friends";
 import Button from "../components/Button";
+import LobbyChat from "../components/LobbyChat";
 
 interface Player {
   userId: string;
   username: string;
   ready: boolean;
   votes: number;
+  avatarPath?: string | null;
 }
 
 interface GameSettings {
@@ -37,6 +40,7 @@ export default function LobbyPage() {
   const [lobby, setLobby] = useState<LobbyState | null>(null);
   const [copied, setCopied] = useState(false);
   const [showCode, setShowCode] = useState(false);
+  const [friends, setFriends] = useState<Friendship[]>([]);
 
   const codeRef = useRef<HTMLSpanElement | null>(null);
 
@@ -44,6 +48,26 @@ export default function LobbyPage() {
 
   const allReady = lobby?.members.every((p) => p.ready) ?? false;
   const playerCount = lobby?.members.length ?? 0;
+
+  useEffect(() => {
+    if (!user) return;
+    const fetchFriendsData = () => getFriends().then(setFriends).catch(console.error);
+    fetchFriendsData();
+
+    const socket = getSocket();
+    socket.on("presence:updated", fetchFriendsData);
+    socket.on("friendship:updated", fetchFriendsData);
+    socket.on("connect", fetchFriendsData);
+
+    const interval = setInterval(fetchFriendsData, 10000);
+
+    return () => {
+      clearInterval(interval);
+      socket.off("presence:updated", fetchFriendsData);
+      socket.off("friendship:updated", fetchFriendsData);
+      socket.off("connect", fetchFriendsData);
+    };
+  }, [user]);
 
   const canEditLimits = isHost && lobby?.state === "WAITING" && !allReady;
 
@@ -188,7 +212,7 @@ export default function LobbyPage() {
     }
   };
 
-  const updateSetting = (
+  const updateSetting = async (
     key: keyof GameSettings | "maxPlayers",
     delta?: number,
     value?: string
@@ -196,7 +220,7 @@ export default function LobbyPage() {
     if (!lobby || !isHost || allReady) return;
 
     try {
-      emitWithAck(getSocket(), "lobby:config", {
+      await emitWithAck(getSocket(), "lobby:config", {
         lobbyId: lobby.lobbyId,
         key,
         delta,
@@ -333,8 +357,18 @@ export default function LobbyPage() {
                     className="flex items-center justify-between bg-white/5 p-4 rounded-lg border border-white/10"
                   >
                     <div className="flex items-center gap-3">
-                      <div className="w-10 h-10 rounded-full bg-gradient-to-br from-[#64FFDA] to-[#38BDF8] flex items-center justify-center text-[#0A0E27] font-bold">
-                        {p.username.charAt(0).toUpperCase()}
+                      <div className="w-10 h-10 rounded-full bg-gradient-to-br from-[#64FFDA] to-[#38BDF8] flex items-center justify-center overflow-hidden">
+                        {p.avatarPath ? (
+                          <img
+                            src={`${p.avatarPath}?v=${Date.now()}`}
+                            alt={p.username}
+                            className="w-full h-full object-cover"
+                          />
+                        ) : (
+                          <span className="text-[#0A0E27] font-bold">
+                            {p.username.charAt(0).toUpperCase()}
+                          </span>
+                        )}
                       </div>
                       <span className="text-white font-medium">
                         {p.username}
@@ -447,6 +481,8 @@ export default function LobbyPage() {
           </div>
         </div>
       </div>
+
+      <LobbyChat lobbyId={lobby.lobbyId} currentUser={user} friends={friends} />
     </div>
   );
 }

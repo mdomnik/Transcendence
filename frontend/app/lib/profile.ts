@@ -90,7 +90,7 @@ export const updateUsername = async (username: string) => {
     headers: { 'Content-Type': 'application/json' },
     credentials: 'include',
     body: JSON.stringify({ username }),
-  });
+  });   
 
   if (!response.ok) {
     let msg = 'Failed to update profile';

@@ -131,10 +131,6 @@ export default function QuizPage() {
     });
   };
 
-  const handlePlayAgain = () => {
-    router.push('/lobby');
-  };
-
   const handleBackToDashboard = () => {
     router.push('/dashboard');
   };
@@ -177,10 +173,7 @@ export default function QuizPage() {
           </div>
 
           <div className="flex gap-4 justify-center">
-            <Button onClick={handlePlayAgain} variant="primary">
-              Play Again
-            </Button>
-            <Button onClick={handleBackToDashboard} variant="outline">
+            <Button onClick={handleBackToDashboard} variant="primary">
               Back to Dashboard
             </Button>
           </div>

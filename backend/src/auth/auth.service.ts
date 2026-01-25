@@ -84,6 +84,7 @@ export class AuthService {
       user = await this.prisma.user.create({
         data: { email, googleId, username },
       });
+      await this.userservice.ensureUserStats(user.id);
       return user;
     }
     return user;
