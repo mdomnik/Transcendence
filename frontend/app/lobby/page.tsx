@@ -5,7 +5,9 @@ import { useRouter } from "next/navigation";
 import { getSocket } from "../lib/socket";
 import { emitWithAck } from "../lib/socketEmit";
 import { useAuth } from "../context/AuthContext";
+import { getFriends, Friendship } from "../lib/friends";
 import Button from "../components/Button";
+import LobbyChat from "../components/LobbyChat";
 
 interface Player {
   userId: string;
@@ -37,6 +39,7 @@ export default function LobbyPage() {
   const [lobby, setLobby] = useState<LobbyState | null>(null);
   const [copied, setCopied] = useState(false);
   const [showCode, setShowCode] = useState(false);
+  const [friends, setFriends] = useState<Friendship[]>([]);
 
   const codeRef = useRef<HTMLSpanElement | null>(null);
 
@@ -44,6 +47,26 @@ export default function LobbyPage() {
 
   const allReady = lobby?.members.every((p) => p.ready) ?? false;
   const playerCount = lobby?.members.length ?? 0;
+
+  useEffect(() => {
+    if (!user) return;
+    const fetchFriendsData = () => getFriends().then(setFriends).catch(console.error);
+    fetchFriendsData();
+
+    const socket = getSocket();
+    socket.on("presence:updated", fetchFriendsData);
+    socket.on("friendship:updated", fetchFriendsData);
+    socket.on("connect", fetchFriendsData);
+
+    const interval = setInterval(fetchFriendsData, 10000);
+
+    return () => {
+      clearInterval(interval);
+      socket.off("presence:updated", fetchFriendsData);
+      socket.off("friendship:updated", fetchFriendsData);
+      socket.off("connect", fetchFriendsData);
+    };
+  }, [user]);
 
   const canEditLimits = isHost && lobby?.state === "WAITING" && !allReady;
 
@@ -457,6 +480,8 @@ export default function LobbyPage() {
           </div>
         </div>
       </div>
+
+      <LobbyChat lobbyId={lobby.lobbyId} currentUser={user} friends={friends} />
     </div>
   );
 }

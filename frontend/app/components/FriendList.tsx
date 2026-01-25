@@ -65,8 +65,12 @@ export default function FriendList({ refreshTrigger = 0 }: FriendListProps) {
   useEffect(() => {
     fetchFriends();
 
+    // Polling fallback every 10 seconds since sockets are unreliable
+    const pollInterval = setInterval(fetchFriends, 10000);
+
     if (isConnected) {
       const socket = getSocket();
+<<<<<<< HEAD
       
       // Refresh on presence updates (status changes)
       const handlePresenceUpdate = () => fetchFriends();
@@ -82,8 +86,21 @@ export default function FriendList({ refreshTrigger = 0 }: FriendListProps) {
       return () => {
         socket.off("presence:updated", handlePresenceUpdate);
         socket.off("friendship:updated", handleFriendshipUpdate);
+=======
+      socket.on("presence:updated", fetchFriends);
+      socket.on("friendship:updated", fetchFriends);
+      socket.on("connect", fetchFriends);
+
+      return () => {
+        clearInterval(pollInterval);
+        socket.off("presence:updated", fetchFriends);
+        socket.off("friendship:updated", fetchFriends);
+        socket.off("connect", fetchFriends);
+>>>>>>> feature/lobby-gameplay-fixes
       }
     }
+
+    return () => clearInterval(pollInterval);
   }, [refreshTrigger, isConnected]);
 
   return (

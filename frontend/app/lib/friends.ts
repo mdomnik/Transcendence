@@ -19,8 +19,13 @@ export interface FriendUser {
 export interface Friendship {
 	id: string;
 	status: FriendStatus;
+<<<<<<< HEAD
 	requesterId?: string;
 	blockerId?: string;
+=======
+	requesterId: string;
+	isRequester?: boolean;
+>>>>>>> feature/lobby-gameplay-fixes
 	// We usually expand the 'friend' details so we can show their name
 	friend: FriendUser;
 	isRequester?: boolean;
@@ -142,6 +147,7 @@ export async function rejectRequest(friendshipId: string) {
   }
 }
 
+<<<<<<< HEAD
 // Function to cancel a request via socket
 export async function cancelRequest(userId: string) {
   try {
@@ -216,6 +222,18 @@ export async function removeFriend(userId: string) {
     throw error;
   }
 }
+=======
+// Function to Cancel a sent request
+export async function cancelFriendRequest(userId: string) {
+  const res = await fetch(`/api/friendship/cancel/${userId}`, {
+    method: 'POST',
+    credentials: 'include',
+  });
+  if (!res.ok) throw new Error('Failed to cancel');
+  return res.json();
+}
+
+>>>>>>> feature/lobby-gameplay-fixes
 // Helper to respond (compatible with some UIs)
 export async function respondToRequest(requestId: string, status: FriendStatus.ACCEPTED | FriendStatus.REJECTED) {
   if (status === FriendStatus.ACCEPTED) return acceptRequest(requestId);

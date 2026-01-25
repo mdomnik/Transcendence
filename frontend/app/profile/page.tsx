@@ -150,12 +150,6 @@ export default function ProfilePage() {
               >
                 Edit Profile
               </button>
-              <button 
-                onClick={() => router.push("/settings")} 
-                className="px-5 py-2 rounded-lg border border-[#64FFDA] text-[#64FFDA] font-bold hover:bg-[#64FFDA]/10 transition-colors"
-              >
-                Settings
-              </button>
             </div>
           </div>
 

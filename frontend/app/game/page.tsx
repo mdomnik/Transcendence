@@ -288,20 +288,6 @@ export default function GamePage() {
     }
   };
 
-  const handlePlayAgain = async () => {
-    if (!game?.lobbyId) return;
-    try {
-      const res = await emitWithAck(getSocket(), "lobby:retry", {
-        lobbyId: game.lobbyId,
-      });
-      if (res.ok) {
-        router.replace("/lobby");
-      }
-    } catch (err) {
-      console.error("Failed to reset lobby:", err);
-    }
-  };
-
   const submitTopic = async () => {
     if (topic.trim().length < 3) return;
     try {
@@ -921,18 +907,12 @@ useEffect(() => {
                 ))}
             </div>
 
-            <div className="flex flex-col sm:flex-row gap-4 w-full">
-              <button
-                onClick={handlePlayAgain}
-                className="flex-1 py-4 rounded-2xl bg-[#64FFDA] text-[#0A192F] font-black text-lg hover:scale-[1.02] active:scale-[0.98] transition-all shadow-lg shadow-[#64FFDA]/10"
-              >
-                Play Again
-              </button>
+            <div className="w-full">
               <button
                 onClick={handleLeaveCurrentLobby}
-                className="flex-1 py-4 rounded-2xl bg-white/5 border border-white/10 text-white font-bold hover:bg-white/10 transition-all"
+                className="w-full py-4 rounded-2xl bg-[#64FFDA] text-[#0A192F] font-black text-lg hover:scale-[1.02] active:scale-[0.98] transition-all shadow-lg shadow-[#64FFDA]/10"
               >
-                Leave Game
+                Back to Dashboard
               </button>
             </div>
           </div>

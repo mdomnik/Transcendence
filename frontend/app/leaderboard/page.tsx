@@ -26,8 +26,23 @@ export default function LeaderboardPage() {
         .then(setEntries)
         .catch(console.error)
         .finally(() => setIsFetching(false));
-    }
 
+      // Listen for real-time updates
+      const socket = getSocket();
+      socket.on("leaderboard:update", (newData: LeaderboardEntry[]) => {
+        setEntries(newData);
+      });
+
+      // Polling fallback every 30s
+      const interval = setInterval(() => {
+        getLeaderboard().then(setEntries).catch(console.error);
+      }, 30000);
+
+      return () => {
+        socket.off("leaderboard:update");
+        clearInterval(interval);
+      };
+    }
   }, [user]);
 
   useEffect(() => {
