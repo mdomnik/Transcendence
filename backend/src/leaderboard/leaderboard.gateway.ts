@@ -12,7 +12,7 @@ import { OnEvent } from '@nestjs/event-emitter';
 @WebSocketGateway({
   namespace: '/quiz',
   cors: {
-    origin: 'https://ferni.quizeverything.tech',
+    origin: 'https://shehani.quizeverything.tech',
     credentials: true,
   },
 })

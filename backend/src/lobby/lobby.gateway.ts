@@ -18,7 +18,7 @@ import { forwardRef, Inject } from '@nestjs/common';
 @WebSocketGateway({
   namespace: '/quiz',
   cors: {
-    origin: 'https://ferni.quizeverything.tech',
+    origin: 'https://shehani.quizeverything.tech',
     credentials: true,
   },
 })

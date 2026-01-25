@@ -20,6 +20,7 @@ export interface Friendship {
 	id: string;
 	status: FriendStatus;
 	requesterId: string;
+	isRequester?: boolean;
 	// We usually expand the 'friend' details so we can show their name
 	friend: FriendUser;
 }
@@ -73,6 +74,16 @@ export async function rejectRequest(friendshipId: string) {
     credentials: 'include',
   });
   if (!res.ok) throw new Error('Failed to reject');
+  return res.json();
+}
+
+// Function to Cancel a sent request
+export async function cancelFriendRequest(userId: string) {
+  const res = await fetch(`/api/friendship/cancel/${userId}`, {
+    method: 'POST',
+    credentials: 'include',
+  });
+  if (!res.ok) throw new Error('Failed to cancel');
   return res.json();
 }
 

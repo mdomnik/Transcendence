@@ -22,7 +22,7 @@ import { finished } from 'stream';
 @WebSocketGateway({
   namespace: '/quiz',
   cors: {
-    origin: 'https://ferni.quizeverything.tech',
+    origin: 'https://shehani.quizeverything.tech',
     credentials: true,
   },
 })

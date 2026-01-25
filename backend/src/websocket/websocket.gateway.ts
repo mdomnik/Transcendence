@@ -14,7 +14,7 @@ import { FriendshipService } from 'src/friendship/friendship.service';
 @WebSocketGateway({
   namespace: '/quiz',
   cors: {
-    origin: 'https://ferni.quizeverything.tech',
+    origin: 'https://shehani.quizeverything.tech',
     credentials: true,
   },
 })
@@ -39,6 +39,10 @@ export class ConnectionGateway
     const userId = client.data.userId as string;
     if (userId) {
       console.log(`[WS] User ${userId} connected (ID: ${client.id})`);
+      
+      // Join a room specific to this user so we can emit events to them easily
+      await client.join(`user:${userId}`);
+      
       await this.redisService.trackSocket(userId, client.id);
       await this.broadcastPresence(userId);
     } else {

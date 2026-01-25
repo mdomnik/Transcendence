@@ -19,16 +19,24 @@ export default function FriendList({ refreshTrigger = 0 }: FriendListProps) {
   useEffect(() => {
     fetchFriends();
 
+    // Polling fallback every 10 seconds since sockets are unreliable
+    const pollInterval = setInterval(fetchFriends, 10000);
+
     if (isConnected) {
       const socket = getSocket();
       socket.on("presence:updated", fetchFriends);
       socket.on("friendship:updated", fetchFriends);
+      socket.on("connect", fetchFriends);
 
       return () => {
+        clearInterval(pollInterval);
         socket.off("presence:updated", fetchFriends);
         socket.off("friendship:updated", fetchFriends);
+        socket.off("connect", fetchFriends);
       }
     }
+
+    return () => clearInterval(pollInterval);
   }, [refreshTrigger, isConnected]);
 
   return (
