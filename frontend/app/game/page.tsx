@@ -73,6 +73,11 @@ type GameState = {
     totalScores?: Record<string, number>;
     finalScores?: Record<string, number>;
     winners?: string[];
+    selectedProposal?: {
+      userId: string;
+      topicTitle: string;
+      difficulty: Difficulty;
+    };
   };
 };
 
@@ -260,14 +265,8 @@ export default function GamePage() {
 
   const phaseLabel = phase?.replaceAll("_", " ") ?? "";
 
-  // Calculate winning proposal
-  const winningProposal =
-    proposals.length > 0
-      ? proposals.reduce(
-          (prev, curr) => ((curr.votes ?? 0) > (prev.votes ?? 0) ? curr : prev),
-          proposals[0],
-        )
-      : null;
+  // Get winning proposal from backend (not calculated client-side)
+  const winningProposal = game?.roundData?.selectedProposal ?? null;
 
   /* ===================== APPEAR ANIMATION ===================== */
   useEffect(() => {
@@ -930,39 +929,24 @@ export default function GamePage() {
           {phase === "SELECT_TOPIC" && (
             <div className="absolute inset-0 bg-[#0A192F]/80 backdrop-blur-sm flex items-center justify-center z-50">
               <div className="flex flex-col items-center gap-6">
-                {(() => {
-                  const winningProposal =
-                    proposals.length > 0
-                      ? proposals.reduce(
-                          (prev, curr) =>
-                            (curr.votes ?? 0) > (prev.votes ?? 0) ? curr : prev,
-                          proposals[0],
-                        )
-                      : null;
+                <div className="text-center space-y-4">
+                  <div className="text-[#64FFDA] text-sm font-bold uppercase tracking-widest opacity-70">
+                    Winning Topic
+                  </div>
+                  <div className="text-white text-4xl font-black tracking-tight px-8 py-4 rounded-2xl bg-[#112240]/80 border border-[#64FFDA]/30 shadow-xl">
+                    {winningProposal?.topicTitle || "Loading..."}
+                  </div>
+                  <div className="text-xs text-[#64FFDA]/60 uppercase tracking-widest">
+                    {winningProposal?.difficulty}
+                  </div>
+                </div>
 
-                  return (
-                    <>
-                      <div className="text-center space-y-4">
-                        <div className="text-[#64FFDA] text-sm font-bold uppercase tracking-widest opacity-70">
-                          Winning Topic
-                        </div>
-                        <div className="text-white text-4xl font-black tracking-tight px-8 py-4 rounded-2xl bg-[#112240]/80 border border-[#64FFDA]/30 shadow-xl">
-                          {winningProposal?.topicTitle || "Loading..."}
-                        </div>
-                        <div className="text-xs text-[#64FFDA]/60 uppercase tracking-widest">
-                          {winningProposal?.difficulty}
-                        </div>
-                      </div>
-
-                      <div className="flex flex-col items-center gap-3 mt-4">
-                        <div className="w-12 h-12 border-2 border-[#64FFDA]/20 border-t-[#64FFDA] rounded-full animate-spin" />
-                        <div className="text-[#8892B0] text-lg font-medium animate-pulse">
-                          Generating questions...
-                        </div>
-                      </div>
-                    </>
-                  );
-                })()}
+                <div className="flex flex-col items-center gap-3 mt-4">
+                  <div className="w-12 h-12 border-2 border-[#64FFDA]/20 border-t-[#64FFDA] rounded-full animate-spin" />
+                  <div className="text-[#8892B0] text-lg font-medium animate-pulse">
+                    Generating questions...
+                  </div>
+                </div>
               </div>
             </div>
           )}
