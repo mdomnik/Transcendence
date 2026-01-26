@@ -31,10 +31,9 @@ export default function ChatBox({ currentUser, friends }: ChatBoxProps) {
     const socket = getSocket();
     
     // Fetch initial unread counts
-    const loadUnread = async () => {
-    try {
+    const fetchUnreads = async () => {
+      try {
         const res = await emitWithAck(socket, "chat:unread_counts");
-
         if (res.ok) {
           const counts: Record<string, number> = {};
           res.data.forEach((c: any) => {
@@ -43,11 +42,11 @@ export default function ChatBox({ currentUser, friends }: ChatBoxProps) {
           setUnreadCounts(counts);
         }
       } catch (err) {
-        console.log("Chatbox: socket not ready yet", err);
+        console.error("Failed to fetch unread counts:", err);
       }
     };
-
-    loadUnread();
+    
+    fetchUnreads();
 
     const handleNewMessageGlobal = (msg: Message) => {
       if (msg.senderId !== currentUser.id) {
@@ -73,27 +72,30 @@ export default function ChatBox({ currentUser, friends }: ChatBoxProps) {
     const socket = getSocket();
     
     // Clear unread for this friend
-    try {
-      if (unreadCounts[activeFriendId]) {
-        emitWithAck(socket, "chat:mark_read", { friendId: activeFriendId }).then(() => {
-          setUnreadCounts(prev => ({ ...prev, [activeFriendId]: 0 }));
-        });
-      }
-    } catch (err) {
-      console.log('Chatbox: exception caught', err);
+    if (unreadCounts[activeFriendId]) {
+      const clearUnread = async () => {
+        try {
+          await emitWithAck(socket, "chat:mark_read", { friendId: activeFriendId });
+        } catch (err) {
+          console.error("Failed to mark chat as read:", err);
+        }
+      };
+      clearUnread();
+      setUnreadCounts(prev => ({ ...prev, [activeFriendId]: 0 }));
     }
 
     // Load history
-    try {
-
-      emitWithAck(socket, "chat:history", { friendId: activeFriendId }).then(res => {
+    const loadHistory = async () => {
+      try {
+        const res = await emitWithAck(socket, "chat:history", { friendId: activeFriendId });
         if (res.ok) {
           setMessages(res.data);
         }
-      });
-    } catch (err) {
-      console.log('Chatbox: exception caught', err);
-    }
+      } catch (err) {
+        console.error("Failed to fetch chat history:", err);
+      }
+    };
+    loadHistory();
 
     const handleNewMessage = (msg: Message) => {
       // Check if message belongs to current active chat
@@ -145,14 +147,18 @@ export default function ChatBox({ currentUser, friends }: ChatBoxProps) {
     e.preventDefault();
     if (!inputValue.trim() || !activeFriendId) return;
 
-    const socket = getSocket();
-    const res = await emitWithAck(socket, "chat:send", {
-      receiverId: activeFriendId,
-      content: inputValue,
-    });
+    try {
+      const socket = getSocket();
+      const res = await emitWithAck(socket, "chat:send", {
+        receiverId: activeFriendId,
+        content: inputValue,
+      });
 
-    if (res.ok) {
-      setInputValue("");
+      if (res.ok) {
+        setInputValue("");
+      }
+    } catch (err) {
+      console.error("Failed to send message:", err);
     }
   };
 
@@ -161,7 +167,7 @@ export default function ChatBox({ currentUser, friends }: ChatBoxProps) {
     return (
       <div 
         onClick={() => setIsOpen(true)}
-        className="fixed bottom-6 right-6 z-50 bg-[#64FFDA] text-[#0A192F] px-5 py-3 rounded-full shadow-2xl cursor-pointer hover:scale-110 transition-transform flex items-center gap-2 font-bold whitespace-nowrap"
+        className="fixed bottom-20 right-6 z-50 bg-[#64FFDA] text-[#0A192F] px-5 py-3 rounded-full shadow-2xl cursor-pointer hover:scale-110 transition-transform flex items-center gap-2 font-bold whitespace-nowrap"
       >
         <span className="text-xl">💬</span>
         <span className="text-sm">Friends Chat</span>
@@ -175,7 +181,7 @@ export default function ChatBox({ currentUser, friends }: ChatBoxProps) {
   }
 
   return (
-    <div className="fixed bottom-6 right-6 z-50 w-full max-w-sm md:max-w-md bg-[#112240] border border-[#64FFDA]/30 rounded-2xl shadow-2xl flex flex-col h-[500px] overflow-hidden">
+    <div className="fixed bottom-20 right-6 z-50 w-full max-w-sm md:max-w-md bg-[#112240] border border-[#64FFDA]/30 rounded-2xl shadow-2xl flex flex-col h-[500px] overflow-hidden">
       {/* Header */}
       <div className="bg-[#1D2D50] p-4 border-b border-[#64FFDA]/20 flex items-center justify-between">
         <div className="flex items-center gap-3">
@@ -185,7 +191,7 @@ export default function ChatBox({ currentUser, friends }: ChatBoxProps) {
                <div className="flex items-center gap-2">
                  <div className="w-8 h-8 rounded-full bg-[#0A192F] border border-[#64FFDA]/20 overflow-hidden">
                     {activeFriend.avatarPath ? (
-                      <img src={activeFriend.avatarPath} alt={activeFriend.username} className="w-full h-full object-cover" />
+                      <img src={`${activeFriend.avatarPath}?v=${Date.now()}`} alt={activeFriend.username} className="w-full h-full object-cover" />
                     ) : (
                       <div className="w-full h-full flex items-center justify-center text-[10px] font-bold text-[#64FFDA]">
                         {activeFriend.username.charAt(0).toUpperCase()}
@@ -236,7 +242,7 @@ export default function ChatBox({ currentUser, friends }: ChatBoxProps) {
                   <div className="relative">
                     <div className="w-10 h-10 rounded-full bg-[#112240] border border-[#64FFDA]/20 overflow-hidden">
                       {f.friend.avatarPath ? (
-                        <img src={f.friend.avatarPath} alt={f.friend.username} className="w-full h-full object-cover" />
+                        <img src={`${f.friend.avatarPath}?v=${Date.now()}`} alt={f.friend.username} className="w-full h-full object-cover" />
                       ) : (
                         <div className="w-full h-full flex items-center justify-center text-sm font-bold text-[#64FFDA]">
                           {f.friend.username.charAt(0).toUpperCase()}

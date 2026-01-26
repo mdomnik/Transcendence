@@ -19,11 +19,11 @@ export interface FriendUser {
 export interface Friendship {
 	id: string;
 	status: FriendStatus;
-	requesterId?: string;
+	requesterId: string;
 	blockerId?: string;
+	isRequester?: boolean;
 	// We usually expand the 'friend' details so we can show their name
 	friend: FriendUser;
-	isRequester?: boolean;
 	isBlocker?: boolean;
 }
 
@@ -143,16 +143,16 @@ export async function rejectRequest(friendshipId: string) {
 }
 
 // Function to cancel a request via socket
-export async function cancelRequest(userId: string) {
+export async function cancelFriendRequest(userId: string) {
   try {
     const socket = getSocket();
     if (!socket.connected) {
       socket.connect();
       await new Promise<void>(resolve => socket.once('connect', () => resolve()));
     }
-    console.log('[cancelRequest] Emitting friendship:cancel for user:', userId);
+    console.log('[cancelFriendRequest] Emitting friendship:cancel for user:', userId);
     const result = await emitWithAck(socket, 'friendship:cancel', { userId });
-    console.log('[cancelRequest] Result:', result);
+    console.log('[cancelFriendRequest] Result:', result);
     if (!result.ok) throw new Error(result.error?.message || 'Failed to cancel');
     return result.data;
   } catch (error) {

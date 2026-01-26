@@ -82,7 +82,7 @@ export default function FriendsPage() {
 
               {/* Friend Requests */}
               <div className="bg-[#112240]/80 backdrop-blur rounded-2xl p-6 border border-[#64FFDA]/10 min-h-[300px]">
-                <FriendRequests onAction={handleRefresh} />
+                <FriendRequests onAction={handleRefresh} refreshTrigger={refreshTrigger} />
               </div>
 
               {/* Blocked Users */}

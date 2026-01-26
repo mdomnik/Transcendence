@@ -26,8 +26,23 @@ export default function LeaderboardPage() {
         .then(setEntries)
         .catch(console.error)
         .finally(() => setIsFetching(false));
-    }
 
+      // Listen for real-time updates
+      const socket = getSocket();
+      socket.on("leaderboard:update", (newData: LeaderboardEntry[]) => {
+        setEntries(newData);
+      });
+
+      // Polling fallback every 30s
+      const interval = setInterval(() => {
+        getLeaderboard().then(setEntries).catch(console.error);
+      }, 30000);
+
+      return () => {
+        socket.off("leaderboard:update");
+        clearInterval(interval);
+      };
+    }
   }, [user]);
 
   useEffect(() => {
@@ -115,10 +130,10 @@ export default function LeaderboardPage() {
                     </div>
                   </div>
 
-                  <div className="col-span-5 flex items-center gap-3">
+                  <div className="col-span-12 md:col-span-5 flex items-center gap-3">
                     <div className="w-10 h-10 rounded-full bg-[#0A192F] border border-[#64FFDA]/20 overflow-hidden group-hover:border-[#64FFDA]/50 transition-colors">
                       {entry.avatarPath ? (
-                        <img src={entry.avatarPath} alt={entry.username} className="w-full h-full object-cover" />
+                        <img src={`${entry.avatarPath}?v=${Date.now()}`} alt={entry.username} className="w-full h-full object-cover" />
                       ) : (
                         <div className="w-full h-full flex items-center justify-center text-sm font-bold text-[#64FFDA]">
                           {entry.username.charAt(0).toUpperCase()}

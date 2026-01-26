@@ -16,15 +16,73 @@ export default function SignUpModal({ isOpen, onClose, onSwitchToLogin } : SignU
 	const [username, setUsername] = useState("");
 	const [email, setEmail] = useState("");
 	const [password, setPassword] = useState("");
+	const [confirmPassword, setConfirmPassword] = useState("");
 	const [remember, setRemember] = useState(false);
 	const [isLoading, setIsLoading] = useState(false);
 	const [error, setError] = useState("");
+	const [errorFields, setErrorFields] = useState<string[]>([]);
 
 	if (!isOpen) return null;
+
+	const getPasswordStrength = (pass: string) => {
+		if (!pass) return { label: "", color: "" };
+		if (pass.length < 6) return { label: "Very Weak", color: "text-red-500" };
+		
+		const hasLetters = /[a-zA-Z]/.test(pass);
+		const hasNumbers = /[0-9]/.test(pass);
+		const hasSpecial = /[^A-Za-z0-9]/.test(pass);
+		
+		const strength = [hasLetters, hasNumbers, hasSpecial].filter(Boolean).length;
+		
+		if (pass.length >= 8 && strength === 3) return { label: "Strong", color: "text-green-400" };
+		if (pass.length >= 6 && strength >= 2) return { label: "Medium", color: "text-yellow-400" };
+		return { label: "Weak", color: "text-orange-400" };
+	};
+
+	const strength = getPasswordStrength(password);
+
+	const validateForm = () => {
+		const fields: string[] = [];
+		if (username.length < 3) {
+			setError("Username must be at least 3 characters long");
+			fields.push("username");
+			setErrorFields(fields);
+			return false;
+		}
+		
+		const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+		if (!emailRegex.test(email)) {
+			setError("Please enter a valid email address");
+			fields.push("email");
+			setErrorFields(fields);
+			return false;
+		}
+
+		if (password.length < 8) {
+			setError("Password must be at least 8 characters long");
+			fields.push("password");
+			setErrorFields(fields);
+			return false;
+		}
+
+		if (password !== confirmPassword) {
+			setError("Passwords do not match");
+			fields.push("confirmPassword");
+			setErrorFields(fields);
+			return false;
+		}
+
+		setErrorFields([]);
+		return true;
+	};
 
 	const handleSubmit = async (e: React.FormEvent) => {
 		e.preventDefault();
 		setError("");
+		setErrorFields([]);
+
+		if (!validateForm()) return;
+
 		setIsLoading(true);
 
 		try {
@@ -80,25 +138,51 @@ export default function SignUpModal({ isOpen, onClose, onSwitchToLogin } : SignU
             type="text"
             placeholder="Username"
 			value={username}
-			onChange={(e) => setUsername(e.target.value)}
+			onChange={(e) => {
+				setUsername(e.target.value);
+				if (errorFields.includes("username")) setErrorFields(prev => prev.filter(f => f !== "username"));
+			}}
 			required
-            className="w-full px-4 py-3 rounded-xl bg-[#0A192F] border border-[#64FFDA]/30 text-[#CCD6F6] placeholder-[#8892B0] focus:outline-none focus:border-[#64FFDA] transition-colors"
+            className={`w-full px-4 py-3 rounded-xl bg-[#0A192F] border ${errorFields.includes("username") ? 'border-red-500' : 'border-[#64FFDA]/30'} text-[#CCD6F6] placeholder-[#8892B0] focus:outline-none focus:border-[#64FFDA] transition-colors`}
           />
           <input
             type="email"
             placeholder="Email"
 			value={email}
-			onChange={(e) => setEmail(e.target.value)}
+			onChange={(e) => {
+				setEmail(e.target.value);
+				if (errorFields.includes("email")) setErrorFields(prev => prev.filter(f => f !== "email"));
+			}}
 			required
-            className="w-full px-4 py-3 rounded-xl bg-[#0A192F] border border-[#64FFDA]/30 text-[#CCD6F6] placeholder-[#8892B0] focus:outline-none focus:border-[#64FFDA] transition-colors"
+            className={`w-full px-4 py-3 rounded-xl bg-[#0A192F] border ${errorFields.includes("email") ? 'border-red-500' : 'border-[#64FFDA]/30'} text-[#CCD6F6] placeholder-[#8892B0] focus:outline-none focus:border-[#64FFDA] transition-colors`}
           />
           <input
             type="password"
             placeholder="Password"
 			value={password}
-			onChange={(e) => setPassword(e.target.value)}
+			onChange={(e) => {
+				setPassword(e.target.value);
+				if (errorFields.includes("password")) setErrorFields(prev => prev.filter(f => f !== "password"));
+			}}
 			required
-            className="w-full px-4 py-3 rounded-xl bg-[#0A192F] border border-[#64FFDA]/30 text-[#CCD6F6] placeholder-[#8892B0] focus:outline-none focus:border-[#64FFDA] transition-colors"
+            className={`w-full px-4 py-3 rounded-xl bg-[#0A192F] border ${errorFields.includes("password") ? 'border-red-500' : 'border-[#64FFDA]/30'} text-[#CCD6F6] placeholder-[#8892B0] focus:outline-none focus:border-[#64FFDA] transition-colors`}
+          />
+		  {password && (
+			<div className="px-1 flex justify-between items-center text-xs">
+				<span className="text-[#8892B0]">Password Strength:</span>
+				<span className={`font-semibold ${strength.color}`}>{strength.label}</span>
+			</div>
+		  )}
+          <input
+            type="password"
+            placeholder="Confirm Password"
+			value={confirmPassword}
+			onChange={(e) => {
+				setConfirmPassword(e.target.value);
+				if (errorFields.includes("confirmPassword")) setErrorFields(prev => prev.filter(f => f !== "confirmPassword"));
+			}}
+			required
+            className={`w-full px-4 py-3 rounded-xl bg-[#0A192F] border ${errorFields.includes("confirmPassword") ? 'border-red-500' : 'border-[#64FFDA]/30'} text-[#CCD6F6] placeholder-[#8892B0] focus:outline-none focus:border-[#64FFDA] transition-colors`}
           />
 
           <div className="flex items-center gap-2 px-1">

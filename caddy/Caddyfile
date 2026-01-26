@@ -1,4 +1,6 @@
-:80 {
+ :80 {
+    tls internal
+
     # ---- Backend API ----
     reverse_proxy /api/* backend_nestjs:8080 {
         header_up X-Forwarded-Proto https
@@ -23,3 +25,5 @@
         header_up X-Forwarded-Host {host}
     }
 }
+
+

@@ -161,10 +161,7 @@ export default function GamePage() {
           </div>
 
           <div className="flex flex-col gap-3">
-            <Button variant="Play" onClick={() => window.location.reload()}>
-              Play Again
-            </Button>
-            <Button variant="outline" onClick={() => router.push("/dashboard")}>
+            <Button variant="Play" onClick={() => router.push("/dashboard")}>
               Back to Dashboard
             </Button>
           </div>
