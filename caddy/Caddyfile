@@ -1,5 +1,9 @@
- :80 {
-    tls internal
+:80 {
+    redir https://{host}{uri} permanent
+}
+
+:443 {
+    tls /etc/caddy/cert.pem /etc/caddy/key.pem
 
     # ---- Backend API ----
     reverse_proxy /api/* backend_nestjs:8080 {
