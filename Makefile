@@ -1,7 +1,14 @@
 
 all: up
 
-start: check
+init:
+	$(MAKE) docker-setup-goinfre 
+	$(MAKE) docker-reset
+	$(MAKE) docker-purge
+	$(MAKE) start
+
+start:
+	$(MAKE) check
 	docker compose down -v
 	docker compose build --no-cache
 	docker compose up
