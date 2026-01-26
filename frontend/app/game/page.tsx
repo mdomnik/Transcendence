@@ -1114,13 +1114,13 @@ export default function GamePage() {
           </div>
         </div>
       </div>
-      {game?.lobbyId && user && (
-        <LobbyChat
-          lobbyId={game.lobbyId}
-          currentUser={user}
-          friends={friends}
-        />
-      )}
+        {game?.lobbyId && user && (
+      <LobbyChat
+        lobbyId={game.lobbyId}
+        currentUser={user}
+        friends={friends}
+    />
+        )}
     </main>
   );
 }

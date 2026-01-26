@@ -2,6 +2,7 @@
 'use client';
 
 import { useEffect, useState } from 'react';
+import { useRouter } from 'next/navigation';
 import { getFriends, Friendship, blockUser, unblockUser, removeFriend } from '../lib/friends';
 import { useSocketConnection } from '../context/SocketContext';
 import { getSocket } from '../lib/socket';
@@ -14,6 +15,7 @@ export default function FriendList({ refreshTrigger = 0 }: FriendListProps) {
   const [friends, setFriends] = useState<Friendship[]>([]);
   const [actionLoading, setActionLoading] = useState<string | null>(null);
   const { isConnected } = useSocketConnection();
+  const router = useRouter();
 
   const fetchFriends = async () => {
     try {
@@ -113,7 +115,8 @@ export default function FriendList({ refreshTrigger = 0 }: FriendListProps) {
             .map((friendship) => (
             <div 
               key={friendship.id} 
-              className="group p-4 bg-[#0A192F] rounded-xl border border-[#64FFDA]/10 hover:border-[#64FFDA]/30 transition-all hover:shadow-[0_0_15px_rgba(100,255,218,0.1)] flex items-center justify-between"
+              onClick={() => router.push(`/profile/${friendship.friend.id}`)}
+              className="group p-4 bg-[#0A192F] rounded-xl border border-[#64FFDA]/10 hover:border-[#64FFDA]/30 transition-all hover:shadow-[0_0_15px_rgba(100,255,218,0.1)] flex items-center justify-between cursor-pointer"
             >
               <div className="flex items-center gap-3">
                 <div className="w-10 h-10 rounded-full bg-gradient-to-br from-[#64FFDA] to-[#38BDF8] p-[1px] shadow-sm">
@@ -147,7 +150,7 @@ export default function FriendList({ refreshTrigger = 0 }: FriendListProps) {
                 </span>
                 <div className="flex gap-2 opacity-0 group-hover:opacity-100 transition-opacity">
                   <button
-                    onClick={() => handleRemoveFriend(friendship.id, friendship.friend.id)}
+                    onClick={(e) => { e.stopPropagation(); handleRemoveFriend(friendship.id, friendship.friend.id); }}
                     disabled={actionLoading === friendship.id}
                     title="Remove friend"
                     className="p-2 hover:bg-red-600/20 text-red-300 rounded-lg transition-colors disabled:opacity-50"
@@ -155,7 +158,7 @@ export default function FriendList({ refreshTrigger = 0 }: FriendListProps) {
                     ✕
                   </button>
                   <button
-                    onClick={() => handleBlockFriend(friendship.id, friendship.friend.id)}
+                    onClick={(e) => { e.stopPropagation(); handleBlockFriend(friendship.id, friendship.friend.id); }}
                     disabled={actionLoading === friendship.id}
                     title="Block friend"
                     className="p-2 hover:bg-orange-600/20 text-orange-300 rounded-lg transition-colors disabled:opacity-50"
