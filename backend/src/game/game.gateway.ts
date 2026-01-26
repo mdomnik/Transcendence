@@ -11,15 +11,12 @@ import {
 import { Server, Socket } from 'socket.io';
 import { GameService } from './game.service';
 import {
-  ConfigGameDto,
   SubmitTopicDto,
   SubmitVoteDto,
   SubmitAnswerDto,
 } from './dto';
 import { LobbyService } from 'src/lobby/lobby.service';
 import { forwardRef, Inject } from '@nestjs/common';
-import { finished } from 'stream';
-import { ConfigService } from '@nestjs/config';
 import { JwtService } from '@nestjs/jwt';
 import { initWsAuth } from 'src/websocket/websocket.init';
 
