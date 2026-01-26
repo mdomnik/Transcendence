@@ -15,7 +15,6 @@ const handleGoogleSignup = () => {
 export default function LoginModal({ isOpen, onClose, onSwitchToSignUp, onLoginSuccess }: LoginModalProps) {
   const [identifier, setIdentifier] = useState("");
   const [password, setPassword] = useState("");
-  const [remember, setRemember] = useState(false);
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState("");
   const [errorFields, setErrorFields] = useState<string[]>([]);
@@ -34,7 +33,7 @@ export default function LoginModal({ isOpen, onClose, onSwitchToSignUp, onLoginS
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         credentials: 'include',
-        body: JSON.stringify({ identifier, password, remember }),
+        body: JSON.stringify({ identifier, password }),
       });
 
 
@@ -104,19 +103,6 @@ export default function LoginModal({ isOpen, onClose, onSwitchToSignUp, onLoginS
             className={`w-full px-4 py-3 rounded-xl bg-[#0A192F] border ${errorFields.includes("password") ? 'border-red-500' : 'border-[#64FFDA]/30'} text-[#CCD6F6] placeholder-[#8892B0] focus:outline-none focus:border-[#64FFDA] transition-colors`}
           />
 
-          <div className="flex items-center gap-2 px-1">
-            <input
-              type="checkbox"
-              id="remember"
-              checked={remember}
-              onChange={(e) => setRemember(e.target.checked)}
-              className="w-4 h-4 rounded border-[#64FFDA]/30 bg-[#0A192F] text-[#64FFDA] focus:ring-offset-[#112240] focus:ring-[#64FFDA]"
-            />
-            <label htmlFor="remember" className="text-sm text-[#8892B0] cursor-pointer hover:text-[#CCD6F6] transition-colors">
-              Remember me
-            </label>
-          </div>
-
           <button
             type="submit"
             disabled={isLoading}
@@ -125,12 +111,6 @@ export default function LoginModal({ isOpen, onClose, onSwitchToSignUp, onLoginS
             {isLoading ? "Logging in..." : "Log In"}
           </button>
         </form>
-
-        <div className="text-center text-[#8892B0]">
-          <a href="#" className="text-[#64FFDA] hover:underline text-sm">
-            Forgot password?
-          </a>
-        </div>
 
         <p className="text-center text-[#8892B0]">
           Don&apos;t have an account?{" "}
