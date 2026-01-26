@@ -1,4 +1,56 @@
-Start of the Transcendence Project
+# QuizEverything 
+## DESCRIPTION: AI-driven quiz game to challenge your friends in an online Quiz battle
+
+*This project has been created as part of the 42 curriculum by [mdomnik](https://github.com/mdomnik), [fjoestin](https://github.com/Fernandajo), [shkaruna](https://github.com/shehanish), [nmandakh](https://github.com/moojig12)*
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 
 # Quiz Module / Vector Embedding - Module of Choice
 
