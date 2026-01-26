@@ -25,7 +25,7 @@ const MAX_QUESTIONS_PER_ROUND = 10;
 const MAX_TOPIC_CHARACTERS = 40;
 
 const STATIC_FALLBACK_TOPIC = {
-  topicTitle: 'Pandas',
+  topicTitle: 'Cats',
   difficulty: 'EASY' as const,
 };
 
