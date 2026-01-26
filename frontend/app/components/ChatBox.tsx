@@ -31,15 +31,23 @@ export default function ChatBox({ currentUser, friends }: ChatBoxProps) {
     const socket = getSocket();
     
     // Fetch initial unread counts
-    emitWithAck(socket, "chat:unread_counts").then(res => {
-      if (res.ok) {
-        const counts: Record<string, number> = {};
-        res.data.forEach((c: any) => {
-          counts[c.senderId] = c.count;
-        });
-        setUnreadCounts(counts);
+    const loadUnread = async () => {
+    try {
+        const res = await emitWithAck(socket, "chat:unread_counts");
+
+        if (res.ok) {
+          const counts: Record<string, number> = {};
+          res.data.forEach((c: any) => {
+            counts[c.senderId] = c.count;
+          });
+          setUnreadCounts(counts);
+        }
+      } catch (err) {
+        console.log("Chatbox: socket not ready yet", err);
       }
-    });
+    };
+
+    loadUnread();
 
     const handleNewMessageGlobal = (msg: Message) => {
       if (msg.senderId !== currentUser.id) {
@@ -65,17 +73,27 @@ export default function ChatBox({ currentUser, friends }: ChatBoxProps) {
     const socket = getSocket();
     
     // Clear unread for this friend
-    if (unreadCounts[activeFriendId]) {
-      emitWithAck(socket, "chat:mark_read", { friendId: activeFriendId });
-      setUnreadCounts(prev => ({ ...prev, [activeFriendId]: 0 }));
+    try {
+      if (unreadCounts[activeFriendId]) {
+        emitWithAck(socket, "chat:mark_read", { friendId: activeFriendId }).then(() => {
+          setUnreadCounts(prev => ({ ...prev, [activeFriendId]: 0 }));
+        });
+      }
+    } catch (err) {
+      console.log('Chatbox: exception caught', err);
     }
 
     // Load history
-    emitWithAck(socket, "chat:history", { friendId: activeFriendId }).then(res => {
-      if (res.ok) {
-        setMessages(res.data);
-      }
-    });
+    try {
+
+      emitWithAck(socket, "chat:history", { friendId: activeFriendId }).then(res => {
+        if (res.ok) {
+          setMessages(res.data);
+        }
+      });
+    } catch (err) {
+      console.log('Chatbox: exception caught', err);
+    }
 
     const handleNewMessage = (msg: Message) => {
       // Check if message belongs to current active chat
