@@ -38,6 +38,7 @@ export class ConnectionGateway
   }
 
   async handleConnection(client: Socket) {
+    client.setMaxListeners(20); // allow multiple gateway listeners on disconnect
     const userId = client.data.userId as string;
     if (userId) {
       console.log(`[WS] User ${userId} connected (ID: ${client.id})`);

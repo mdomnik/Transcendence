@@ -55,7 +55,7 @@ export class LobbyGateway implements OnGatewayInit {
     this.server.emit('presence:updated', { userId, status });
   }
 
-  handleConnection(client: Socket) {
+/*   handleConnection(client: Socket) {
     client.onAny((event, payload) => {
       console.log(`[WS] event=${event} user=${client.data.userId}`, payload);
     });
@@ -65,7 +65,7 @@ export class LobbyGateway implements OnGatewayInit {
         payload,
       );
     });
-  }
+  } */
 
   private async emitRemovalAndLeaveRoom(
     lobbyId: string,

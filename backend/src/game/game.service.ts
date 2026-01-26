@@ -503,14 +503,14 @@ export class GameService {
       LobbyKeys.members(lobbyId),
     );
 
-    const submittedCount = await this.redis.client.hlen(
+     const submittedCount = await this.redis.client.hlen(
       GameKeys.roundInputs(lobbyId, currentRound),
-    );
-
+    ); 
     if (submittedCount < members.length) {
       return;
     }
 
+    console.log('members', members);
     if (members.length === 2) {
       await this.redis.client.del(GameKeys.questions(lobbyId, currentRound));
 
@@ -526,6 +526,7 @@ export class GameService {
 
       let selectedProposal;
 
+      console.log('PROPOSALS !!!!!!!!!!!!!!!!!! ?????: ', proposals);
       if (proposals.length === 0) {
         const randomTopic = await this.repositoryService.getRandomTopic();
         selectedProposal = randomTopic
@@ -735,9 +736,28 @@ export class GameService {
     try {
       /* ---------- GET ALREADY SELECTED PROPOSAL ---------- */
 
-      const selectedRaw = await this.redis.client.hgetall(
+      let selectedRaw = await this.redis.client.hgetall(
         GameKeys.selected(lobbyId, round),
       );
+
+      // topicTitle: selectedProposal.topicTitle,
+      //     difficulty: selectedProposal.difficulty,
+      //     proposerId: selectedProposal.userId ?? '',
+
+      if (!selectedRaw || !selectedRaw.topicTitle) {
+      const randomTopic = await this.repositoryService.getRandomTopic();
+      selectedRaw = randomTopic
+        ? {
+          topicTitle: randomTopic.title,
+          difficulty: 'EASY',
+          proposerId: '',
+          }
+        : {
+          topicTitle: STATIC_FALLBACK_TOPIC.topicTitle,
+          difficulty: STATIC_FALLBACK_TOPIC.difficulty,
+          proposerId: '',
+          };
+    } 
 
       if (!selectedRaw.topicTitle) {
         console.error('No selected proposal found, this should not happen');
