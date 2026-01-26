@@ -1045,7 +1045,7 @@ useEffect(() => {
           </div>
         </div>
       </div>
-      {game?.lobbyId && (
+      {game?.lobbyId && user && (
         <LobbyChat lobbyId={game.lobbyId} currentUser={user} friends={friends} />
       )}
     </main>
