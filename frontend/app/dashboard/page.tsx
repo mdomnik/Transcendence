@@ -72,9 +72,9 @@ export default function Dashboard() {
     if (
       params.get("left") ||
       params.get("kicked") ||
-      params.get("banned") ||
-      params.get("fromLobby")
+      params.get("banned")
     ) {
+      console.log('Lobby params')
       setCheckingLobby(false);
       return;
     }
@@ -92,6 +92,7 @@ export default function Dashboard() {
 
         const res = await emitWithAck(socket, "lobby:sync");
         if (!res.ok) {
+          console.log('res has returned !ok, setting checkingLobby to false and returning', res);
           setCheckingLobby(false);
           return;
         }
