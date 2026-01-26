@@ -116,7 +116,14 @@ export default function Dashboard() {
     const fetchFriends = () => getFriends().then(setFriends).catch(console.error);
 
     fetchFriends();
-    getLeaderboard().then(data => setLeaderboardPreview(data.slice(0, 3))).catch(console.error);
+    (async () => {
+    try {
+      const data = await getLeaderboard();
+      setLeaderboardPreview(data.slice(0, 3));
+    } catch (err) {
+      console.error(err);
+    }
+    })();
 
     // Listen for real-time presence/status updates
     socket.on("presence:updated", fetchFriends);
