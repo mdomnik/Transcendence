@@ -14,7 +14,8 @@ import { LobbyService } from './lobby.service';
 import { LobbyKeys } from './lobby.keys';
 import { GameService } from 'src/game/game.service';
 import { RedisService } from 'src/redis/redis.service';
-import { forwardRef, Inject } from '@nestjs/common';
+import { forwardRef, Inject, ForbiddenException } from '@nestjs/common';
+import { randomUUID } from 'crypto';
 import { JwtService } from '@nestjs/jwt';
 import { initWsAuth } from 'src/websocket/websocket.init';
 
@@ -143,6 +144,39 @@ export class LobbyGateway implements OnGatewayInit {
     } catch (err) {
       console.warn('Error leaving lobby', err);
       return { ok: false, error: err?.message ?? 'UNABLE_TO_LEAVE_LOBBY' };
+    }
+  }
+
+  @SubscribeMessage('lobby:send_message')
+  async onLobbySendMessage(
+    @ConnectedSocket() client: Socket,
+    @MessageBody() dto: { lobbyId: string; content: string },
+  ) {
+    const userId = client.data.userId as string;
+
+    try {
+      const actualLobbyId = await this.lobbyService.getLobbyIdForUser(userId);
+      if (actualLobbyId !== dto.lobbyId) {
+        throw new ForbiddenException('You are not in this lobby');
+      }
+
+      const lobby = await this.lobbyService.getLobby(dto.lobbyId);
+      const sender = lobby.members.find((m) => m.userId === userId);
+
+      if (!sender) throw new ForbiddenException('Member not found');
+
+      const message = {
+        id: randomUUID(),
+        senderId: userId,
+        username: sender.username,
+        content: dto.content,
+        createdAt: new Date().toISOString(),
+      };
+
+      this.server.to(dto.lobbyId).emit('lobby:message', message);
+      return { ok: true };
+    } catch (err) {
+      return { ok: false, error: err?.message ?? 'SEND_FAILED' };
     }
   }
 
