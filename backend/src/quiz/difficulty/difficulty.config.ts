@@ -5,7 +5,7 @@ export const DIFFICULTY_PROFILES = {
     rules: `
 - Avoid trivial facts
 - Use one constraint or condition
-- At least 2 plausible answers
+- All answers must feel plausible
 `,
   },
 

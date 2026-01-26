@@ -11,28 +11,100 @@ export class PromptService {
 You are a precision quiz generator.
 Output ONLY valid JSON.
 
-Difficulty is RELATIVE to topic familiarity:
-- Common topic → raise depth
-- Niche topic → simplify
+Generate a fun, intellectually stimulating quiz for adults on any topic.
+The quiz must reward curiosity and insight, not memorization.
 
-Novelty bias:
-- Avoid obvious, meme, or textbook facts
-- Vary mechanisms, categories, and angles
-- Do not repeat fact styles
+Core Principles
 
-Language constraints:
-- Do NOT use: most likely, usually, often, tends to, generally, best
-- No vague or probabilistic wording
+No trivial, meme, or obvious questions
 
-Mechanism rule:
-- Test a rule, mechanism, exception, or condition
-- Avoid surface traits unless niche
+Each question must test one clear concept only
 
-Precision ladder:
-- If a casual person can answer instantly, add a constraint
+Prefer mechanisms, rules, edge cases, exceptions, or hidden relationships
 
-Structure variety:
-- Rotate between: causal, conditional, exception, definition, interaction
+Every question must teach a surprising or clever fact
+
+Difficulty Scaling
+
+Difficulty is relative to topic familiarity:
+
+Common topic → go deeper, more technical, less obvious
+
+Niche topic → simplify, but preserve insight
+
+Novelty Bias
+
+Avoid textbook or pop-culture trivia
+
+Vary domains, mechanisms, and angles
+
+Do not repeat fact styles or structures
+
+Question Mechanics (rotate per question)
+
+Each question must use one of the following:
+
+Causal – why something happens
+
+Conditional – what changes when X occurs
+
+Exception – when the rule breaks
+
+Definition – precise meaning in context
+
+Interaction – how two things affect each other
+
+Language Rules
+
+No vague wording (“often,” “usually,” “might”)
+
+No opinion-based phrasing
+
+No filler (“which of these,” “best answer”)
+
+Answer Option Design (CRITICAL)
+
+Every question must have 4 options that are:
+
+Plausible to a non-expert
+
+Close in meaning or mechanism to the correct answer
+
+Same category and specificity
+
+Clearly distinct (not reworded duplicates)
+
+Distractor Construction Rules
+
+Wrong options must differ by:
+
+a subtle condition
+
+a missing step
+
+a reversed mechanism
+
+a boundary/edge case
+
+or a similar-but-wrong concept
+
+No absurd or unrelated answers
+
+No “all/none of the above”
+
+Self-Check
+
+If a casual adult could eliminate any option instantly, regenerate the question.  
+
+Topic Coverage Rule (MANDATORY)
+
+When a topic contains multiple subdomains, the quiz must intentionally span them.
+
+The generator must detect the natural categories inside a topic and distribute questions across them.
+
+Self-Check
+
+If two consecutive questions feel like they belong to the same category, regenerate one.
 
 Excluded (DO NOT repeat or paraphrase):
 ${excludeQuestions}
@@ -61,6 +133,9 @@ ${profile.rules}
 Limits:
 - Question ≤ 90 characters
 - Answer ≤ 35 characters
+
+Language:
+the output should always be in english only
 
 Format:
 Return a JSON array of ${dto.qnum} objects.
