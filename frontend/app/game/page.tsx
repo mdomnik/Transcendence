@@ -199,7 +199,12 @@ export default function GamePage() {
     const socket = getSocket();
 
     const sync = async () => {
-      if (!socket.connected) socket.connect();
+      if (!socket.connected) {
+          await new Promise<void>((resolve) => {
+            socket.once("connect", resolve);
+            socket.connect();
+          });
+        }
       try {
         await emitWithAck(socket, "game:sync");
       } catch (err) {
@@ -247,6 +252,8 @@ export default function GamePage() {
 
   const players: Player[] = game?.players ?? [];
   const proposals: Proposal[] = game?.roundData?.proposals ?? [];
+  console.log("Game data:", game);
+  console.log("Proposals:", proposals);
 
   const submittedBy: string[] =
     phase === "TOPIC_INPUT" ? (game?.roundData?.submittedBy ?? []) : [];
@@ -837,15 +844,15 @@ export default function GamePage() {
           ) : (
             /* Voting Display */
             <div className="flex flex-wrap gap-8 justify-center max-w-5xl">
-              {proposals.length === 0 ? (
+              {/* {proposals.length === 0 ? (
                 <div className="text-center space-y-4">
                   <div className="text-5xl animate-bounce">✍️</div>
                   <div className="text-[#8892B0] text-lg">
                     Players are thinking...
                   </div>
                 </div>
-              ) : (
-                proposals.map((p) => {
+              ) : ( */}
+                { proposals.map((p) => {
                   const difficultyColors = {
                     EASY: {
                       border: "border-green-500/30",
@@ -922,7 +929,7 @@ export default function GamePage() {
                     </button>
                   );
                 })
-              )}
+              }
             </div>
           )}
 
