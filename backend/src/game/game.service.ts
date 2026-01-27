@@ -965,7 +965,7 @@ export class GameService {
         if (userAnswer.answerId === correct.id) {
           const elapsed = userAnswer.answeredAt - phaseStartedAt;
           const speedFactor = Math.max(0, 1 - elapsed / timeLimit);
-          scoreDeltas[memberId] += Math.floor(1000 * speedFactor);
+          scoreDeltas[memberId] += (100 +  Math.floor(50 * speedFactor));
         }
       }
     }
