@@ -5,6 +5,7 @@ import { useRouter } from "next/navigation";
 import { getSocket } from "../lib/socket";
 import { emitWithAck } from "../lib/socketEmit";
 import { useAuth } from "../context/AuthContext";
+import { useNotification } from "../context/NotificationContext";
 import { getFriends, Friendship } from "../lib/friends";
 import LobbyChat from "../components/LobbyChat";
 
@@ -118,6 +119,7 @@ function AnswerBall({
 export default function GamePage() {
   const router = useRouter();
   const { user, loading } = useAuth();
+  const { showToast } = useNotification();
 
   const [game, setGame] = useState<GameState | null>(null);
   const [topic, setTopic] = useState("");
@@ -226,13 +228,33 @@ export default function GamePage() {
       setGame(view);
     };
 
+    const onGameTerminated = (view?: GameState) => {
+      if (view?.match?.state === "FINISHED" && view?.phase?.state === "MATCH_END") {
+        // If there's only 1 player left, it means someone left prematurely
+        // in a 1v1 scenario (or everyone else left).
+        if (view.players.length <= 1) {
+          showToast("Opponent left the game", "error");
+          router.replace("/dashboard");
+          return;
+        }
+        // Normal finish
+        setGame(view);
+      } else {
+        // Sudden termination or no view provided
+        showToast("Game terminated", "error");
+        router.replace("/dashboard");
+      }
+    };
+
     socket.on("game:state", onGameState);
+    socket.on("game:terminated", onGameTerminated);
     socket.on("game:quit-confirmed", () => router.replace("/dashboard?left=1"));
 
     sync();
 
     return () => {
       socket.off("game:state", onGameState);
+      socket.off("game:terminated", onGameTerminated);
       socket.off("game:quit-confirmed");
     };
   }, [loading, user, router]);

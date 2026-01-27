@@ -7,6 +7,7 @@ import {
   ConnectedSocket,
   MessageBody,
   OnGatewayInit,
+  OnGatewayDisconnect,
 } from '@nestjs/websockets';
 import { Server, Socket } from 'socket.io';
 import { GameService } from './game.service';
@@ -16,6 +17,7 @@ import {
   SubmitAnswerDto,
 } from './dto';
 import { LobbyService } from 'src/lobby/lobby.service';
+import { RedisService } from 'src/redis/redis.service';
 import { forwardRef, Inject } from '@nestjs/common';
 import { JwtService } from '@nestjs/jwt';
 import { initWsAuth } from 'src/websocket/websocket.init';
@@ -29,7 +31,7 @@ import { initWsAuth } from 'src/websocket/websocket.init';
     credentials: true,
   },
 })
-export class GameGateway implements OnGatewayInit {
+export class GameGateway implements OnGatewayInit, OnGatewayDisconnect {
   @WebSocketServer()
   server: Server;
 
@@ -38,11 +40,29 @@ export class GameGateway implements OnGatewayInit {
     private readonly gameService: GameService,
     @Inject(forwardRef(() => LobbyService))
     private readonly lobbyService: LobbyService,
+    private readonly redisService: RedisService,
     private readonly jwtService: JwtService,
   ) {}
 
   afterInit(server: Server) {
     initWsAuth(server, this.jwtService);
+  }
+
+  async handleDisconnect(client: Socket) {
+    const userId = client.data.userId;
+    if (!userId) return;
+
+    // We check if the user is truly offline (no other sockets)
+    // before we terminate their game session.
+    const isOnline = await this.redisService.isUserOnline(userId);
+    if (isOnline) return;
+
+    const lobbyId = await this.lobbyService.getLobbyIdForUser(userId);
+    if (lobbyId) {
+      console.log(`[GameGateway] User ${userId} disconnected. Terminating game ${lobbyId}`);
+      await this.gameService.quitGame(lobbyId, userId);
+      await this.emitGameState(lobbyId);
+    }
   }
 
   @SubscribeMessage('game:submit-topic')
