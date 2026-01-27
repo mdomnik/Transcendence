@@ -25,18 +25,13 @@
 
     Edit the file and fill in all required variables.
 
-3.  Configure TLS:
-
-    -   Place your private key and certificate files inside the `/caddy`
-        directory as cert.pem and key.pem.
-
-4.  Build and start the application:
+3.  Build and start the application:
 
     ``` bash
-    make start
+    make prod-start
     ```
 
-5.  Open in your browser:
+4.  Open in your browser:
 
         https://YOUR_DOMAIN_FROM_ENV
 

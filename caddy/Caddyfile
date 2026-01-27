@@ -1,33 +1,8 @@
 :80 {
-    redir https://{host}{uri} permanent
+
+    reverse_proxy /api/* backend_nestjs:8080
+    reverse_proxy /socket.io/* backend_nestjs:8080
+    reverse_proxy /uploads/* backend_nestjs:8080
+
+    reverse_proxy frontend_nextjs:3000
 }
-
-:443 {
-    tls /etc/caddy/cert.pem /etc/caddy/key.pem
-
-    # ---- Backend API ----
-    reverse_proxy /api/* backend_nestjs:8080 {
-        header_up X-Forwarded-Proto https
-        header_up X-Forwarded-Host {host}
-    }
-
-    reverse_proxy /socket.io/* backend_nestjs:8080 {
-        header_up X-Forwarded-Proto https
-        header_up X-Forwarded-Host {host}
-        header_up Upgrade {http.request.header.Upgrade}
-        header_up Connection {http.request.header.Connection}
-    }
-
-    reverse_proxy /uploads/* backend_nestjs:8080 {
-        header_up X-Forwarded-Proto https
-        header_up X-Forwarded-Host {host}
-    }
-
-    # ---- Frontend ----    
-    reverse_proxy frontend_nextjs:3000 {
-        header_up X-Forwarded-Proto https
-        header_up X-Forwarded-Host {host}
-    }
-}
-
-
