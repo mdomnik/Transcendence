@@ -98,7 +98,7 @@ For the technical stack we used frameworks across both frontend and backend, an 
 
 #### Visualization of our database structure
 
-(readmeFiles/schema.png)
+![Prisma Schema](readmeFiles/schema.png)
 
 ## Features List
 
