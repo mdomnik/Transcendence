@@ -1,43 +1,100 @@
+COMPOSE_PROD = docker compose
+COMPOSE_DEV  = docker compose -f docker-compose.yml -f docker-compose.dev.yml
 
-all: up
+all: prod
 
 init:
 	$(MAKE) docker-setup-goinfre 
 	$(MAKE) docker-reset
 	$(MAKE) docker-purge
-	$(MAKE) start
+	$(MAKE) prod
 
-start:
-	$(MAKE) check
-	docker compose down -v
-	docker compose build --no-cache
-	docker compose up
+# Production
 
-up: check
-	docker compose up -d
+prod: check
+	$(COMPOSE_PROD) up -d
+
+prod-start: check
+	$(COMPOSE_PROD) down -v
+	$(COMPOSE_PROD) build --no-cache
+	$(COMPOSE_PROD) up
+
+prod-up: prod
+prod-down:
+	$(COMPOSE_PROD) down
+
+prod-clean:
+	$(COMPOSE_PROD) down -v
+
+prod-build:
+	$(COMPOSE_PROD) build
+
+prod-rebuild:
+	$(COMPOSE_PROD) build --no-cache
+
+prod-restart:
+	$(COMPOSE_PROD) restart
+
+prod-logs:
+	$(COMPOSE_PROD) logs -f
+
+# Development
+
+dev: check
+	$(COMPOSE_DEV) up -d
+
+dev-start: check
+	$(COMPOSE_DEV) down -v
+	$(COMPOSE_DEV) build --no-cache
+	$(COMPOSE_DEV) up
+
+dev-up: dev
+dev-down:
+	$(COMPOSE_DEV) down
+
+dev-clean:
+	$(COMPOSE_DEV) down -v
+
+dev-build:
+	$(COMPOSE_DEV) build
+
+dev-rebuild:
+	$(COMPOSE_DEV) build --no-cache
+
+dev-restart:
+	$(COMPOSE_DEV) restart
+
+dev-logs:
+	$(COMPOSE_DEV) logs -f
+
+# Shared commands
 
 down:
-	docker compose down
+	$(COMPOSE_PROD) down
 
 clean:
-	docker compose down -v
+	$(COMPOSE_PROD) down -v
 
 build:
-	docker compose build
+	$(COMPOSE_PROD) build
 
 rebuild:
-	docker compose build --no-cache
+	$(COMPOSE_PROD) build --no-cache
 
 restart:
-	docker compose restart
+	$(COMPOSE_PROD) restart
 
 logs:
-	docker compose logs -f
+	$(COMPOSE_PROD) logs -f
 
 check:
 	@command -v docker >/dev/null 2>&1 || (echo "ERROR: Docker is not installed" && exit 1)
 	@command -v docker compose >/dev/null 2>&1 || (echo "ERROR: Docker Compose is not installed" && exit 1)
 	@docker info >/dev/null 2>&1 || (echo "ERROR: Docker daemon is not running" && exit 1)
+
+# ========================
+# SYSTEM MAINTENANCE
+# ========================
 
 docker-purge:
 	@docker stop $$(docker ps -aq) 2>/dev/null || true
@@ -75,4 +132,4 @@ docker-setup-goinfre:
 	@systemctl --user start docker
 	@echo "Docker configured to use ~/goinfre/.docker"
 
-.PHONY: all up down restart logs build clean env check setup-goinfre fresh purge docker-reset
+.PHONY: all prod dev prod-up dev-up prod-down dev-down prod-rebuild dev-rebuild logs check
