@@ -237,6 +237,7 @@ export default function GamePage() {
     phase === "VOTING" ? game?.roundData?.votedBy ?? [] : [];
 
   const mySubmitted = submittedBy.includes(userId);
+  console.log('Did i submit', mySubmitted, submittedBy);
   const myVoted = votedBy.includes(userId);
 
   const isMatchEnd = phase === "MATCH_END";
@@ -253,6 +254,15 @@ export default function GamePage() {
         (curr.votes ?? 0) > (prev.votes ?? 0) ? curr : prev
       , proposals[0])
     : null;
+
+  function shuffle<T>(array: T[]): T[] {
+    const copy = [...array];
+    for (let i = copy.length - 1; i > 0; i--) {
+      const j = Math.floor(Math.random() * (i + 1));
+      [copy[i], copy[j]] = [copy[j], copy[i]];
+    }
+    return copy;
+  }
 
   /* ===================== APPEAR ANIMATION ===================== */
 useEffect(() => {
@@ -313,14 +323,7 @@ useEffect(() => {
   }, [proposals]);
 
   /* ===================== ACTIONS ===================== */
-  function shuffle<T>(array: T[]): T[] {
-    const copy = [...array];
-    for (let i = copy.length - 1; i > 0; i--) {
-      const j = Math.floor(Math.random() * (i + 1));
-      [copy[i], copy[j]] = [copy[j], copy[i]];
-    }
-    return copy;
-  }
+
 
   const handleLeaveCurrentLobby = async () => {
     if (!game?.lobbyId) return;
@@ -1045,7 +1048,7 @@ useEffect(() => {
           </div>
         </div>
       </div>
-      {game?.lobbyId && (
+      {game?.lobbyId && user && (
         <LobbyChat lobbyId={game.lobbyId} currentUser={user} friends={friends} />
       )}
     </main>
