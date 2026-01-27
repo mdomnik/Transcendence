@@ -17,7 +17,7 @@ import { FriendshipService } from 'src/friendship/friendship.service';
     origin:
       process.env.NODE_ENV === 'production'
         ? `https://${process.env.DOMAIN || 'localhost'}`
-        : ['https://localhost:3000', 'https://localhost:3001'],
+        : ['http://localhost:3000', 'http://localhost:3001'],
     credentials: true,
   },
 })
