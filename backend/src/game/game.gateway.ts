@@ -10,11 +10,7 @@ import {
 } from '@nestjs/websockets';
 import { Server, Socket } from 'socket.io';
 import { GameService } from './game.service';
-import {
-  SubmitTopicDto,
-  SubmitVoteDto,
-  SubmitAnswerDto,
-} from './dto';
+import { SubmitTopicDto, SubmitVoteDto, SubmitAnswerDto } from './dto';
 import { LobbyService } from 'src/lobby/lobby.service';
 import { forwardRef, Inject } from '@nestjs/common';
 import { JwtService } from '@nestjs/jwt';
@@ -23,9 +19,10 @@ import { initWsAuth } from 'src/websocket/websocket.init';
 @WebSocketGateway({
   namespace: '/quiz',
   cors: {
-    origin: process.env.NODE_ENV === 'production' 
-      ? `https://${process.env.DOMAIN || 'localhost'}`
-      : ['http://localhost:3000', 'http://localhost:3001'],
+    origin:
+      process.env.NODE_ENV === 'production'
+        ? `https://${process.env.DOMAIN || 'localhost'}`
+        : ['http://localhost:3000', 'http://localhost:3001'],
     credentials: true,
   },
 })
@@ -71,7 +68,7 @@ export class GameGateway implements OnGatewayInit {
     @ConnectedSocket() client: Socket,
     @MessageBody() body: SubmitVoteDto,
   ) {
-    const userId = client.data.userId;
+    const userId = client.data.userId as string;
 
     await this.gameService.submitVote(
       body.lobbyId,
@@ -88,7 +85,6 @@ export class GameGateway implements OnGatewayInit {
     @ConnectedSocket() client: Socket,
     @MessageBody() body: SubmitAnswerDto,
   ) {
-    console.log('🟢 WS submit-answer received', body);
     const userId = client.data.userId;
 
     await this.gameService.submitAnswer(body.lobbyId, userId, {
@@ -102,16 +98,14 @@ export class GameGateway implements OnGatewayInit {
 
   @SubscribeMessage('game:sync')
   async onGameSync(@ConnectedSocket() client: Socket) {
-    console.log('🎮 syncing');
     const userId = client.data.userId;
     const lobbyId = await this.lobbyService.getLobbyIdForUser(userId);
 
     if (!lobbyId) return { ok: false };
 
-    client.join(lobbyId);
+    await client.join(lobbyId);
 
     const view = await this.gameService.getGameView(lobbyId);
-
     client.emit('game:state', view);
 
     return { ok: true };
@@ -128,7 +122,7 @@ export class GameGateway implements OnGatewayInit {
     await this.gameService.quitGame(lobbyId, userId);
 
     // Remove socket from room and notify client
-    client.leave(lobbyId);
+    await client.leave(lobbyId);
     client.emit('game:quit-confirmed');
 
     // notify the remaining players
@@ -143,7 +137,6 @@ export class GameGateway implements OnGatewayInit {
       this.server.to(lobbyId).emit('game:terminated');
       return;
     }
-
 
     if (view.match.state == 'FINISHED') {
       this.server.to(lobbyId).emit('game:terminated', view);
