@@ -44,20 +44,32 @@ export class FriendshipGateway implements OnGatewayInit {
       // Notify both parties that friendship state changed
       const otherId = this.otherFromRow(myId, row.userA.id, row.userB.id);
       
-      // Transform data for each user
-      const myFriendData = this.transformRowToFriend(myId, row);
-      const otherFriendData = this.transformRowToFriend(otherId, row);
+      // Check if auto-accepted (when receiving a pending request from the other user)
+      if (row.status === 'ACCEPTED') {
+        const myUsername = row.userA.id === myId ? row.userA.username : row.userB.username;
+        
+        this.emitToUser(myId, 'friendship:updated', { type: 'ACCEPTED', row });
+        this.emitToUser(otherId, 'friendship:updated', { 
+          type: 'ACCEPTED', 
+          row,
+          fromUsername: myUsername
+        });
+      } else {
+        // Normal pending request flow
+        const myFriendData = this.transformRowToFriend(myId, row);
+        const otherFriendData = this.transformRowToFriend(otherId, row);
 
-      this.emitToUser(myId, 'friendship:updated', { 
-        type: 'REQUEST_SENT', 
-        row: myFriendData 
-      });
-      this.emitToUser(otherId, 'friendship:updated', { 
-        type: 'REQUEST_RECEIVED', 
-        row: otherFriendData,
-        fromUsername: myFriendData.friend.username,
-        fromAvatarPath: myFriendData.friend.avatarPath
-      });
+        this.emitToUser(myId, 'friendship:updated', { 
+          type: 'REQUEST_SENT', 
+          row: myFriendData 
+        });
+        this.emitToUser(otherId, 'friendship:updated', { 
+          type: 'REQUEST_RECEIVED', 
+          row: otherFriendData,
+          fromUsername: myFriendData.friend.username,
+          fromAvatarPath: myFriendData.friend.avatarPath
+        });
+      }
 
       return { ok: true, data: row };
     } catch (e: any) {
@@ -120,7 +132,6 @@ export class FriendshipGateway implements OnGatewayInit {
     try {
       const res = await this.friendshipService.cancel(myId, body.userId);
 
-      // Cancel deletes the pending row; we can notify the other user with lightweight payload.
       this.emitToUser(myId, 'friendship:updated', { type: 'CANCELED', otherUserId: body.userId });
       this.emitToUser(body.userId, 'friendship:updated', { type: 'CANCELED', otherUserId: myId });
 
@@ -219,7 +230,7 @@ export class FriendshipGateway implements OnGatewayInit {
       status: row.status,
       requesterId: row.requesterId,
       blockerId: row.blockerId,
-      isRequester: row.requesterId === userId,
+      isRequester: row.requesterId,
       friend: {
         id: friend.id,
         username: friend.username,

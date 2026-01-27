@@ -36,7 +36,6 @@ export default function FriendsPage() {
   return (
     <main className="relative min-h-screen bg-[#0A192F] overflow-hidden">
       <FloatingShapes />
-      <FriendRequestModal />
 
       {/* Header */}
       <header className="relative z-20 flex items-center justify-between px-6 py-4 border-b border-[#64FFDA]/20">

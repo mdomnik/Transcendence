@@ -183,8 +183,6 @@ export class FriendshipService {
     if (!row) {
       throw new NotFoundException('Friendship not found');
     }
-    if (row.requesterId !== myId)
-      throw new ForbiddenException('Only requester can cancel');
 
     // If PENDING: only requester can cancel
     if (row.status === FriendStatus.PENDING) {

@@ -3,6 +3,8 @@ import { Geist, Geist_Mono } from "next/font/google";
 import "./globals.css";
 import { AuthProvider } from "./context/AuthContext";
 import { SocketProvider } from "./context/SocketContext";
+import { NotificationProvider } from "./context/NotificationContext";
+import FriendRequestModal from "./components/FriendRequestModal";
 
 const geistSans = Geist({
   variable: "--font-geist-sans",
@@ -25,7 +27,10 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
       <body>
         <AuthProvider>
           <SocketProvider>
-            {children}
+            <NotificationProvider>
+              {children}
+              <FriendRequestModal />
+            </NotificationProvider>
           </SocketProvider>
         </AuthProvider>
       </body>
