@@ -1,12 +1,11 @@
 #!/bin/sh
 set -e
 
-echo "Waiting for database..."
+# Ensure env exists
+: "${DATABASE_URL:?DATABASE_URL is not set}"
 
-# optional but strongly recommended
-until npx prisma db execute --stdin <<EOF
-SELECT 1;
-EOF
+echo "Waiting for database..."
+until echo "SELECT 1;" | npx prisma db execute --stdin
 do
   sleep 2
 done

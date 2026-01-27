@@ -12,7 +12,7 @@ init:
 # Production
 
 prod: check
-	$(COMPOSE_PROD) up -d
+	$(COMPOSE_PROD) up
 
 prod-start: check
 	$(COMPOSE_PROD) down -v
@@ -41,7 +41,7 @@ prod-logs:
 # Development
 
 dev: check
-	$(COMPOSE_DEV) up -d
+	$(COMPOSE_DEV) up 
 
 dev-start: check
 	$(COMPOSE_DEV) down -v
@@ -92,9 +92,7 @@ check:
 	@command -v docker compose >/dev/null 2>&1 || (echo "ERROR: Docker Compose is not installed" && exit 1)
 	@docker info >/dev/null 2>&1 || (echo "ERROR: Docker daemon is not running" && exit 1)
 
-# ========================
-# SYSTEM MAINTENANCE
-# ========================
+# Docker maintenance
 
 docker-purge:
 	@docker stop $$(docker ps -aq) 2>/dev/null || true
