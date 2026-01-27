@@ -12,23 +12,20 @@ import { emitWithAck } from "../lib/socketEmit";
 import { getFriends, Friendship } from "../lib/friends";
 import { getLeaderboard, LeaderboardEntry } from "../lib/leaderboard";
 import Footer from '../components/Footer';
+import { useNotification } from "../context/NotificationContext";
 
 export default function Dashboard() {
   const router = useRouter();
   const { user, loading: authLoading, logout } = useAuth();
+  const { showToast } = useNotification();
 
   const [isCreating, setIsCreating] = useState(false);
   const [isJoining, setIsJoining] = useState(false);
   const [lobbyCode, setLobbyCode] = useState("");
-  const [toast, setToast] = useState<{ message: string; type: 'error' | 'success' | 'info' } | null>(null);
   const [checkingLobby, setCheckingLobby] = useState(true);
   const [activeLobby, setActiveLobby] = useState<any>(null);
   const [friends, setFriends] = useState<Friendship[]>([]);
   const [leaderboardPreview, setLeaderboardPreview] = useState<LeaderboardEntry[]>([]);
-
-  const showToast = (message: string, type: 'error' | 'success' | 'info' = 'error') => {
-    setToast({ message, type });
-  };
 
   useEffect(() => {
     if (!authLoading && !user) {
@@ -130,28 +127,14 @@ export default function Dashboard() {
     
     const handleFriendshipUpdate = (data: any) => {
       fetchFriends();
-      if (data.type === 'REQUEST_RECEIVED') {
-        showToast(`Friend request from ${data.fromUsername || "someone"}`, 'info');
-      }
-      if (data.type === 'ACCEPTED') {
-        showToast(`You are now friends with ${data.fromUsername || "someone"}!`, 'success');
-      }
-    };
-
-    const handleNewMessage = (msg: any) => {
-      // We only show toast if the sender is not us
-      if (msg.senderId !== user.id) {
-        showToast(`New message from ${msg.sender.username}`, 'info');
-      }
+      // Toast and Modal are now handled globally by NotificationProvider and FriendRequestModal in Layout
     };
 
     socket.on("friendship:updated", handleFriendshipUpdate);
-    socket.on("chat:receive", handleNewMessage);
 
     return () => {
       socket.off("presence:updated", fetchFriends);
       socket.off("friendship:updated", handleFriendshipUpdate);
-      socket.off("chat:receive", handleNewMessage);
     };
   }, [user]);
 
@@ -270,15 +253,6 @@ export default function Dashboard() {
     <div className="min-h-screen flex flex-col">
       <main className="relative flex-1 overflow-hidden bg-[#0A192F]">
         <FloatingShapes />
-        <FriendRequestModal onRequestHandled={() => setFriends([])} />
-
-        {toast && (
-          <Toast 
-            message={toast.message} 
-            type={toast.type} 
-            onClose={() => setToast(null)} 
-          />
-        )}
 
         {/* Header */}
         <header className="relative z-50 flex items-center justify-between px-6 py-4 border-b border-[#64FFDA]/20">
