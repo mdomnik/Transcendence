@@ -65,7 +65,8 @@ services:
       - internalNetwork
     volumes:
       - ./caddy/Caddyfile:/etc/caddy/Caddyfile:ro
-      - ./caddy/certs:/etc/caddy/certs:ro
+      - ./caddy/cert.pem:/etc/caddy/cert.pem:ro
+      - ./caddy/key.pem:/etc/caddy/key.pem:ro
     depends_on:
       - frontend_nextjs
       - backend_nestjs

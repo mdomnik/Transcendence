@@ -18,4 +18,5 @@ build/
 !/uploads/.gitkeep
 !/uploads/avatars/.gitkeep
 
-/caddy/certs/*
+/caddy/cert.pem
+/caddy/key.pem

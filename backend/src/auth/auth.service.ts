@@ -18,11 +18,13 @@ export class AuthService {
   async signup(dto: AuthDto) {
     //generate
     const hash = await argon.hash(dto.password);
+    const normalizedUsername = dto.username.trim().toLowerCase();
+    const normalizedEmail = dto.email.trim().toLowerCase();
     try {
       const user = await this.prisma.user.create({
         data: {
-          username: dto.username,
-          email: dto.email,
+          username: normalizedUsername,
+          email: normalizedEmail,
           password: hash,
         },
       });
@@ -37,9 +39,10 @@ export class AuthService {
   }
 
   async signin(dto: { identifier: string; password: string; remember?: boolean }) {
+    const normalizedIdentifier = dto.identifier.trim().toLowerCase();
     const user = await this.prisma.user.findFirst({
       where: {
-        OR: [{ email: dto.identifier }, { username: dto.identifier }],
+        OR: [{ email: normalizedIdentifier }, { username: normalizedIdentifier }],
       },
     });
     if (!user) throw new ForbiddenException('Credentials incorrect');
@@ -73,16 +76,17 @@ export class AuthService {
   async validateUser(email: string, googleId: string) {
     console.log('Google Auth Service');
     console.log(email, googleId);
+    const normalizedEmail = email.trim().toLowerCase();
     let user = await this.prisma.user.findFirst({
-      where: { OR: [{ googleId }, { email }] },
+      where: { OR: [{ googleId }, { email: normalizedEmail }] },
     });
 
     if (!user) {
-      const baseUsername = email.split('@')[0];
+      const baseUsername = normalizedEmail.split('@')[0];
       const username = await this.generateUniqueUsername(baseUsername);
 
       user = await this.prisma.user.create({
-        data: { email, googleId, username },
+        data: { email: normalizedEmail, googleId, username },
       });
       await this.userservice.ensureUserStats(user.id);
       return user;

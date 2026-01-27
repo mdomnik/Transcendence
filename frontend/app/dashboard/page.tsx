@@ -116,7 +116,14 @@ export default function Dashboard() {
     const fetchFriends = () => getFriends().then(setFriends).catch(console.error);
 
     fetchFriends();
-    getLeaderboard().then(data => setLeaderboardPreview(data.slice(0, 3))).catch(console.error);
+    (async () => {
+    try {
+      const data = await getLeaderboard();
+      setLeaderboardPreview(data.slice(0, 3));
+    } catch (err) {
+      console.error(err);
+    }
+    })();
 
     // Listen for real-time presence/status updates
     socket.on("presence:updated", fetchFriends);
@@ -469,9 +476,13 @@ export default function Dashboard() {
                   ) : (
                     <>
                       {leaderboardPreview.map((entry, idx) => (
-                        <div key={entry.userId ?? `leaderboard-${idx}`} className={`flex items-center justify-between group p-1.5 rounded-lg transition-colors ${
-                          entry.userId === user.id ? 'bg-[#64FFDA]/5 border border-[#64FFDA]/20' : 'hover:bg-[#64FFDA]/5'
-                        }`}>
+                        <div
+                          key={entry.userId ?? `leaderboard-${idx}`}
+                          onClick={() => entry.userId && router.push(`/profile/${entry.userId}`)}
+                          className={`flex items-center justify-between group p-1.5 rounded-lg transition-colors ${
+                            entry.userId === user.id ? 'bg-[#64FFDA]/5 border border-[#64FFDA]/20' : 'hover:bg-[#64FFDA]/5'
+                          } ${entry.userId ? 'cursor-pointer' : ''}`}
+                        >
                           <div className="flex items-center gap-2">
                             <div className={`text-[11px] font-bold w-4 h-4 rounded-full flex items-center justify-center ${
                               idx === 0 ? 'bg-yellow-500/20 text-yellow-500' : 

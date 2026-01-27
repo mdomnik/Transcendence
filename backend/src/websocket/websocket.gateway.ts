@@ -14,7 +14,9 @@ import { FriendshipService } from 'src/friendship/friendship.service';
 @WebSocketGateway({
   namespace: '/quiz',
   cors: {
-    origin: 'https://ferni.quizeverything.tech',
+    origin: process.env.NODE_ENV === 'production' 
+      ? `https://${process.env.DOMAIN || 'localhost'}`
+      : ['http://localhost:3000', 'http://localhost:3001'],
     credentials: true,
   },
 })
@@ -36,6 +38,7 @@ export class ConnectionGateway
   }
 
   async handleConnection(client: Socket) {
+    client.setMaxListeners(20); // allow multiple gateway listeners on disconnect
     const userId = client.data.userId as string;
     if (userId) {
       console.log(`[WS] User ${userId} connected (ID: ${client.id})`);

@@ -4,7 +4,7 @@ export function emitWithAck<T = any>(
   socket: Socket,
   event: string,
   payload?: any,
-  timeoutMs = 60000,
+  timeoutMs = 360000,
 ): Promise<T> {
   return new Promise((resolve, reject) => {
     if (!socket.connected) {

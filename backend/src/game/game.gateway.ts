@@ -11,15 +11,12 @@ import {
 import { Server, Socket } from 'socket.io';
 import { GameService } from './game.service';
 import {
-  ConfigGameDto,
   SubmitTopicDto,
   SubmitVoteDto,
   SubmitAnswerDto,
 } from './dto';
 import { LobbyService } from 'src/lobby/lobby.service';
 import { forwardRef, Inject } from '@nestjs/common';
-import { finished } from 'stream';
-import { ConfigService } from '@nestjs/config';
 import { JwtService } from '@nestjs/jwt';
 import { initWsAuth } from 'src/websocket/websocket.init';
 
@@ -55,10 +52,15 @@ export class GameGateway implements OnGatewayInit {
   ) {
     const userId = client.data.userId;
 
-    await this.gameService.submitTopic(body.lobbyId, userId, {
-      topicTitle: body.topicTitle,
-      difficulty: body.difficulty,
-    });
+    try {
+      await this.gameService.submitTopic(body.lobbyId, userId, {
+        topicTitle: body.topicTitle,
+        difficulty: body.difficulty,
+      });
+    } catch (err) {
+      console.error('Error in submit-topic:', err);
+      throw err;
+    }
 
     await this.emitGameState(body.lobbyId);
     return { ok: true };
@@ -141,6 +143,7 @@ export class GameGateway implements OnGatewayInit {
       this.server.to(lobbyId).emit('game:terminated');
       return;
     }
+
 
     if (view.match.state == 'FINISHED') {
       this.server.to(lobbyId).emit('game:terminated', view);

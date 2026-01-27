@@ -25,7 +25,7 @@ const MAX_QUESTIONS_PER_ROUND = 10;
 const MAX_TOPIC_CHARACTERS = 40;
 
 const STATIC_FALLBACK_TOPIC = {
-  topicTitle: 'Pandas',
+  topicTitle: 'Cats',
   difficulty: 'EASY' as const,
 };
 
@@ -79,6 +79,11 @@ interface QuestionSelectionView {
     difficulty: 'EASY' | 'MEDIUM' | 'HARD';
     votes: number;
   }>;
+  selectedProposal?: {
+    userId: string;
+    topicTitle: string;
+    difficulty: 'EASY' | 'MEDIUM' | 'HARD';
+  };
 }
 
 interface AnsweringView {
@@ -93,6 +98,11 @@ interface AnsweringView {
   }>;
   answeredBy: Record<string, string[]>;
   correctnessMap?: Record<string, Record<string, boolean>>; // userId -> questionId -> isCorrect
+  selectedProposal?: {
+    userId: string;
+    topicTitle: string;
+    difficulty: 'EASY' | 'MEDIUM' | 'HARD';
+  };
 }
 
 interface RoundEndView {
@@ -283,6 +293,10 @@ export class GameService {
         voteCounts[votedForUserId] = (voteCounts[votedForUserId] ?? 0) + 1;
       }
 
+      const selectedRaw = await this.redis.client.hgetall(
+        GameKeys.selected(lobbyId, currentRound),
+      );
+
       roundData = {
         phase: 'SELECT_TOPIC',
         proposals: Object.entries(rawInputs).map(([userId, raw]) => {
@@ -294,6 +308,13 @@ export class GameService {
             votes: voteCounts[userId] ?? 0,
           };
         }),
+        selectedProposal: selectedRaw.topicTitle
+          ? {
+              userId: selectedRaw.proposerId || '',
+              topicTitle: selectedRaw.topicTitle,
+              difficulty: selectedRaw.difficulty as 'EASY' | 'MEDIUM' | 'HARD',
+            }
+          : undefined,
       };
     } else if (phase === 'ANSWERING') {
       const questionsRaw = await this.redis.client.get(
@@ -334,11 +355,22 @@ export class GameService {
         }
       }
 
+      const selectedRaw = await this.redis.client.hgetall(
+        GameKeys.selected(lobbyId, currentRound),
+      );
+
       roundData = {
         phase: 'ANSWERING',
         questions,
         answeredBy,
         correctnessMap,
+        selectedProposal: selectedRaw.topicTitle
+          ? {
+              userId: selectedRaw.proposerId || '',
+              topicTitle: selectedRaw.topicTitle,
+              difficulty: selectedRaw.difficulty as 'EASY' | 'MEDIUM' | 'HARD',
+            }
+          : undefined,
       };
     } else if (phase === 'ROUND_END') {
       const rawScoresNow = await this.redis.client.hgetall(
@@ -471,16 +503,58 @@ export class GameService {
       LobbyKeys.members(lobbyId),
     );
 
-    const submittedCount = await this.redis.client.hlen(
+     const submittedCount = await this.redis.client.hlen(
       GameKeys.roundInputs(lobbyId, currentRound),
-    );
-
+    ); 
     if (submittedCount < members.length) {
       return;
     }
 
+    console.log('members', members);
     if (members.length === 2) {
       await this.redis.client.del(GameKeys.questions(lobbyId, currentRound));
+
+      // ----- SELECT WINNING PROPOSAL FOR 2-PLAYER GAME -----
+      const rawInputs = await this.redis.client.hgetall(
+        GameKeys.roundInputs(lobbyId, currentRound),
+      );
+
+      const proposals = Object.entries(rawInputs).map(([userId, value]) => ({
+        userId,
+        ...JSON.parse(value),
+      }));
+
+      let selectedProposal;
+
+      console.log('PROPOSALS !!!!!!!!!!!!!!!!!! ?????: ', proposals);
+      if (proposals.length === 0) {
+        const randomTopic = await this.repositoryService.getRandomTopic();
+        selectedProposal = randomTopic
+          ? {
+              userId: null,
+              topicTitle: randomTopic.title,
+              difficulty: 'EASY',
+            }
+          : {
+              userId: null,
+              topicTitle: STATIC_FALLBACK_TOPIC.topicTitle,
+              difficulty: STATIC_FALLBACK_TOPIC.difficulty,
+            };
+      } else {
+        // For 2 players, pick randomly between the two proposals
+        selectedProposal =
+          proposals[Math.floor(Math.random() * proposals.length)];
+      }
+
+      // Save the selected proposal
+      await this.redis.client.hset(
+        GameKeys.selected(lobbyId, currentRound),
+        {
+          topicTitle: selectedProposal.topicTitle,
+          difficulty: selectedProposal.difficulty,
+          proposerId: selectedProposal.userId ?? '',
+        },
+      );
 
       await this.redis.client.hset(GameKeys.roundMeta(lobbyId, currentRound), {
         phase: 'SELECT_TOPIC',
@@ -561,6 +635,61 @@ export class GameService {
 
     await this.redis.client.del(GameKeys.questions(lobbyId, round));
 
+    // ----- SELECT WINNING PROPOSAL BEFORE TRANSITION -----
+    const rawInputs = await this.redis.client.hgetall(
+      GameKeys.roundInputs(lobbyId, round),
+    );
+
+    const proposals = Object.entries(rawInputs).map(([userId, value]) => ({
+      userId,
+      ...JSON.parse(value),
+    }));
+
+    let selectedProposal;
+
+    if (proposals.length === 0) {
+      const randomTopic = await this.repositoryService.getRandomTopic();
+      selectedProposal = randomTopic
+        ? {
+            userId: null,
+            topicTitle: randomTopic.title,
+            difficulty: 'EASY',
+          }
+        : {
+            userId: null,
+            topicTitle: STATIC_FALLBACK_TOPIC.topicTitle,
+            difficulty: STATIC_FALLBACK_TOPIC.difficulty,
+          };
+    } else {
+      const rawVotes = await this.redis.client.hgetall(
+        GameKeys.roundVotes(lobbyId, round),
+      );
+
+      const voteCounts: Record<string, number> = {};
+      Object.values(rawVotes).forEach((v) => {
+        voteCounts[v] = (voteCounts[v] ?? 0) + 1;
+      });
+
+      const maxVotes = Math.max(0, ...Object.values(voteCounts));
+      const winners = Object.entries(voteCounts)
+        .filter(([, c]) => c === maxVotes)
+        .map(([id]) => id);
+
+      const winnerId =
+        winners.length > 0
+          ? winners[Math.floor(Math.random() * winners.length)]
+          : proposals[Math.floor(Math.random() * proposals.length)].userId;
+
+      selectedProposal = proposals.find((p) => p.userId === winnerId)!;
+    }
+
+    // Save the selected proposal
+    await this.redis.client.hset(GameKeys.selected(lobbyId, round), {
+      topicTitle: selectedProposal.topicTitle,
+      difficulty: selectedProposal.difficulty,
+      proposerId: selectedProposal.userId ?? '',
+    });
+
     // ----- TRANSITION PHASE -----
     await this.redis.client.hset(GameKeys.roundMeta(lobbyId, round), {
       phase: 'SELECT_TOPIC',
@@ -583,11 +712,11 @@ export class GameService {
       GameKeys.roundMeta(lobbyId, round),
     );
 
-    const alreadySelected = await this.redis.client.exists(
-      GameKeys.selected(lobbyId, round),
+    const questionsExist = await this.redis.client.exists(
+      GameKeys.questions(lobbyId, round),
     );
 
-    if (alreadySelected) {
+    if (questionsExist) {
       return;
     }
 
@@ -605,54 +734,42 @@ export class GameService {
     await this.redis.client.pexpire(lockKey, 30_000);
 
     try {
-      /* ---------- SELECT PROPOSAL ---------- */
+      /* ---------- GET ALREADY SELECTED PROPOSAL ---------- */
 
-      const rawInputs = await this.redis.client.hgetall(
-        GameKeys.roundInputs(lobbyId, round),
+      let selectedRaw = await this.redis.client.hgetall(
+        GameKeys.selected(lobbyId, round),
       );
 
-      const proposals = Object.entries(rawInputs).map(([userId, value]) => ({
-        userId,
-        ...JSON.parse(value),
-      }));
+      // topicTitle: selectedProposal.topicTitle,
+      //     difficulty: selectedProposal.difficulty,
+      //     proposerId: selectedProposal.userId ?? '',
 
-      let selectedProposal;
+      if (!selectedRaw || !selectedRaw.topicTitle) {
+      const randomTopic = await this.repositoryService.getRandomTopic();
+      selectedRaw = randomTopic
+        ? {
+          topicTitle: randomTopic.title,
+          difficulty: 'EASY',
+          proposerId: '',
+          }
+        : {
+          topicTitle: STATIC_FALLBACK_TOPIC.topicTitle,
+          difficulty: STATIC_FALLBACK_TOPIC.difficulty,
+          proposerId: '',
+          };
+    } 
 
-      if (proposals.length === 0) {
-        const randomTopic = await this.repositoryService.getRandomTopic();
-        selectedProposal = randomTopic
-          ? {
-              userId: null,
-              topicTitle: randomTopic.title,
-              difficulty: 'EASY',
-            }
-          : {
-              userId: null,
-              topicTitle: STATIC_FALLBACK_TOPIC.topicTitle,
-              difficulty: STATIC_FALLBACK_TOPIC.difficulty,
-            };
-      } else {
-        const rawVotes = await this.redis.client.hgetall(
-          GameKeys.roundVotes(lobbyId, round),
-        );
-
-        const voteCounts: Record<string, number> = {};
-        Object.values(rawVotes).forEach((v) => {
-          voteCounts[v] = (voteCounts[v] ?? 0) + 1;
-        });
-
-        const maxVotes = Math.max(0, ...Object.values(voteCounts));
-        const winners = Object.entries(voteCounts)
-          .filter(([, c]) => c === maxVotes)
-          .map(([id]) => id);
-
-        const winnerId =
-          winners.length > 0
-            ? winners[Math.floor(Math.random() * winners.length)]
-            : proposals[Math.floor(Math.random() * proposals.length)].userId;
-
-        selectedProposal = proposals.find((p) => p.userId === winnerId)!;
+      if (!selectedRaw.topicTitle) {
+        console.error('No selected proposal found, this should not happen');
+        await this.redis.client.del(lockKey);
+        return;
       }
+
+      const selectedProposal = {
+        userId: selectedRaw.proposerId || null,
+        topicTitle: selectedRaw.topicTitle,
+        difficulty: selectedRaw.difficulty as 'EASY' | 'MEDIUM' | 'HARD',
+      };
 
       /* ---------- FETCH QUESTIONS (ONCE) ---------- */
 
@@ -676,12 +793,6 @@ export class GameService {
       );
 
       /* ---------- STORE ---------- */
-
-      await this.redis.client.hset(GameKeys.selected(lobbyId, round), {
-        topicTitle: selectedProposal.topicTitle,
-        difficulty: selectedProposal.difficulty,
-        proposerId: selectedProposal.userId ?? '',
-      });
 
       await this.redis.client.set(
         GameKeys.questions(lobbyId, round),

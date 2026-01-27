@@ -73,6 +73,11 @@ type GameState = {
     totalScores?: Record<string, number>;
     finalScores?: Record<string, number>;
     winners?: string[];
+    selectedProposal?: {
+      userId: string;
+      topicTitle: string;
+      difficulty: Difficulty;
+    };
   };
 };
 
@@ -88,7 +93,13 @@ type QuestionSelectionView = {
 
 /* ===================== ANSWER BALL ===================== */
 
-function AnswerBall({ filled, isCorrect }: { filled: boolean; isCorrect?: boolean }) {
+function AnswerBall({
+  filled,
+  isCorrect,
+}: {
+  filled: boolean;
+  isCorrect?: boolean;
+}) {
   return (
     <div
       className={`w-3 h-3 rounded-full transition ${
@@ -124,9 +135,15 @@ export default function GamePage() {
   const [animateAppear, setAnimateAppear] = useState(false);
 
   // Track last answered question for feedback animation
-  const [lastAnsweredQuestionId, setLastAnsweredQuestionId] = useState<string | null>(null);
-  const [lastAnsweredAnswerId, setLastAnsweredAnswerId] = useState<string | null>(null);
-  const [lastAnsweredCorrect, setLastAnsweredCorrect] = useState<boolean | null>(null);
+  const [lastAnsweredQuestionId, setLastAnsweredQuestionId] = useState<
+    string | null
+  >(null);
+  const [lastAnsweredAnswerId, setLastAnsweredAnswerId] = useState<
+    string | null
+  >(null);
+  const [lastAnsweredCorrect, setLastAnsweredCorrect] = useState<
+    boolean | null
+  >(null);
   const [showingFeedback, setShowingFeedback] = useState(false);
 
   // Track round changes to reset feedback state
@@ -145,11 +162,11 @@ export default function GamePage() {
   //   );
   // }
 
-
   /* ===================== FRIENDS FETCHING ===================== */
   useEffect(() => {
     if (!user) return;
-    const fetchFriendsData = () => getFriends().then(setFriends).catch(console.error);
+    const fetchFriendsData = () =>
+      getFriends().then(setFriends).catch(console.error);
     fetchFriendsData();
 
     const socket = getSocket();
@@ -182,11 +199,16 @@ export default function GamePage() {
     const socket = getSocket();
 
     const sync = async () => {
-      if (!socket.connected) socket.connect();
+      if (!socket.connected) {
+          await new Promise<void>((resolve) => {
+            socket.once("connect", resolve);
+            socket.connect();
+          });
+        }
       try {
         await emitWithAck(socket, "game:sync");
       } catch (err) {
-        console.warn('Emit failed:', err);
+        console.warn("Emit failed:", err);
       }
     };
 
@@ -194,7 +216,10 @@ export default function GamePage() {
       if (!view) return;
       // If match is finished, only redirect if it's NOT the MATCH_END phase
       // This allows us to show the results screen.
-      if (view.match?.state === "FINISHED" && view.phase?.state !== "MATCH_END") {
+      if (
+        view.match?.state === "FINISHED" &&
+        view.phase?.state !== "MATCH_END"
+      ) {
         router.replace("/dashboard");
         return;
       }
@@ -202,9 +227,7 @@ export default function GamePage() {
     };
 
     socket.on("game:state", onGameState);
-    socket.on("game:quit-confirmed", () =>
-      router.replace("/dashboard?left=1")
-    );
+    socket.on("game:quit-confirmed", () => router.replace("/dashboard?left=1"));
 
     sync();
 
@@ -229,12 +252,14 @@ export default function GamePage() {
 
   const players: Player[] = game?.players ?? [];
   const proposals: Proposal[] = game?.roundData?.proposals ?? [];
+  console.log("Game data:", game);
+  console.log("Proposals:", proposals);
 
   const submittedBy: string[] =
-    phase === "TOPIC_INPUT" ? game?.roundData?.submittedBy ?? [] : [];
+    phase === "TOPIC_INPUT" ? (game?.roundData?.submittedBy ?? []) : [];
 
   const votedBy: string[] =
-    phase === "VOTING" ? game?.roundData?.votedBy ?? [] : [];
+    phase === "VOTING" ? (game?.roundData?.votedBy ?? []) : [];
 
   const mySubmitted = submittedBy.includes(userId);
   console.log('Did i submit', mySubmitted, submittedBy);
@@ -248,12 +273,8 @@ export default function GamePage() {
 
   const phaseLabel = phase?.replaceAll("_", " ") ?? "";
 
-  // Calculate winning proposal
-  const winningProposal = proposals.length > 0 
-    ? proposals.reduce((prev, curr) => 
-        (curr.votes ?? 0) > (prev.votes ?? 0) ? curr : prev
-      , proposals[0])
-    : null;
+  // Get winning proposal from backend (not calculated client-side)
+  const winningProposal = game?.roundData?.selectedProposal ?? null;
 
   function shuffle<T>(array: T[]): T[] {
     const copy = [...array];
@@ -265,31 +286,30 @@ export default function GamePage() {
   }
 
   /* ===================== APPEAR ANIMATION ===================== */
-useEffect(() => {
-  const incoming = game?.roundData?.questions;
-  if (!incoming || incoming.length === 0) return;
+  useEffect(() => {
+    const incoming = game?.roundData?.questions;
+    if (!incoming || incoming.length === 0) return;
 
-  // reset per-round UI state
-  setLastAnsweredQuestionId(null);
-  setLastAnsweredAnswerId(null);
-  setLastAnsweredCorrect(null);
-  setShowingFeedback(false);
+    // reset per-round UI state
+    setLastAnsweredQuestionId(null);
+    setLastAnsweredAnswerId(null);
+    setLastAnsweredCorrect(null);
+    setShowingFeedback(false);
 
-  setShuffledQuestions((prev) => {
-    const cache = new Map(prev.map((q) => [q.id, q]));
+    setShuffledQuestions((prev) => {
+      const cache = new Map(prev.map((q) => [q.id, q]));
 
-    return incoming.map((q) => {
-      const cached = cache.get(q.id);
+      return incoming.map((q) => {
+        const cached = cache.get(q.id);
 
-      if (cached) return cached;
-      return {
-        ...q,
-        answers: shuffle(q.answers),
-      };
+        if (cached) return cached;
+        return {
+          ...q,
+          answers: shuffle(q.answers),
+        };
+      });
     });
-  });
-}, [game?.roundData?.questions]);
-
+  }, [game?.roundData?.questions]);
 
   useEffect(() => {
     if (proposals.length > prevProposalCountRef.current) {
@@ -318,7 +338,7 @@ useEffect(() => {
     }
 
     prevVotesRef.current = Object.fromEntries(
-      proposals.map((p) => [p.userId, p.votes ?? 0])
+      proposals.map((p) => [p.userId, p.votes ?? 0]),
     );
   }, [proposals]);
 
@@ -357,7 +377,7 @@ useEffect(() => {
         difficulty,
       });
     } catch (err) {
-      console.warn('Emit failed:', err);
+      console.warn("Emit failed:", err);
     }
     setTopic("");
   };
@@ -370,71 +390,72 @@ useEffect(() => {
         votedForUserId: targetUserId,
       });
     } catch (err) {
-      console.warn('Emit failed:', err);
+      console.warn("Emit failed:", err);
     }
   };
 
-const submitAnswer = async (qid: string, aid: string) => {
-  if (showingFeedback) return; // Prevent clicking during feedback
-  
-  try {
-    console.log('🟢 submitting answer', { qid, aid });
-    await emitWithAck(getSocket(), "game:submit-answer", {
-      lobbyId: game?.lobbyId,
-      questionId: qid,
-      answerId: aid,
-    });
-    
-    setLastAnsweredQuestionId(qid);
-    setLastAnsweredAnswerId(aid);
-    setShowingFeedback(true);
-  } catch (e) {
-    console.error("submitAnswer failed", e);
-  }
-};
+  const submitAnswer = async (qid: string, aid: string) => {
+    if (showingFeedback) return; // Prevent clicking during feedback
 
-// Listen for correctness updates
-useEffect(() => {
-  if (!user || !lastAnsweredQuestionId || !game?.roundData?.correctnessMap) return;
-  
-  const correctness = game.roundData.correctnessMap[user.id]?.[lastAnsweredQuestionId];
-  
-  if (correctness !== undefined) {
-    setLastAnsweredCorrect(correctness);
-    
-    // Clear feedback and allow next question after 1.5s
-    const timer = setTimeout(() => {
+    try {
+      console.log("🟢 submitting answer", { qid, aid });
+      await emitWithAck(getSocket(), "game:submit-answer", {
+        lobbyId: game?.lobbyId,
+        questionId: qid,
+        answerId: aid,
+      });
+
+      setLastAnsweredQuestionId(qid);
+      setLastAnsweredAnswerId(aid);
+      setShowingFeedback(true);
+    } catch (e) {
+      console.error("submitAnswer failed", e);
+    }
+  };
+
+  // Listen for correctness updates
+  useEffect(() => {
+    if (!user || !lastAnsweredQuestionId || !game?.roundData?.correctnessMap)
+      return;
+
+    const correctness =
+      game.roundData.correctnessMap[user.id]?.[lastAnsweredQuestionId];
+
+    if (correctness !== undefined) {
+      setLastAnsweredCorrect(correctness);
+
+      // Clear feedback and allow next question after 1.5s
+      const timer = setTimeout(() => {
+        setLastAnsweredQuestionId(null);
+        setLastAnsweredAnswerId(null);
+        setLastAnsweredCorrect(null);
+        setShowingFeedback(false);
+      }, 1500);
+
+      return () => clearTimeout(timer);
+    }
+  }, [game?.roundData?.correctnessMap, user, lastAnsweredQuestionId]);
+
+  // Reset feedback state when entering a new ANSWERING phase (for round transitions)
+  useEffect(() => {
+    const currentRound = game?.match?.round ?? 1;
+    const currentPhase = game?.phase?.state ?? null;
+
+    // When we enter ANSWERING phase for a new round, reset feedback states
+    if (currentPhase === "ANSWERING" && prevRoundRef.current !== currentRound) {
       setLastAnsweredQuestionId(null);
       setLastAnsweredAnswerId(null);
       setLastAnsweredCorrect(null);
       setShowingFeedback(false);
-    }, 1500);
-    
-    return () => clearTimeout(timer);
-  }
-}, [game?.roundData?.correctnessMap, user, lastAnsweredQuestionId]);
-
-// Reset feedback state when entering a new ANSWERING phase (for round transitions)
-useEffect(() => {
-  const currentRound = game?.match?.round ?? 1;
-  const currentPhase = game?.phase?.state ?? null;
-  
-  // When we enter ANSWERING phase for a new round, reset feedback states
-  if (currentPhase === "ANSWERING" && prevRoundRef.current !== currentRound) {
-    setLastAnsweredQuestionId(null);
-    setLastAnsweredAnswerId(null);
-    setLastAnsweredCorrect(null);
-    setShowingFeedback(false);
-    prevRoundRef.current = currentRound;
-  }
-}, [game?.match?.round, game?.phase?.state]);
+      prevRoundRef.current = currentRound;
+    }
+  }, [game?.match?.round, game?.phase?.state]);
 
   /* ===================== RENDER ===================== */
 
-  console.log('phase', phase);
+  console.log("phase", phase);
   return (
     <main className="min-h-screen bg-[#0A192F] flex flex-col">
-
       {/* ================= TOP BAR ================= */}
       <div className="px-10 py-6 border-b border-white/10 flex justify-between items-center">
         <button
@@ -459,9 +480,7 @@ useEffect(() => {
           Round {round}/{totalRounds}
         </div>
       </div>
-
       {/* ================= CENTER ================= */}
-
       {phase === "ROUND_START" ? (
         /* ---------- ROUND START TRANSITION ---------- */
         <div className="flex-1 flex items-center justify-center">
@@ -472,9 +491,7 @@ useEffect(() => {
             <div className="text-white text-9xl font-black animate-pulse">
               {round}
             </div>
-            <div className="text-[#8892B0] text-lg">
-              Get ready...
-            </div>
+            <div className="text-[#8892B0] text-lg">Get ready...</div>
           </div>
         </div>
       ) : phase === "ROUND_END" ? (
@@ -516,10 +533,10 @@ useEffect(() => {
                             i === 0
                               ? "bg-yellow-500 text-[#0A192F]"
                               : i === 1
-                              ? "bg-slate-300 text-[#0A192F]"
-                              : i === 2
-                              ? "bg-amber-600 text-[#0A192F]"
-                              : "bg-white/10 text-[#8892B0]"
+                                ? "bg-slate-300 text-[#0A192F]"
+                                : i === 2
+                                  ? "bg-amber-600 text-[#0A192F]"
+                                  : "bg-white/10 text-[#8892B0]"
                           }`}
                         >
                           {i + 1}
@@ -527,7 +544,9 @@ useEffect(() => {
                         <div>
                           <div
                             className={`text-lg font-bold ${
-                              p.userId === userId ? "text-white" : "text-[#CCD6F6]"
+                              p.userId === userId
+                                ? "text-white"
+                                : "text-[#CCD6F6]"
                             }`}
                           >
                             {p.username} {p.userId === userId && "(You)"}
@@ -544,7 +563,8 @@ useEffect(() => {
                             delta > 0 ? "text-green-400" : "text-[#8892B0]"
                           }`}
                         >
-                          {delta > 0 ? "+" : ""}{delta}
+                          {delta > 0 ? "+" : ""}
+                          {delta}
                         </div>
                         <div className="text-sm text-[#64FFDA] font-mono font-bold">
                           Total: {total}
@@ -592,15 +612,16 @@ useEffect(() => {
                 </div>
               </div>
             )}
-            
+
             <div className="text-[#64FFDA] font-bold uppercase tracking-wider text-xs mb-6 border-b border-[#64FFDA]/20 pb-2">
               Live Progress
             </div>
 
             {players.map((p) => {
               const answered = game?.roundData?.answeredBy?.[p.userId] ?? [];
-              const correctness = game?.roundData?.correctnessMap?.[p.userId] ?? {};
-              
+              const correctness =
+                game?.roundData?.correctnessMap?.[p.userId] ?? {};
+
               return (
                 <div key={p.userId} className="mb-6 last:mb-0">
                   <div className="flex justify-between items-center mb-2">
@@ -611,8 +632,8 @@ useEffect(() => {
                   </div>
                   <div className="flex gap-1.5 flex-wrap">
                     {game?.roundData?.questions.map((q: Question) => (
-                      <AnswerBall 
-                        key={q.id} 
+                      <AnswerBall
+                        key={q.id}
                         filled={answered.includes(q.id)}
                         isCorrect={correctness[q.id]}
                       />
@@ -621,7 +642,6 @@ useEffect(() => {
                 </div>
               );
             })}
-
           </div>
 
           <div className="flex-1 rounded-2xl border border-white/10 bg-[#0F223D] p-8 shadow-2xl flex flex-col">
@@ -630,7 +650,7 @@ useEffect(() => {
               const qs: Question[] = shuffledQuestions;
               // console.log('Questions', qs);
               if (!user) {
-                console.warn('User not found!');
+                console.warn("User not found!");
                 return null;
               }
               const myA = game?.roundData?.answeredBy?.[user.id] ?? [];
@@ -639,9 +659,12 @@ useEffect(() => {
               const q = (() => {
                 if (showingFeedback && lastAnsweredQuestionId) {
                   // Only show feedback if that question still exists
-                  return qs.find(q => q.id === lastAnsweredQuestionId) ?? qs.find(q => !myA.includes(q.id));
+                  return (
+                    qs.find((q) => q.id === lastAnsweredQuestionId) ??
+                    qs.find((q) => !myA.includes(q.id))
+                  );
                 }
-                return qs.find(q => !myA.includes(q.id));
+                return qs.find((q) => !myA.includes(q.id));
               })();
               // console.log('Was question fetched?', q);
               if (!q)
@@ -670,14 +693,18 @@ useEffect(() => {
 
                   <div className="grid grid-cols-1 gap-4">
                     {q.answers.map((a) => {
-                      const correctness = game?.roundData?.correctnessMap?.[user.id] ?? {};
-                      
+                      const correctness =
+                        game?.roundData?.correctnessMap?.[user.id] ?? {};
+
                       const wasAnswered = myA.includes(q.id);
                       const wasCorrect = correctness[q.id];
-                      
+
                       // Show feedback only for the specific answer that was clicked
                       const isThisAnswer = a.id === lastAnsweredAnswerId;
-                      const showFeedback = showingFeedback && lastAnsweredQuestionId === q.id && isThisAnswer;
+                      const showFeedback =
+                        showingFeedback &&
+                        lastAnsweredQuestionId === q.id &&
+                        isThisAnswer;
                       const isCorrect = showFeedback && wasCorrect === true;
                       const isWrong = showFeedback && wasCorrect === false;
 
@@ -687,36 +714,41 @@ useEffect(() => {
                           onClick={() => submitAnswer(q.id, a.id)}
                           disabled={wasAnswered || showingFeedback}
                           className={`group relative p-5 rounded-xl border transition-all text-left
-                                     ${isCorrect 
-                                       ? "border-green-500/70 bg-green-500/20 animate-shake-correct shadow-lg shadow-green-500/20" 
-                                       : isWrong 
-                                       ? "border-red-500/70 bg-red-500/20 animate-shake shadow-lg shadow-red-500/20" 
-                                       : showingFeedback && !isThisAnswer
-                                       ? "border-white/5 bg-white/5 opacity-30"
-                                       : "border-white/10 bg-[#112240] hover:border-[#64FFDA]/50 hover:bg-[#112240]/80 cursor-pointer"
+                                     ${
+                                       isCorrect
+                                         ? "border-green-500/70 bg-green-500/20 animate-shake-correct shadow-lg shadow-green-500/20"
+                                         : isWrong
+                                           ? "border-red-500/70 bg-red-500/20 animate-shake shadow-lg shadow-red-500/20"
+                                           : showingFeedback && !isThisAnswer
+                                             ? "border-white/5 bg-white/5 opacity-30"
+                                             : "border-white/10 bg-[#112240] hover:border-[#64FFDA]/50 hover:bg-[#112240]/80 cursor-pointer"
                                      }`}
                         >
                           <div className="flex justify-between items-center">
-                            <span className={`transition-colors ${
-                              isCorrect 
-                                ? "text-green-400 font-bold" 
-                                : isWrong 
-                                ? "text-red-400 font-bold" 
-                                : showingFeedback && !isThisAnswer
-                                ? "text-[#8892B0]"
-                                : "text-[#CCD6F6] group-hover:text-white"
-                            }`}>
+                            <span
+                              className={`transition-colors ${
+                                isCorrect
+                                  ? "text-green-400 font-bold"
+                                  : isWrong
+                                    ? "text-red-400 font-bold"
+                                    : showingFeedback && !isThisAnswer
+                                      ? "text-[#8892B0]"
+                                      : "text-[#CCD6F6] group-hover:text-white"
+                              }`}
+                            >
                               {a.text}
                             </span>
-                            <span className={`text-2xl transition-all ${
-                              isCorrect 
-                                ? "opacity-100 scale-125 text-green-500" 
-                                : isWrong 
-                                ? "opacity-100 scale-125 text-red-500" 
-                                : showingFeedback && !isThisAnswer
-                                ? "opacity-0"
-                                : "opacity-0 group-hover:opacity-100 text-[#64FFDA]"
-                            }`}>
+                            <span
+                              className={`text-2xl transition-all ${
+                                isCorrect
+                                  ? "opacity-100 scale-125 text-green-500"
+                                  : isWrong
+                                    ? "opacity-100 scale-125 text-red-500"
+                                    : showingFeedback && !isThisAnswer
+                                      ? "opacity-0"
+                                      : "opacity-0 group-hover:opacity-100 text-[#64FFDA]"
+                              }`}
+                            >
                               {isCorrect ? "✓" : isWrong ? "✗" : "→"}
                             </span>
                           </div>
@@ -736,7 +768,9 @@ useEffect(() => {
             /* Topic Prompt in Center */
             <div className="max-w-2xl w-full bg-[#112240] rounded-3xl border border-[#64FFDA]/20 p-10 shadow-2xl space-y-8 animate-slide-in">
               <div className="text-center space-y-2">
-                <h2 className="text-3xl font-bold text-white">Select a Topic</h2>
+                <h2 className="text-3xl font-bold text-white">
+                  Select a Topic
+                </h2>
                 <p className="text-[#8892B0]">
                   Enter anything or pick a trending suggestion.
                 </p>
@@ -813,96 +847,121 @@ useEffect(() => {
           ) : (
             /* Voting Display */
             <div className="flex flex-wrap gap-8 justify-center max-w-5xl">
-              {proposals.length === 0 ? (
+              {/* {proposals.length === 0 ? (
                 <div className="text-center space-y-4">
                   <div className="text-5xl animate-bounce">✍️</div>
                   <div className="text-[#8892B0] text-lg">
                     Players are thinking...
                   </div>
                 </div>
-              ) : (
-                proposals.map((p) => (
-                  <button
-                    key={p.userId}
-                    onClick={() => submitVote(p.userId)}
-                    disabled={
-                      myVoted || p.userId === userId || phase === "SELECT_TOPIC"
-                    }
-                    className={`group relative w-64 h-44 rounded-3xl border transition-all flex flex-col items-center justify-center p-6
-                             ${
-                               p.userId === userId
-                                 ? "border-white/10 bg-white/5 opacity-80"
-                                 : "border-[#64FFDA]/30 bg-[#112240] hover:border-[#64FFDA] hover:scale-105 active:scale-95 shadow-xl hover:shadow-[#64FFDA]/10"
-                             }`}
-                    style={{
-                      animation: votePulse[p.userId]
-                        ? "votePulseCard 300ms"
-                        : animateAppear
-                        ? "topicAppear 400ms"
-                        : undefined,
-                    }}
-                  >
-                    <div className="text-white font-bold text-xl text-center mb-2 group-hover:text-[#64FFDA] transition-colors">
-                      {p.topicTitle}
-                    </div>
-                    <div className="text-xs text-[#64FFDA]/60 uppercase tracking-widest">
-                      {p.difficulty}
-                    </div>
+              ) : ( */}
+                { proposals.map((p) => {
+                  const difficultyColors = {
+                    EASY: {
+                      border: "border-green-500/30",
+                      bg: "bg-green-900/20",
+                      hoverBorder: "hover:border-green-500",
+                      hoverShadow: "hover:shadow-green-500/10",
+                      textColor: "text-green-400/80",
+                      hoverText: "group-hover:text-green-400",
+                    },
+                    MEDIUM: {
+                      border: "border-orange-500/30",
+                      bg: "bg-orange-900/20",
+                      hoverBorder: "hover:border-orange-500",
+                      hoverShadow: "hover:shadow-orange-500/10",
+                      textColor: "text-orange-400/80",
+                      hoverText: "group-hover:text-orange-400",
+                    },
+                    HARD: {
+                      border: "border-red-500/30",
+                      bg: "bg-red-900/20",
+                      hoverBorder: "hover:border-red-500",
+                      hoverShadow: "hover:shadow-red-500/10",
+                      textColor: "text-red-400/80",
+                      hoverText: "group-hover:text-red-400",
+                    },
+                  };
 
-                    {isVotingLike && (
+                  const colors =
+                    difficultyColors[p.difficulty] || difficultyColors.EASY;
+
+                  return (
+                    <button
+                      key={p.userId}
+                      onClick={() => submitVote(p.userId)}
+                      disabled={
+                        myVoted ||
+                        p.userId === userId ||
+                        phase === "SELECT_TOPIC"
+                      }
+                      className={`group relative w-64 h-44 rounded-3xl border transition-all flex flex-col items-center justify-center p-6
+                               ${
+                                 p.userId === userId
+                                   ? "border-white/10 bg-white/5 opacity-80"
+                                   : `${colors.border} ${colors.bg} ${colors.hoverBorder} hover:scale-105 active:scale-95 shadow-xl ${colors.hoverShadow}`
+                               }`}
+                      style={{
+                        animation: votePulse[p.userId]
+                          ? "votePulseCard 300ms"
+                          : animateAppear
+                            ? "topicAppear 400ms"
+                            : undefined,
+                      }}
+                    >
                       <div
-                        className="absolute -top-3 -right-3 w-10 h-10 rounded-full
-                                    bg-[#64FFDA] text-[#0A192F]
-                                    flex items-center justify-center text-sm font-black shadow-lg"
+                        className={`text-white font-bold text-xl text-center mb-2 ${colors.hoverText} transition-colors`}
                       >
-                        {p.votes ?? 0}
+                        {p.topicTitle}
                       </div>
-                    )}
-                  </button>
-                ))
-              )}
+                      <div
+                        className={`text-xs ${colors.textColor} uppercase tracking-widest`}
+                      >
+                        {p.difficulty}
+                      </div>
+
+                      {isVotingLike && (
+                        <div
+                          className="absolute -top-3 -right-3 w-10 h-10 rounded-full
+                                    bg-[#64FFDA] text-[#0A192F]
+                                      flex items-center justify-center text-sm font-black shadow-lg"
+                        >
+                          {p.votes ?? 0}
+                        </div>
+                      )}
+                    </button>
+                  );
+                })
+              }
             </div>
           )}
 
           {phase === "SELECT_TOPIC" && (
             <div className="absolute inset-0 bg-[#0A192F]/80 backdrop-blur-sm flex items-center justify-center z-50">
               <div className="flex flex-col items-center gap-6">
-                {(() => {
-                  const winningProposal = proposals.length > 0 
-                    ? proposals.reduce((prev, curr) => 
-                        (curr.votes ?? 0) > (prev.votes ?? 0) ? curr : prev
-                      , proposals[0])
-                    : null;
+                <div className="text-center space-y-4">
+                  <div className="text-[#64FFDA] text-sm font-bold uppercase tracking-widest opacity-70">
+                    Winning Topic
+                  </div>
+                  <div className="text-white text-4xl font-black tracking-tight px-8 py-4 rounded-2xl bg-[#112240]/80 border border-[#64FFDA]/30 shadow-xl">
+                    {winningProposal?.topicTitle || "Loading..."}
+                  </div>
+                  <div className="text-xs text-[#64FFDA]/60 uppercase tracking-widest">
+                    {winningProposal?.difficulty}
+                  </div>
+                </div>
 
-                  return (
-                    <>
-                      <div className="text-center space-y-4">
-                        <div className="text-[#64FFDA] text-sm font-bold uppercase tracking-widest opacity-70">
-                          Winning Topic
-                        </div>
-                        <div className="text-white text-4xl font-black tracking-tight px-8 py-4 rounded-2xl bg-[#112240]/80 border border-[#64FFDA]/30 shadow-xl">
-                          {winningProposal?.topicTitle || "Loading..."}
-                        </div>
-                        <div className="text-xs text-[#64FFDA]/60 uppercase tracking-widest">
-                          {winningProposal?.difficulty}
-                        </div>
-                      </div>
-                      
-                      <div className="flex flex-col items-center gap-3 mt-4">
-                        <div className="w-12 h-12 border-2 border-[#64FFDA]/20 border-t-[#64FFDA] rounded-full animate-spin" />
-                        <div className="text-[#8892B0] text-lg font-medium animate-pulse">
-                          Generating questions...
-                        </div>
-                      </div>
-                    </>
-                  );
-                })()}
+                <div className="flex flex-col items-center gap-3 mt-4">
+                  <div className="w-12 h-12 border-2 border-[#64FFDA]/20 border-t-[#64FFDA] rounded-full animate-spin" />
+                  <div className="text-[#8892B0] text-lg font-medium animate-pulse">
+                    Generating questions...
+                  </div>
+                </div>
               </div>
             </div>
           )}
         </div>
       )}
-
       {/* Results Overlay */}
       {isMatchEnd && (
         <div className="absolute inset-0 z-[100] bg-[#0A192F]/95 backdrop-blur-xl flex items-center justify-center p-6 animate-in fade-in duration-500">
@@ -925,25 +984,36 @@ useEffect(() => {
               </div>
               {players
                 .slice()
-                .sort((a, b) => (finalScores[b.userId] ?? 0) - (finalScores[a.userId] ?? 0))
+                .sort(
+                  (a, b) =>
+                    (finalScores[b.userId] ?? 0) - (finalScores[a.userId] ?? 0),
+                )
                 .map((p, i) => (
-                  <div 
-                    key={p.userId} 
+                  <div
+                    key={p.userId}
                     className={`flex items-center justify-between p-4 rounded-2xl border transition-all ${
-                      winners.includes(p.userId) 
-                        ? "bg-[#64FFDA]/10 border-[#64FFDA] shadow-lg shadow-[#64FFDA]/5" 
+                      winners.includes(p.userId)
+                        ? "bg-[#64FFDA]/10 border-[#64FFDA] shadow-lg shadow-[#64FFDA]/5"
                         : "bg-[#0A192F]/50 border-white/5"
                     }`}
                   >
                     <div className="flex items-center gap-4">
-                      <div className={`w-8 h-8 rounded-full flex items-center justify-center font-black ${
-                        i === 0 ? "bg-yellow-500 text-[#0A192F]" : 
-                        i === 1 ? "bg-slate-300 text-[#0A192F]" : 
-                        i === 2 ? "bg-amber-600 text-[#0A192F]" : "bg-white/10 text-[#8892B0]"
-                      }`}>
+                      <div
+                        className={`w-8 h-8 rounded-full flex items-center justify-center font-black ${
+                          i === 0
+                            ? "bg-yellow-500 text-[#0A192F]"
+                            : i === 1
+                              ? "bg-slate-300 text-[#0A192F]"
+                              : i === 2
+                                ? "bg-amber-600 text-[#0A192F]"
+                                : "bg-white/10 text-[#8892B0]"
+                        }`}
+                      >
                         {i + 1}
                       </div>
-                      <span className={`text-lg font-bold ${p.userId === userId ? "text-white" : "text-[#CCD6F6]"}`}>
+                      <span
+                        className={`text-lg font-bold ${p.userId === userId ? "text-white" : "text-[#CCD6F6]"}`}
+                      >
                         {p.username} {p.userId === userId && "(You)"}
                       </span>
                     </div>
@@ -965,7 +1035,6 @@ useEffect(() => {
           </div>
         </div>
       )}
-
       {/* ================= BOTTOM BAR ================= */}
       <div className="border-t border-white/5 bg-[#0B1B33]/80 backdrop-blur-md px-10 py-6">
         <div className="grid grid-cols-4 gap-8 max-w-7xl mx-auto">
@@ -979,8 +1048,13 @@ useEffect(() => {
                 .slice()
                 .sort((a, b) => b.score - a.score)
                 .map((p, i) => (
-                  <div key={p.userId} className="flex justify-between items-center text-sm">
-                    <span className={`font-medium ${p.userId === userId ? "text-white" : "text-[#8892B0]"}`}>
+                  <div
+                    key={p.userId}
+                    className="flex justify-between items-center text-sm"
+                  >
+                    <span
+                      className={`font-medium ${p.userId === userId ? "text-white" : "text-[#8892B0]"}`}
+                    >
                       {i === 0 ? "👑" : i + 1 + "."} {p.username}
                     </span>
                     <span className="text-[#64FFDA] font-mono font-bold">
@@ -997,7 +1071,8 @@ useEffect(() => {
               <div className="space-y-2">
                 <div className="text-white font-medium">Topic Submitted!</div>
                 <div className="text-[#8892B0] text-sm italic">
-                  Waiting for {players.length - submittedBy.length} others to choose...
+                  Waiting for {players.length - submittedBy.length} others to
+                  choose...
                 </div>
               </div>
             )}
@@ -1014,7 +1089,7 @@ useEffect(() => {
                 )}
               </div>
             )}
-            
+
             {phase === "ANSWERING" && (
               <div className="flex flex-col items-center gap-2">
                 <div className="flex gap-1">
@@ -1042,15 +1117,20 @@ useEffect(() => {
               Phase Info
             </div>
             <div className="text-[#8892B0] text-xs leading-relaxed">
-              Phase: <span className="text-white">{phaseLabel}</span><br />
+              Phase: <span className="text-white">{phaseLabel}</span>
+              <br />
               Time: <span className="text-white">{timeLeft}s left</span>
             </div>
           </div>
         </div>
       </div>
-      {game?.lobbyId && user && (
-        <LobbyChat lobbyId={game.lobbyId} currentUser={user} friends={friends} />
-      )}
+        {game?.lobbyId && user && (
+      <LobbyChat
+        lobbyId={game.lobbyId}
+        currentUser={user}
+        friends={friends}
+    />
+        )}
     </main>
   );
 }

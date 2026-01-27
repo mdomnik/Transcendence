@@ -115,9 +115,10 @@ export default function LeaderboardPage() {
               entries.map((entry, index) => (
                 <div 
                   key={entry.userId} 
+                  onClick={() => entry.userId && router.push(`/profile/${entry.userId}`)}
                   className={`grid grid-cols-12 gap-4 px-6 py-4 items-center transition-colors hover:bg-[#64FFDA]/5 group ${
                     entry.userId === user.id ? 'bg-[#64FFDA]/5' : ''
-                  }`}
+                  } ${entry.userId ? 'cursor-pointer' : ''}`}
                 >
                   <div className="col-span-1 flex justify-center">
                     <div className={`w-8 h-8 rounded-full flex items-center justify-center font-bold text-sm ${
