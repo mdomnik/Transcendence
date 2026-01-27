@@ -1,0 +1,6 @@
+{
+	"prisma.pinToPrisma6": false,
+	"editor.comments.insertSpace": true,
+    "editor.insertSpaces": true,
+    "editor.detectIndentation": true
+}

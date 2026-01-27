@@ -1,0 +1,109 @@
+import {
+  Body,
+  Controller,
+  Get,
+  Post,
+  Req,
+  Res,
+  UseGuards,
+} from '@nestjs/common';
+import { AuthService } from './auth.service';
+import { AuthDto, SignInDto } from './dto';
+import { GoogleAuthGuard } from './strategy/Guards';
+import type { Request, Response } from 'express';
+import { User } from 'src/common/decorators/user.decorator';
+import { ConfigService } from '@nestjs/config';
+
+@Controller('auth')
+export class AuthController {
+  constructor(
+    private authService: AuthService,
+    private configService: ConfigService,
+  ) { }
+
+  @Post('signup')
+  async signup(@Body() dto: AuthDto,
+    @Res({ passthrough: true }) res: Response,
+  ) {
+    const accessToken = await this.authService.signup(dto); // or return token from service
+
+    const maxAge = dto.remember ? 7 * 24 * 60 * 60 * 1000 : 24 * 60 * 60 * 1000;
+    const domain = this.configService.get<string>('DOMAIN');
+
+    res.cookie('access_token', accessToken, {
+      httpOnly: true,
+      secure: true,
+      sameSite: 'none',
+      domain,
+      path: '/',
+      maxAge,
+    });
+
+    return { ok: true };
+  }
+
+  @Post('signin')
+  async signin(
+    @Body() dto: SignInDto,
+    @Res({ passthrough: true }) res: Response,
+  ) {
+    const accessToken = await this.authService.signin(dto); // or return token from service
+
+    const maxAge = dto.remember ? 7 * 24 * 60 * 60 * 1000 : 24 * 60 * 60 * 1000;
+    const domain = this.configService.get<string>('DOMAIN');
+
+    res.cookie('access_token', accessToken, {
+      httpOnly: true,
+      secure: true,
+      sameSite: 'none',
+      domain,
+      path: '/',
+      maxAge,
+    });
+
+    return { ok: true };
+  }
+
+  @Post('logout')
+  logout(@Res() res: Response) {
+    const domain = this.configService.get<string>('DOMAIN');
+    
+    res.clearCookie('access_token', {
+      httpOnly: true,
+      secure: true,
+      sameSite: 'none',
+      domain,
+      path: '/',
+    });
+
+    return res.status(200).json({ message: 'Logged out successfully' });
+  }
+
+  @Get('google/login')
+  @UseGuards(GoogleAuthGuard)
+  handleLogin() { }
+
+  @Get('google/redirect')
+  @UseGuards(GoogleAuthGuard)
+  async handleRedirect(@User() user, @Res() res: Response) {
+    // const user = await this.authService.handleGoogleLogin(googleUser);
+    const accessToken = await this.authService.signToken(
+      user.username,
+      user.id,
+      user.email,
+    );
+    const domain = this.configService.get<string>('DOMAIN');
+    
+    res.cookie('access_token', accessToken, {
+      httpOnly: true,
+      secure: true,
+      sameSite: 'none',
+      domain,
+      path: '/',
+      maxAge: 24 * 60 * 60 * 1000,
+    });
+    console.log('access token: ', accessToken);
+    // Redirect to homepage - frontend will check auth and redirect to dashboard
+    return res.redirect('/dashboard');
+  }
+}

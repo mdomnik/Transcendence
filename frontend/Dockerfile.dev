@@ -1,0 +1,19 @@
+# Latest NodeJS image
+FROM node:20-alpine
+
+# root directory
+WORKDIR /app
+
+# Copy dependecies
+COPY package*.json ./
+#install all dependencies
+RUN npm install
+
+# Copy the rest
+COPY . .
+
+# run node build
+RUN npm run build
+
+CMD ["npm", "run", "dev"]
+

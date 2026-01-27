@@ -1,0 +1,223 @@
+import { Injectable } from '@nestjs/common';
+import { TopicDto } from './dto';
+import { AiService } from './ai/ai.service';
+import { EmbeddingService } from './ai/embedding/embedding.service';
+import { RepositoryService } from './repository/repository.service';
+
+// Maximum amount of previous questions passed down to the question generation prompt for exclusion.
+const MAX_EXCLUSIONS = 100;
+
+// Max db entries per topic per difficulty
+const MAX_QUESTIONS_PER_DIFFICULTY = 100;
+
+@Injectable()
+export class QuizService {
+  constructor(
+    private readonly repositoryService: RepositoryService,
+    private readonly embeddingService: EmbeddingService,
+    private readonly aiService: AiService,
+  ) {}
+
+  // Generates a set of questions based on Topic, amount of questions, and difficulty
+  async getQuestionSet(dto: TopicDto, userOrUsers: string | string[]) {
+    const userIds = Array.isArray(userOrUsers) ? userOrUsers : [userOrUsers];
+
+    const { topic, qnum, difficulty } = dto;
+
+    // runs topic similarity calculations based on vector embeddings
+    const topicId = await this.embeddingService.findOrCreateEmbedding(topic);
+
+    // Increment how many times users asked for that topic [Analytics]
+    await this.repositoryService.incrementTopicRequestCount(topicId);
+
+    // Find how many entries of Questions exist under that topic and difficulty
+    const totalQuestionsForTopicDifficulty =
+      await this.repositoryService.countQuestionsByTopicAndDifficulty(
+        topicId,
+        difficulty,
+      );
+
+    // disable generation if the database is full
+    const limitReached =
+      totalQuestionsForTopicDifficulty >= MAX_QUESTIONS_PER_DIFFICULTY;
+
+    // get the number of questions that user has seen under that topic and difficulty
+    const unseenQuestions =
+      await this.repositoryService.findUnseenQuestionsForUsers(
+        topicId,
+        difficulty,
+        userIds,
+      );
+
+    // if user has seen all topics and there is no space for generation, return a set of random questions
+    if (unseenQuestions.length < qnum && limitReached) {
+      const allQuestions =
+        await this.repositoryService.getAllQuestionsByTopicAndDifficutly(
+          topicId,
+          difficulty,
+        );
+
+      const result = this.pickRandom(allQuestions, qnum);
+
+      await this.repositoryService.markQuestionAsSeenForUsers(
+        userIds,
+        result.map((q) => q.id),
+      );
+
+      return result;
+    }
+
+    // if user has seen all questions in db, and there is space for more; run ai topic generation
+    if (unseenQuestions.length < qnum) {
+      const amountToGenerate = qnum - unseenQuestions.length;
+
+      // Get list of topic questions
+      const ListOfQuestionTexts =
+        await this.repositoryService.findQuestionTextsByTopicAndDifficulty(
+          topicId,
+          difficulty,
+        );
+      // transform topics into a set
+      const SetofQuestionTexts = new Set(
+        ListOfQuestionTexts.map((q) => q.toLowerCase().trim()),
+      );
+      // form an exclusion array for all previous questions in the category
+      const ListOfExcludedQuestions = Array.from(SetofQuestionTexts).slice(
+        0,
+        MAX_EXCLUSIONS,
+      );
+
+      // run a generation call
+      let newGeneratedQuestions: Array<{
+        question: string;
+        answers: any;
+        difficulty: any;
+        subject_icon: any;
+      }> = [];
+
+      try {
+        // first attempt
+        newGeneratedQuestions = await this.aiService.generateQuestions(
+          {
+            topic,
+            difficulty,
+            qnum: amountToGenerate,
+          },
+          ListOfExcludedQuestions,
+          60_000, // initial timeout
+        );
+
+        console.log('GENERATED QUESTIONS (first attempt):');
+        newGeneratedQuestions.forEach((q, index) => {
+          console.log(`${index + 1}. ${q.question}`);
+        });
+      } catch (err) {
+        console.warn(
+          'AI generation failed, retrying with longer timeout...',
+          err,
+        );
+
+        // Trying with longer timeout first?
+        try {
+          newGeneratedQuestions = await this.aiService.generateQuestions(
+            {
+              topic,
+              difficulty,
+              qnum: amountToGenerate,
+            },
+            ListOfExcludedQuestions,
+            120_000, // longer timeout
+          );
+
+          console.log('GENERATED QUESTIONS (retry):');
+          newGeneratedQuestions.forEach((q, index) => {
+            console.log(`${index + 1}. ${q.question}`);
+          });
+        } catch (retryErr) {
+          console.error(
+            'AI generation failed again, falling back to database questions.',
+            retryErr,
+          );
+
+          const allQuestions =
+            await this.repositoryService.getAllQuestionsByTopicAndDifficutly(
+              topicId,
+              difficulty,
+            );
+
+          const fallbackQuestions = this.pickRandom(
+            allQuestions,
+            amountToGenerate,
+          );
+
+          // TODO! I don't know what subject_icon is might need fixing later
+          newGeneratedQuestions = fallbackQuestions.map((q) => ({
+            question: q.text,
+            answers: q.answers,
+            difficulty: q.difficulty,
+            subject_icon: '',
+          }));
+        }
+      }
+
+      // check for duplicated
+      const filteredGeneratedQuestions = newGeneratedQuestions.filter(
+        (q) => !SetofQuestionTexts.has(q.question.toLocaleLowerCase().trim()),
+      );
+
+      // form questions from question set and add them to db topic
+      const newQuestions =
+        await this.repositoryService.createQuestionsWithAnswers(
+          filteredGeneratedQuestions,
+          topicId,
+        );
+
+      // take random assortment of unseen questions
+      let result = [
+        ...this.pickRandom(unseenQuestions, unseenQuestions.length),
+        ...newQuestions,
+      ].slice(0, qnum);
+
+      // if still not all questions, take the remaining from all questions
+      if (result.length < qnum) {
+        const allQuestions =
+          await this.repositoryService.getAllQuestionsByTopicAndDifficutly(
+            topicId,
+            difficulty,
+          );
+        const filler = this.pickRandom(allQuestions, qnum - result.length);
+
+        let temp = result;
+
+        // join generated with random seen
+        temp = [...result, ...filler].slice(0, qnum);
+
+        result = temp;
+      }
+
+      // mark presented entries as seen
+      await this.repositoryService.markQuestionAsSeenForUsers(
+        userIds,
+        result.map((q) => q.id),
+      );
+
+      return result;
+    }
+
+    // User has not seen all the entries, simply return a random set of questions
+
+    const result = this.pickRandom(unseenQuestions, qnum);
+
+    await this.repositoryService.markQuestionAsSeenForUsers(
+      userIds,
+      result.map((q) => q.id),
+    );
+
+    return result;
+  }
+
+  // private helper template code to generate a random set of items
+  private pickRandom<T>(items: T[], count: number): T[] {
+    return [...items].sort(() => Math.random() - 0.5).slice(0, count);
+  }
+}

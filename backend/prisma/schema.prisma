@@ -1,0 +1,188 @@
+// This is your Prisma schema file,
+// learn more about it in the docs: https://pris.ly/d/prisma-schema
+
+// Looking for ways to speed up your queries, or scale easily with your serverless or edge functions?
+// Try Prisma Accelerate: https://pris.ly/cli/accelerate-init
+
+generator client {
+  provider     = "prisma-client"
+  output       = "../generated/prisma"
+  moduleFormat = "cjs"
+}
+
+datasource db {
+  provider = "postgresql"
+}
+
+enum FriendStatus {
+  PENDING
+  ACCEPTED
+  REJECTED
+  BLOCKED
+}
+
+enum Difficulty {
+  EASY
+  MEDIUM
+  HARD
+}
+
+model User {
+  id        String   @id @default(uuid())
+  googleId  String?  @unique
+  username  String   @unique
+  email     String   @unique
+  password  String?
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  // relations
+  seenQuestions UserQuestion[]
+  stats         UserStats?
+
+  friendshipsA Friendship[] @relation("FriendshipUserA")
+  friendshipsB Friendship[] @relation("FriendshipUserB")
+
+  // Optional: convenient relations
+  requestsSent     Friendship[] @relation("FriendshipRequester")
+  blocksInitiated  Friendship[] @relation("FriendshipBlocker")
+
+  avatarPath String?  // public URL or relative path
+  games         GameResult[]
+
+  messagesSent     ChatMessage[] @relation("SentMessages")
+  messagesReceived ChatMessage[] @relation("ReceivedMessages")
+}
+
+model ChatMessage {
+  id        String   @id @default(uuid())
+  content   String
+  createdAt DateTime @default(now())
+  read      Boolean  @default(false)
+
+  senderId String
+  sender   User   @relation("SentMessages", fields: [senderId], references: [id], onDelete: Cascade)
+
+  receiverId String
+  receiver   User   @relation("ReceivedMessages", fields: [receiverId], references: [id], onDelete: Cascade)
+
+  @@index([senderId, receiverId])
+  @@index([receiverId, senderId])
+}
+
+model UserQuestion {
+  userId     String
+  questionId String
+
+  user     User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  question Question @relation(fields: [questionId], references: [id], onDelete: Cascade)
+
+  seenAt DateTime @default(now())
+
+  @@id([userId, questionId])
+  @@index([questionId])
+  @@index([userId])
+}
+
+model UserStats {
+  userId String @id
+  user   User   @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  gamesPlayed Int @default(0)
+  gamesWon    Int @default(0)
+  gamesLost   Int @default(0)
+
+  totalQuestions Int @default(0)
+  correctAnswers Int @default(0)
+
+  updatedAt DateTime @updatedAt
+}
+
+model Friendship {
+  id       String       @id @default(uuid())
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+  status   FriendStatus @default(PENDING)
+
+  userAId     String
+  userBId     String
+
+  userA       User @relation("FriendshipUserA", fields: [userAId], references: [id])
+  userB       User @relation("FriendshipUserB", fields: [userBId], references: [id])
+
+  // Who initiated (for pending/rejected history if you keep it)
+  requesterId String?
+  requester   User? @relation("FriendshipRequester", fields: [requesterId], references: [id])
+
+  // Who blocked (required to enforce unblock permissions)
+  blockerId   String?
+  blocker     User? @relation("FriendshipBlocker", fields: [blockerId], references: [id])
+
+  @@unique([userAId, userBId], name: "userAId_userBId")
+  @@index([userAId, status])
+  @@index([userBId, status])
+  @@index([status, blockerId])
+}
+
+model GameResult {
+  id     String @id @default(uuid())
+  userId String
+  user   User   @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  topicId String
+  topic   QuizTopic @relation(fields: [topicId], references: [id])
+
+  score Int
+  won   Boolean
+
+  playedAt DateTime @default(now())
+
+  @@index([userId])
+}
+
+model QuizTopic {
+  id        String     @id @default(uuid())
+  title     String     @unique
+  questions Question[]
+
+  requestCount Int @default(0)
+
+  embedding Unsupported("vector")?
+
+  createdAt   DateTime     @default(now())
+  updatedAt   DateTime     @updatedAt
+  gameResults GameResult[]
+}
+
+model Question {
+  id         String     @id @default(uuid())
+  topicId    String
+  text       String
+  difficulty Difficulty @default(MEDIUM)
+
+  answers Answer[]
+  seenBy  UserQuestion[]
+
+  quizTopic QuizTopic @relation(fields: [topicId], references: [id], onDelete: Cascade)
+  createdAt DateTime  @default(now())
+  updatedAt DateTime  @updatedAt
+
+  @@unique([topicId, text])
+  @@index([topicId])
+}
+
+model Answer {
+  id         String @id @default(uuid())
+  questionId String
+
+  text      String
+  isCorrect Boolean
+  position  Int
+
+  question Question @relation(fields: [questionId], references: [id], onDelete: Cascade)
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@unique([questionId, position])
+}
