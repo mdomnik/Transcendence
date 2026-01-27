@@ -60,7 +60,7 @@ docker-reset:
 	@echo "✓ Docker reset complete"
 
 docker-setup-goinfre:
-	@sudo systemctl stop docker 2>/dev/null || true
+	@systemctl --user stop docker 2>/dev/null || true
 	@mkdir -p ~/goinfre/.docker
 	@mkdir -p ~/.local/share
 	@if [ -d ~/.local/share/docker ] && [ ! -L ~/.local/share/docker ]; then \
