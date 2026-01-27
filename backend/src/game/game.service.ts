@@ -1168,7 +1168,7 @@ export class GameService {
       case 'ROUND_START':
         return 3;
       case 'TOPIC_INPUT':
-        return 30;
+        return 60;
       case 'VOTING_START':
         return 3;
       case 'VOTING':

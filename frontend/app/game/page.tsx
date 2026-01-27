@@ -420,7 +420,7 @@ export default function GamePage() {
     if (showingFeedback) return; // Prevent clicking during feedback
 
     try {
-      console.log("🟢 submitting answer", { qid, aid });
+      console.log("submitting answer", { qid, aid });
       await emitWithAck(getSocket(), "game:submit-answer", {
         lobbyId: game?.lobbyId,
         questionId: qid,
@@ -966,7 +966,7 @@ export default function GamePage() {
                     Winning Topic
                   </div>
                   <div className="text-white text-4xl font-black tracking-tight px-8 py-4 rounded-2xl bg-[#112240]/80 border border-[#64FFDA]/30 shadow-xl">
-                    {winningProposal?.topicTitle || "Loading..."}
+                    {winningProposal?.topicTitle || "Random Topic"}
                   </div>
                   <div className="text-xs text-[#64FFDA]/60 uppercase tracking-widest">
                     {winningProposal?.difficulty}
