@@ -14,10 +14,7 @@ import { FriendshipService } from 'src/friendship/friendship.service';
 @WebSocketGateway({
   namespace: '/quiz',
   cors: {
-    origin:
-      process.env.NODE_ENV === 'production'
-        ? `https://${process.env.DOMAIN || 'localhost'}`
-        : ['http://localhost:3000', 'http://localhost:3001'],
+    origin: ['https://localhost:3000', 'https://localhost:3001'],
     credentials: true,
   },
 })
