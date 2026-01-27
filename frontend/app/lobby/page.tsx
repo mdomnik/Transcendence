@@ -70,7 +70,6 @@ export default function LobbyPage() {
   }, [user]);
 
   const canEditLimits = isHost && lobby?.state === "WAITING" && !allReady;
-
   const displayedCode = showCode ? lobby?.lobbyCode : "********";
 
   useEffect(() => {
@@ -85,13 +84,6 @@ export default function LobbyPage() {
     const socket = getSocket();
 
     socket.on("lobby:update", (payload) => {
-      /* if (payload.state === "FINISHED") {
-        // TODO! Destroy the lobby instance and kick players out, otherwise lobby:update will be infinitely called
-        socket.emit("lobby:terminate");
-        router.replace("/dashboard");
-      } else {
-        setLobby(payload);
-      } */
      setLobby(payload);
     });
     socket.on("game:state", (view) => {
@@ -154,9 +146,8 @@ export default function LobbyPage() {
       await emitWithAck(getSocket(), isReady ? "lobby:unready" : "lobby:ready", {
         lobbyId: lobby.lobbyId,
       });
-      
     } catch (err) {
-      console.warn('Emit failed:', err);
+      console.warn('Lobby ready failed', err);
     }
   };
 
@@ -167,7 +158,7 @@ export default function LobbyPage() {
         lobbyId: lobby.lobbyId,
       });
     } catch (err) {
-      console.warn("Start game failed:", err);
+      console.warn("Start game failed", err);
     }
   };
 
@@ -179,7 +170,7 @@ export default function LobbyPage() {
         targetId,
       });
     } catch (err) {
-      console.warn('Emit failed:', err);
+      console.warn('Lobby kick failed', err);
     }
   };
 
@@ -197,7 +188,7 @@ export default function LobbyPage() {
         targetId,
       });
     } catch (err) {
-      console.warn('Emit failed:', err);
+      console.warn('Lobby ban failed', err);
     }
   };
 
@@ -208,7 +199,7 @@ export default function LobbyPage() {
         lobbyId: lobby.lobbyId,
       });
     } catch (err) {
-      console.warn('Emit failed:', err);
+      console.warn('Lobby leave failed', err);
     }
   };
 
@@ -227,7 +218,7 @@ export default function LobbyPage() {
         value,
       });
     } catch (err) {
-      console.warn('Emit failed:', err);
+      console.warn('Lobby config error', err);
     }
   };
 
@@ -240,9 +231,12 @@ export default function LobbyPage() {
 
   const selectCode = () => {
     if (!codeRef.current) return;
+
     const range = document.createRange();
     range.selectNodeContents(codeRef.current);
+
     const sel = window.getSelection();
+
     sel?.removeAllRanges();
     sel?.addRange(range);
   };

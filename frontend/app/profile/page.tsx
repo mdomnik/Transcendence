@@ -64,9 +64,8 @@ export default function ProfilePage() {
             }
           : prev
       );
-  
-      // Log what you're actually setting (not the stale state)
-      console.log('avatar path set to:', nextAvatarPath);
+
+      // console.log('avatar path set to:', nextAvatarPath);
   
       await refreshAuth();
     } catch (error: any) {

@@ -9,5 +9,4 @@ export class AppController {
   getConnectionStatus(): string {
     return this.appService.getConnectionStatus();
   }
-
 }
