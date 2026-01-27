@@ -17,6 +17,11 @@ interface ChatBoxProps {
   friends: Friendship[];
 }
 
+/**
+ * CHATBOX COMPONENT:
+ * This component handles real-time private messaging between friends.
+ * It uses WebSockets for instant message delivery and manages unread counts.
+ */
 export default function ChatBox({ currentUser, friends }: ChatBoxProps) {
   const [activeFriendId, setActiveFriendId] = useState<string | null>(null);
   const [messages, setMessages] = useState<Message[]>([]);
@@ -30,7 +35,10 @@ export default function ChatBox({ currentUser, friends }: ChatBoxProps) {
   useEffect(() => {
     const socket = getSocket();
     
-    // Fetch initial unread counts
+    /**
+     * INITIALIZATION:
+     * We fetch unread message counts from the backend on mount.
+     */
     const fetchUnreads = async () => {
       try {
         const res = await emitWithAck(socket, "chat:unread_counts");
@@ -48,6 +56,11 @@ export default function ChatBox({ currentUser, friends }: ChatBoxProps) {
     
     fetchUnreads();
 
+    /**
+     * GLOBAL MESSAGE LISTENER:
+     * This listener runs even if the chat box is closed, allowing us to
+     * increment unread badges in real-time.
+     */
     const handleNewMessageGlobal = (msg: Message) => {
       if (msg.senderId !== currentUser.id) {
         // If chat with this friend is not active or chatbox is closed, increment unread
@@ -71,7 +84,11 @@ export default function ChatBox({ currentUser, friends }: ChatBoxProps) {
 
     const socket = getSocket();
     
-    // Clear unread for this friend
+    /**
+     * MESSAGE READ STATUS:
+     * When the user opens a specific chat, we notify the backend 
+     * to mark those messages as 'read' in the database.
+     */
     if (unreadCounts[activeFriendId]) {
       const clearUnread = async () => {
         try {
@@ -84,7 +101,10 @@ export default function ChatBox({ currentUser, friends }: ChatBoxProps) {
       setUnreadCounts(prev => ({ ...prev, [activeFriendId]: 0 }));
     }
 
-    // Load history
+    /**
+     * CHAT HISTORY:
+     * Fetch the 50 most recent messages for the selected conversation.
+     */
     const loadHistory = async () => {
       try {
         const res = await emitWithAck(socket, "chat:history", { friendId: activeFriendId });

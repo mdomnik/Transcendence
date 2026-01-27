@@ -67,8 +67,8 @@ export const getUserProfile = async (userId?: string): Promise<UserProfile> => {
     avatarPath: data.avatarPath,
     status: data.status || 'offline',
     stats: {
-      rank: 0, // Not in backend yet
-      tier: 'Bronze', // Not in backend yet
+      rank: data.rank || 0,
+      tier: data.tier || 'Bronze',
       wins: data.stats?.gamesWon || 0,
       losses: data.stats?.gamesLost || 0,
       winRate: Math.round((data.derived?.winRate || 0) * 100),

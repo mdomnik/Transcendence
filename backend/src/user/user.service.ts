@@ -68,9 +68,14 @@ export class UserService {
 
     const online = await this.redisService.isUserOnline(userId);
 
+    const rank = await this.calculateRank(userId);
+    const tier = this.getTier(gamesWon);
+
     return {
       ...user,
       status: online ? 'online' : 'offline',
+      rank,
+      tier,
       derived: {
         winRate: gamesPlayed > 0 ? gamesWon / gamesPlayed : 0,
         accuracy: totalQuestions > 0 ? correctAnswers / totalQuestions : 0,
@@ -127,14 +132,59 @@ export class UserService {
 
     const online = await this.redisService.isUserOnline(userId);
 
+    const rank = await this.calculateRank(userId);
+    const tier = this.getTier(gamesWon);
+
     return {
       ...user,
       status: online ? 'online' : 'offline',
+      rank,
+      tier,
       derived: {
         winRate: gamesPlayed > 0 ? gamesWon / gamesPlayed : 0,
         accuracy: totalQuestions > 0 ? correctAnswers / totalQuestions : 0,
       },
     };
+  }
+
+  private async calculateRank(userId: string): Promise<number> {
+    const userStats = await this.prisma.userStats.findUnique({
+      where: { userId },
+    });
+
+    if (!userStats) return 0;
+
+    // Count how many users are "ahead" of us
+    const count = await this.prisma.userStats.count({
+      where: {
+        OR: [
+          { gamesWon: { gt: userStats.gamesWon } },
+          {
+            AND: [
+              { gamesWon: userStats.gamesWon },
+              { correctAnswers: { gt: userStats.correctAnswers } },
+            ],
+          },
+          {
+            AND: [
+              { gamesWon: userStats.gamesWon },
+              { correctAnswers: userStats.correctAnswers },
+              { gamesPlayed: { gt: userStats.gamesPlayed } },
+            ],
+          },
+        ],
+      },
+    });
+
+    return count + 1;
+  }
+
+  private getTier(wins: number): string {
+    if (wins >= 50) return 'Diamond';
+    if (wins >= 30) return 'Platinum';
+    if (wins >= 15) return 'Gold';
+    if (wins >= 5) return 'Silver';
+    return 'Bronze';
   }
 
   async ensureUserStats(userId: string) {

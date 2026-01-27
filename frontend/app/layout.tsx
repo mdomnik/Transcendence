@@ -25,10 +25,17 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
   return (
     <html lang="en">
       <body>
+        {/* 
+           GLOBAL PROVIDERS HIERARCHY:
+           1. AuthProvider: Manages user login state & JWT access tokens.
+           2. SocketProvider: Maintains a single WebSocket connection for the entire app session.
+           3. NotificationProvider: Listens for real-time events (chats/friend requests) and shows global toasts.
+        */}
         <AuthProvider>
           <SocketProvider>
             <NotificationProvider>
               {children}
+              {/* This modal is global so friend requests can be handled from any page */}
               <FriendRequestModal />
             </NotificationProvider>
           </SocketProvider>

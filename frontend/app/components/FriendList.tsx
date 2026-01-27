@@ -11,6 +11,11 @@ interface FriendListProps {
   refreshTrigger?: number;
 }
 
+/**
+ * FRIEND LIST:
+ * Displays all 'ACCEPTED' relationships and handles status updates.
+ * It uses both WebSocket events for instant updates and polling as a fallback.
+ */
 export default function FriendList({ refreshTrigger = 0 }: FriendListProps) {
   const [friends, setFriends] = useState<Friendship[]>([]);
   const [actionLoading, setActionLoading] = useState<string | null>(null);
@@ -28,42 +33,12 @@ export default function FriendList({ refreshTrigger = 0 }: FriendListProps) {
     }
   };
 
-  const handleRemoveFriend = async (friendshipId: string, userId: string) => {
-    setActionLoading(friendshipId);
-    try {
-      await removeFriend(userId);
-      // friendship:updated event will refresh the list automatically
-    } catch (error) {
-      console.error('Failed to remove friend:', error);
-    } finally {
-      setActionLoading(null);
-    }
-  };
-
-  const handleBlockFriend = async (friendshipId: string, userId: string) => {
-    setActionLoading(friendshipId);
-    try {
-      await blockUser(userId);
-      // friendship:updated event will refresh the list automatically
-    } catch (error) {
-      console.error('Failed to block friend:', error);
-    } finally {
-      setActionLoading(null);
-    }
-  };
-
-  const handleUnblockFriend = async (friendshipId: string, userId: string) => {
-    setActionLoading(friendshipId);
-    try {
-      await unblockUser(userId);
-      // friendship:updated event will refresh the list automatically
-    } catch (error) {
-      console.error('Failed to unblock friend:', error);
-    } finally {
-      setActionLoading(null);
-    }
-  };
-
+  /**
+   * REAL-TIME PRESENCE:
+   * We listen for 'presence:updated' events from the backend (Socket.IO).
+   * When a friend goes online, offline, or enters a game, this list 
+   * refreshes automatically to reflect their live status.
+   */
   useEffect(() => {
     fetchFriends();
 

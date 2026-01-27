@@ -4,6 +4,8 @@ export interface User {
   email: string;
   username?: string;
   avatarPath?: string;
+  rank?: number;
+  tier?: string;
 }
 
 export async function fetchCurrentUser(): Promise<User | null> {

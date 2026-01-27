@@ -27,10 +27,16 @@ export function NotificationProvider({ children }: { children: React.ReactNode }
     setToast({ message, type });
   };
 
+  /**
+   * GLOBAL EVENT LISTENING:
+   * We initialize the socket inside this provider so we can show notifications
+   * regardless of which page the user is currently browsing.
+   */
   useEffect(() => {
     if (!user) return;
     const socket = getSocket();
 
+    // Triggered when a friend request is sent/received/accepted
     const handleFriendshipUpdate = (data: any) => {
       if (data.type === 'REQUEST_RECEIVED') {
         showToast(`Friend request from ${data.fromUsername || "someone"}`, 'info');
@@ -40,11 +46,10 @@ export function NotificationProvider({ children }: { children: React.ReactNode }
       }
     };
 
+    // Triggered on every new private chat message
     const handleNewMessage = (msg: any) => {
-      // Don't show toast if we sent it
+      // Don't show toast if we are the sender
       if (msg.senderId !== user.id) {
-         // Only show if we are NOT on a page that is already handling this chat? 
-         // For now, let's just show it globally.
          showToast(`New message from ${msg.sender.username}`, 'info');
       }
     };

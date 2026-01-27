@@ -21,6 +21,13 @@ interface LobbyChatProps {
   friends: Friendship[];
 }
 
+/**
+ * LOBBY CHAT:
+ * This is a specialized chat component used within game lobbies and during 
+ * active gameplay. It supports two distinct communication modes:
+ * 1. LOBBY: Broadcasting messages to everyone currently in the game room.
+ * 2. DM (Direct Message): Private 1v1 conversations with friends.
+ */
 export default function LobbyChat({ lobbyId, currentUser, friends }: LobbyChatProps) {
   const [activeChat, setActiveChat] = useState<"lobby" | "list" | string>("list");
   const [lobbyMessages, setLobbyMessages] = useState<Message[]>([]);
@@ -30,18 +37,13 @@ export default function LobbyChat({ lobbyId, currentUser, friends }: LobbyChatPr
   const [unreadCounts, setUnreadCounts] = useState<Record<string, number>>({ lobby: 0 });
   const messagesEndRef = useRef<HTMLDivElement>(null);
 
-  // Force close on mount just in case
-  useEffect(() => {
-    setIsOpen(false);
-    setActiveChat("list");
-  }, []);
-
-  const activeFriend = friends.find(f => f.friend.id === activeChat)?.friend;
-
   useEffect(() => {
     const socket = getSocket();
 
-    // Fetch initial unread counts for private chats
+    /**
+     * UNREAD SYNC:
+     * Pulls the history of unread messages from the backend for the friend list.
+     */
     const fetchUnreads = async () => {
       try {
         const res = await emitWithAck(socket, "chat:unread_counts");
@@ -61,7 +63,11 @@ export default function LobbyChat({ lobbyId, currentUser, friends }: LobbyChatPr
     
     fetchUnreads();
 
-    // Lobby Listener
+    /**
+     * LOBBY MESSAGE LISTENER:
+     * Listens for room-wide broadcasts. These messages are not persisted 
+     * in the database as long as private DMs.
+     */
     const handleLobbyMessage = (msg: Message) => {
       setLobbyMessages((prev) => [...prev, msg]);
       if (activeChat !== "lobby" || !isOpen) {
@@ -69,9 +75,11 @@ export default function LobbyChat({ lobbyId, currentUser, friends }: LobbyChatPr
       }
     };
 
-    // Private Chat Listener
+    /**
+     * PRIVATE MESSAGE LISTENER:
+     * Handles targeted messages between specific user IDs.
+     */
     const handlePrivateMessage = (msg: Message) => {
-      // Global unread tracking
       if (msg.senderId !== currentUser.id) {
         if (!isOpen || activeChat !== msg.senderId) {
           setUnreadCounts(prev => ({
@@ -81,7 +89,6 @@ export default function LobbyChat({ lobbyId, currentUser, friends }: LobbyChatPr
         }
       }
 
-      // If viewing this DM, add to messages
       if (
         (activeChat !== "lobby" && activeChat !== "list") && (
           (msg.senderId === activeChat && (msg as any).receiverId === currentUser.id) ||

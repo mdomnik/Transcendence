@@ -261,7 +261,15 @@ export default function Dashboard() {
           </h1>
 
           <div className="flex items-center gap-4">
-            <span className="text-[#CCD6F6]">Welcome, {userName}!</span>
+            <div className="flex flex-col items-end mr-2">
+              <span className="text-[#CCD6F6] text-sm font-medium">Welcome, {userName}!</span>
+              {user.rank !== undefined && (
+                <div className="flex items-center gap-2">
+                   <span className="text-[10px] uppercase tracking-widest text-[#8892B0]">Rank #{user.rank}</span>
+                   <span className="text-[10px] font-bold text-[#64FFDA] bg-[#64FFDA]/10 px-1.5 py-0.5 rounded border border-[#64FFDA]/20">{user.tier}</span>
+                </div>
+              )}
+            </div>
             
             {/* Avatar as Profile Button */}
             <button

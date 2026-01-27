@@ -9,6 +9,11 @@ interface AddFriendProps {
   onAction?: () => void;
 }
 
+/**
+ * ADD FRIEND:
+ * Provides a searchable interface to find users by username and initiate 
+ * a friendship relation. It combines searching and request-sending logic.
+ */
 export default function AddFriend({ onAction }: AddFriendProps) {
   const [username, setUsername] = useState('');
   const [message, setMessage] = useState('');
@@ -19,7 +24,12 @@ export default function AddFriend({ onAction }: AddFriendProps) {
     setLoading(true);
     setMessage('');
     try {
-      // 1. Find user by username
+      /**
+       * PROCESS:
+       * 1. SEARCH: We first search for the user by their text username.
+       * 2. ID MATCH: We find the specific user ID from the search results.
+       * 3. REQUEST: We send the request using the target user's UUID.
+       */
       const results = await searchUsers(username);
       const target = results.find((u: any) => u.username.toLowerCase() === username.toLowerCase());
       
@@ -28,7 +38,6 @@ export default function AddFriend({ onAction }: AddFriendProps) {
         return;
       }
 
-      // 2. Send request by ID
       const result = await sendFriendRequest(target.id);
       if (!result.ok) {
         setMessage(`Error: ${result.error}`);

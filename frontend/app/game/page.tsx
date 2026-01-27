@@ -193,13 +193,18 @@ export default function GamePage() {
     return () => clearInterval(id);
   }, []);
 
-  /* ===================== SOCKET ===================== */
+  /* ===================== SOCKET LOGIC ===================== */
 
   useEffect(() => {
     if (loading || !user) return;
 
     const socket = getSocket();
 
+    /**
+     * STATE SYNCHRONIZATION:
+     * When a player joins or refreshes the page, they emit 'game:sync' to get
+     * the current authoritative state from the Redis-backed backend.
+     */
     const sync = async () => {
       if (!socket.connected) {
           await new Promise<void>((resolve) => {
@@ -214,6 +219,11 @@ export default function GamePage() {
       }
     };
 
+    /**
+     * MULTIPLAYER EVENT HANDLERS:
+     * game:state -> Triggered on every change (new question, score update, phase change).
+     * game:terminated -> Handles sudden game ends (e.g. opponent disconnected).
+     */
     const onGameState = (view: GameState) => {
       if (!view) return;
       // If match is finished, only redirect if it's NOT the MATCH_END phase
@@ -259,8 +269,9 @@ export default function GamePage() {
     };
   }, [loading, user, router]);
 
-  /* ===================== DERIVED (SAFE) ===================== */
-
+  /* ===================== DERIVED DATA ===================== */
+  // We extract data from the 'game' state object sent by the backend.
+  // The 'phase' dictates which UI component we render.
   const userId = user?.id ?? "";
 
   const phase = game?.phase?.state ?? null;
@@ -726,6 +737,7 @@ export default function GamePage() {
                         isThisAnswer;
                       const isCorrect = showFeedback && wasCorrect === true;
                       const isWrong = showFeedback && wasCorrect === false;
+                      const isPending = showFeedback && wasCorrect === undefined;
 
                       return (
                         <button
@@ -735,12 +747,14 @@ export default function GamePage() {
                           className={`group relative p-5 rounded-xl border transition-all text-left
                                      ${
                                        isCorrect
-                                         ? "border-green-500/70 bg-green-500/20 animate-shake-correct shadow-lg shadow-green-500/20"
+                                         ? "border-green-500 border-2 bg-green-500/20 animate-shake-correct shadow-lg shadow-green-500/20"
                                          : isWrong
-                                           ? "border-red-500/70 bg-red-500/20 animate-shake shadow-lg shadow-red-500/20"
-                                           : showingFeedback && !isThisAnswer
-                                             ? "border-white/5 bg-white/5 opacity-30"
-                                             : "border-white/10 bg-[#112240] hover:border-[#64FFDA]/50 hover:bg-[#112240]/80 cursor-pointer"
+                                           ? "border-red-500 border-2 bg-red-500/20 animate-shake shadow-lg shadow-red-500/40"
+                                           : isPending
+                                             ? "border-[#64FFDA]/50 bg-[#64FFDA]/5 animate-pulse shadow-md shadow-[#64FFDA]/10"
+                                             : showingFeedback && !isThisAnswer
+                                               ? "border-white/5 bg-white/5 opacity-30"
+                                               : "border-white/10 bg-[#112240] hover:border-[#64FFDA]/50 hover:bg-[#112240]/80 cursor-pointer"
                                      }`}
                         >
                           <div className="flex justify-between items-center">
@@ -750,9 +764,11 @@ export default function GamePage() {
                                   ? "text-green-400 font-bold"
                                   : isWrong
                                     ? "text-red-400 font-bold"
-                                    : showingFeedback && !isThisAnswer
-                                      ? "text-[#8892B0]"
-                                      : "text-[#CCD6F6] group-hover:text-white"
+                                    : isPending
+                                      ? "text-[#64FFDA] animate-pulse"
+                                      : showingFeedback && !isThisAnswer
+                                        ? "text-[#8892B0]"
+                                        : "text-[#CCD6F6] group-hover:text-white"
                               }`}
                             >
                               {a.text}
@@ -763,12 +779,14 @@ export default function GamePage() {
                                   ? "opacity-100 scale-125 text-green-500"
                                   : isWrong
                                     ? "opacity-100 scale-125 text-red-500"
-                                    : showingFeedback && !isThisAnswer
-                                      ? "opacity-0"
-                                      : "opacity-0 group-hover:opacity-100 text-[#64FFDA]"
+                                    : isPending
+                                      ? "opacity-50 scale-100 text-[#64FFDA] animate-spin"
+                                      : showingFeedback && !isThisAnswer
+                                        ? "opacity-0"
+                                        : "opacity-0 group-hover:opacity-100 text-[#64FFDA]"
                               }`}
                             >
-                              {isCorrect ? "✓" : isWrong ? "✗" : "→"}
+                              {isCorrect ? "✓" : isWrong ? "✗" : isPending ? "◌" : "→"}
                             </span>
                           </div>
                         </button>

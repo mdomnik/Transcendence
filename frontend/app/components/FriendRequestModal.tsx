@@ -9,6 +9,12 @@ interface FriendRequestModalProps {
   onRequestHandled?: () => void;
 }
 
+/**
+ * FRIEND REQUEST MODAL:
+ * This is a global, interruptive modal that appears instantly whenever the user
+ * receives a new friend request. It uses the global WebSocket connection 
+ * to listen for incoming 'friendship:updated' events.
+ */
 export default function FriendRequestModal({ onRequestHandled }: FriendRequestModalProps) {
   const { user } = useAuth();
   const [pendingRequest, setPendingRequest] = useState<Friendship | null>(null);
@@ -19,6 +25,11 @@ export default function FriendRequestModal({ onRequestHandled }: FriendRequestMo
 
     const socket = getSocket();
 
+    /**
+     * REAL-TIME LISTENER:
+     * This ensures the modal pops up even if the user is on the Dashboard 
+     * or a different page, providing a seamless "push" experience.
+     */
     const handleFriendshipUpdate = (data: any) => {
       // Show modal only for incoming requests
       if (data.type === 'REQUEST_RECEIVED') {
