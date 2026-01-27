@@ -265,7 +265,7 @@ export class GameService {
 
       const maxScore = Math.max(...Object.values(scores));
       const winners = Object.entries(scores)
-        .filter(([_, s]) => s === maxScore)
+        .filter(([, s]) => s === maxScore)
         .map(([userId]) => userId);
 
       roundData = {
@@ -1108,7 +1108,7 @@ export class GameService {
 
     const winners = new Set(
       Object.entries(scores)
-        .filter(([_, score]) => score === maxScore && score > 0)
+        .filter(([, score]) => score === maxScore && score > 0)
         .map(([userId]) => userId),
     );
 
